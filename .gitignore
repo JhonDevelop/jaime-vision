@@ -1,23 +1,59 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
+# ── segredos ───────────────────────────────────────────
+# Nunca versionar. O .env.example é o único que entra no repo.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+token.json
+secrets/
+
+# ── Python ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+
+# ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# testes e ferramentas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ── voz ────────────────────────────────────────────────
+# modelos Whisper baixados e wake words treinadas na Picovoice
+*.ppn
+models/
+.cache/whisper/
+
+# ── vault ──────────────────────────────────────────────
+# As notas são versionadas de propósito: são o cérebro do Jaime.
+# Só a configuração local do Obsidian fica de fora.
+vault/.obsidian/
+vault/.trash/
+
+# ── sistema ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ── editores ───────────────────────────────────────────
 .vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-files
-*.bclicense
-*.flf
-#Test results file
-TestResults.xml
+.idea/
