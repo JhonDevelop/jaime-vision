@@ -1,0 +1,33 @@
+[project]
+name = "jaime"
+version = "0.1.0"
+description = "Jaime — assistente pessoal com voz, memória Obsidian e acesso ao computador (Claude Agent SDK)"
+requires-python = ">=3.11"
+dependencies = [
+  "claude-agent-sdk>=0.2",
+  "python-dotenv>=1.0",
+  "pyyaml>=6.0",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+voice = [
+  "pvporcupine>=3.0",
+  "sounddevice>=0.4",
+  "numpy>=1.26",
+  "faster-whisper>=1.0",
+  "elevenlabs>=1.0",
+]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+jaime = "jaime.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["jaime*"]
