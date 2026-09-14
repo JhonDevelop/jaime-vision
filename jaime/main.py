@@ -18,15 +18,29 @@ async def _chat():
         await j.stop()
 
 async def _voice():
+    """Só voz, sem HUD: escuta contínua no terminal (mesmo ouvido que o servidor usa)."""
     from .orchestrator.jaime import Jaime
-    from .voice.loop import VoiceLoop
-    from .voice.tts import TTS
+    from .voice.escuta import Ouvido
     j = Jaime(settings)
-    TTS(settings).falar(await j.start())
+    apresentacao = await j.start()
+    ouvido = Ouvido(j, settings, asyncio.get_running_loop())
+    ouvido.start()
+    print("🎙️  Jaime ouvindo — fale normalmente (Ctrl+C para sair).")
+    await asyncio.to_thread(lambda: (_esperar_tts(ouvido), ouvido.falar(apresentacao)))
     try:
-        await VoiceLoop(j, settings).run()
+        while not ouvido.erro:
+            await asyncio.sleep(0.5)
+        print("voz indisponível:", ouvido.erro)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
     finally:
-        await j.stop()
+        ouvido.stop(); await j.stop()
+
+def _esperar_tts(ouvido, s: float = 60):
+    import time
+    fim = time.time() + s
+    while not ouvido._tts and time.time() < fim:
+        time.sleep(0.25)
 
 def _serve(abrir_hud: bool):
     import uvicorn

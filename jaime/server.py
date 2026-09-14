@@ -15,17 +15,43 @@ from .channels.whatsapp import Evolution, extrair_mensagem
 from .channels.telephony import router as telephony_router
 from .hud.events import bus
 from .hud.monitor import loop_monitor
+from .hud.conexoes import Conexoes
+from .voice.escuta import Ouvido
+from .ops.observador import Observador
 
 jaime = Jaime(settings)
+conexoes = Conexoes(settings, jaime)
+observador = Observador(jaime)
+ouvido: Ouvido | None = None
 STATIC = Path(__file__).parent / "hud" / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global ouvido
     monitor = asyncio.create_task(loop_monitor())
+    sonda = asyncio.create_task(conexoes.sondar())
     await jaime.start(apresentar=True)
+    if settings.voz != "off":
+        # o microfone vive no servidor: abrir o HUD já é estar ouvindo
+        ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
+        ouvido.observador = observador; observador.ouvido = ouvido
+        ouvido.start()
+        if jaime.apresentacao:
+            asyncio.get_running_loop().run_in_executor(None, _falar_quando_pronto, jaime.apresentacao)
+    vigilancia = asyncio.create_task(observador.rodar())   # de olho no que o João faz na máquina
     yield
-    monitor.cancel()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel()
+    if ouvido:
+        ouvido.stop()
     await jaime.stop()
+
+def _falar_quando_pronto(texto: str):
+    """A apresentação é falada assim que o TTS carregar (o Whisper demora alguns segundos a subir)."""
+    import time
+    for _ in range(120):
+        if ouvido and ouvido._tts:
+            ouvido.falar(texto); return
+        time.sleep(0.5)
 
 app = FastAPI(title="Jaime", lifespan=lifespan)
 app.include_router(telephony_router)
@@ -46,6 +72,13 @@ def _auth(token: str | None):
 @app.get("/")
 async def hud():
     return FileResponse(STATIC / "index.html")
+
+@app.get("/hud/vendor/{arquivo}")
+async def hud_vendor(arquivo: str):
+    p = (STATIC / "vendor" / arquivo).resolve()
+    if p.parent != (STATIC / "vendor").resolve() or not p.is_file():
+        raise HTTPException(404)
+    return FileResponse(p)
 
 @app.get("/hud/stream")
 async def hud_stream():
@@ -69,14 +102,44 @@ async def hud_stream():
 async def hud_estado():
     return {"liberado": jaime.acesso.liberado, "fase": jaime.estado.fase(), "maquina": maquina(),
             "situacao": jaime.estado.secao("Situação agora"), "proximos": jaime.estado.secao("Próximos passos"),
-            "apresentacao": jaime.apresentacao, "notion": jaime.notion.ativo, "modelo": settings.model}
+            "apresentacao": jaime.apresentacao, "notion": jaime.notion.ativo, "modelo": settings.model,
+            "voz": _voz_estado(), "conexoes": conexoes.estado(),
+            "contexto": {"app": observador.atual[0], "janela": observador.atual[1]}}
+
+def _voz_estado() -> dict:
+    if settings.voz == "off":
+        return {"disponivel": False, "ativa": False, "motivo": "JAIME_VOZ=off"}
+    if not ouvido:
+        return {"disponivel": False, "ativa": False, "motivo": "iniciando"}
+    return {"disponivel": not ouvido.erro, "ativa": ouvido.ativo, "motivo": ouvido.erro,
+            "stt": "deepgram" if settings.deepgram_key else f"whisper:{settings.whisper_modelo}",
+            "tts": "elevenlabs" if settings.elevenlabs_key else "say"}
+
+@app.get("/hud/conexoes")
+async def hud_conexoes():
+    return conexoes.estado()
+
+@app.post("/hud/voz")
+async def hud_voz(body: dict):
+    """Liga/desliga o microfone a partir do HUD."""
+    if not ouvido:
+        raise HTTPException(409, "voz indisponível")
+    ouvido.ativo = bool(body.get("ativa", True))
+    bus.emitir("voz", estado="ouvindo" if ouvido.ativo else "mudo", falando=False)
+    return _voz_estado()
+
+@app.post("/hud/teclado")
+async def hud_teclado(body: dict):
+    """O HUD avisa que o teclado abriu/fechou (para o histórico e outros clientes)."""
+    bus.emitir("teclado", aberto=bool(body.get("aberto")), motivo=str(body.get("motivo") or "")[:120])
+    return {"ok": True}
 
 @app.post("/hud/falar")
 async def hud_falar(body: dict):
     texto = (body.get("texto") or "").strip()
     if not texto:
         raise HTTPException(400, "texto vazio")
-    asyncio.create_task(jaime.ask(texto, canal="hud"))   # resposta chega pelo /hud/stream
+    asyncio.create_task(jaime.ask(texto, canal="hud", contexto=observador.contexto()))   # resposta chega pelo /hud/stream
     return {"ok": True}
 
 @app.post("/hud/trancar")

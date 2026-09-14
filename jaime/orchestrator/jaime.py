@@ -15,12 +15,13 @@ from ..brain.tools import build_cerebro_server
 from ..brain.notion_sync import NotionSync
 from ..vigia.hooks import Vigia, eh_confirmacao
 from ..vigia.acesso import Acesso, quer_trancar
+from ..voice.escuta import quer_teclado
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
 CEREBRO_TOOLS = ["lembrar", "buscar_memoria", "ler_nota", "registrar_diario", "criar_tarefa", "tarefas_abertas",
-                 "ler_estado", "atualizar_estado"]
+                 "ler_estado", "atualizar_estado", "pedir_teclado"]
 
 def _resumo_tool(nome: str, args: dict) -> str:
     for k in ("file_path", "command", "pattern", "path", "url", "query", "description", "prompt", "nota", "descricao", "secao"):
@@ -51,9 +52,9 @@ class Jaime:
             agents=carregar_maesters(self.s.root),
             mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado)},
             hooks=self.vigia.hooks(),
-            permission_mode="acceptEdits",
-            allowed_tools=["Read", "Write", "Edit", "Grep", "Glob", "Bash", "WebSearch", "WebFetch", "Task"]
-                          + [f"mcp__cerebro__{t}" for t in CEREBRO_TOOLS],
+            # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
+            # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
+            permission_mode="bypassPermissions",
         )
         if self.s.thinking_tokens > 0:
             kw["max_thinking_tokens"] = self.s.thinking_tokens   # mostra parte do raciocínio no HUD
@@ -112,6 +113,9 @@ class Jaime:
         if quer_trancar(texto):
             self.acesso.trancar(); bus.emitir("acesso", liberado=False)
             return "Cérebro trancado. Diga a palavra-passe quando quiser voltar."
+        if quer_teclado(texto):
+            bus.emitir("teclado", aberto=True, motivo="você pediu")
+            return "Pode escrever."
         if not self.acesso.liberado:
             if self.acesso.tentar(texto):
                 bus.emitir("acesso", liberado=True)
@@ -120,7 +124,8 @@ class Jaime:
             return "Palavra-passe, por favor."
         self.acesso.tocar(); return None
 
-    async def ask_stream(self, texto: str, canal: str = "cli"):
+    async def ask_stream(self, texto: str, canal: str = "cli", contexto: str = ""):
+        """contexto: o que o João está vendo na tela agora (app/janela) — vai só ao modelo, não ao diário."""
         assert self._client, "Chame start() antes."
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")
         curta = self._porta(texto)
@@ -131,18 +136,19 @@ class Jaime:
             if eh_confirmacao(texto):
                 self.vigia.armar(); texto = "confirmo — pode executar a ação que o Vigia bloqueou."
             partes = []
-            async for t in self._stream(f"[canal={canal}] {texto}"):
+            prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
+            async for t in self._stream(f"{prefixo} {texto}"):
                 partes.append(t); yield t
         await self._pos_turno(canal, texto, "".join(partes))
 
-    async def ask(self, texto: str, canal: str = "cli") -> str:
-        return "".join([t async for t in self.ask_stream(texto, canal)]).strip() or "(sem resposta)"
+    async def ask(self, texto: str, canal: str = "cli", contexto: str = "") -> str:
+        return "".join([t async for t in self.ask_stream(texto, canal, contexto)]).strip() or "(sem resposta)"
 
     async def _pos_turno(self, canal: str, pergunta: str, resposta: str):
         self.estado.registrar_turno(canal, pergunta, resposta)
         if self.estado.precisa_refletir():
             bus.emitir("raciocinio", ferramenta="reflexão", alvo="atualizando meu Estado")
-            await self._interno(prompt_reflexao())
+            asyncio.create_task(self._interno(prompt_reflexao()))   # em segundo plano: não segura a resposta
         bus.emitir("estado", fase=self.estado.fase(), situacao=self.estado.secao("Situação agora"),
                    maquina=maquina(), liberado=self.acesso.liberado)
         asyncio.create_task(self.notion.tudo())

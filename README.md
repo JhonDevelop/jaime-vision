@@ -3,7 +3,7 @@
 Assistente pessoal e operacional com voz, memória própria (vault Obsidian) e acesso real ao computador — construído sobre o **Claude Agent SDK**.
 
 ```
-você fala ──► ouvido (wake word + STT) ──► JAIME (orquestrador) ──► maesters ──► ferramentas
+você fala ──► ouvido (Silero VAD + STT, ativação por "Jaime") ──► JAIME (orquestrador) ──► maesters ──► ferramentas
                                               │  cérebro: vault/ (Obsidian)      (shell, git, MCPs,
                                               │  vigia: confirmações            n8n, WhatsApp, agenda)
                                               └──► voz (TTS) ──► você
@@ -20,7 +20,7 @@ você fala ──► ouvido (wake word + STT) ──► JAIME (orquestrador) ─
 | **HUD** | `jaime/hud/` | Interface estilo Jarvis: anéis que pulsam quando ele fala, monitor da máquina, raciocínio e produção ao vivo, porta com palavra-passe. |
 | **Estado** | `jaime/brain/estado.py` + `vault/01-Estado/` | Autoconsciência: fase, situação, última conversa, máquinas; reescrito pelo próprio Jaime. |
 | **Espelho** | `jaime/brain/notion_sync.py` | Cérebro compartilhado no Notion (Estado, Diário, Tarefas, Conversas). |
-| **Voz** | `jaime/voice/` | Porcupine (wake word) → Whisper/Deepgram (STT) → ElevenLabs (TTS). |
+| **Voz** | `jaime/voice/` | Silero VAD → Whisper/Deepgram (STT) → ativação por "Jaime" → ElevenLabs em PCM streaming (TTS). Ver `docs/VOZ.md`. |
 | **Canais** | `jaime/channels/` + `jaime/server.py` | CLI, WhatsApp (Evolution API / Meta), telefone (Twilio), webhooks do n8n. |
 
 ## Começar em 5 minutos

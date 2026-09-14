@@ -5,193 +5,383 @@
 <title>JAIME</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  :root{--bg:#050a12;--cy:#4fd8ff;--cy2:#1aa0c8;--am:#ffb347;--rd:#ff5f5f;--tx:#cfe9f5;--mu:#5f8ba0;--pn:rgba(10,26,40,.72)}
+  :root{--bg:#04080f;--cy:#4fd8ff;--cy2:#1aa0c8;--am:#ffb347;--rd:#ff5f5f;--gn:#5cff9d;--tx:#d6ecf7;--mu:#6b93a8;--pn:rgba(8,20,32,.55);--bd:rgba(79,216,255,.16)}
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",Roboto,system-ui,sans-serif;overflow:hidden}
-  body{background:radial-gradient(1200px 700px at 50% 40%,#0b1a2a 0%,var(--bg) 60%)}
-  .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(79,216,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(79,216,255,.05) 1px,transparent 1px);background-size:48px 48px;pointer-events:none}
-  header{position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid rgba(79,216,255,.18);background:linear-gradient(180deg,rgba(5,10,18,.9),transparent)}
-  .brand{display:flex;align-items:baseline;gap:14px}
-  .brand h1{font-size:28px;letter-spacing:.42em;color:var(--cy);font-weight:300;text-shadow:0 0 18px rgba(79,216,255,.6)}
-  .brand small{color:var(--mu);letter-spacing:.18em;font-size:11px;text-transform:uppercase}
-  .status{display:flex;gap:22px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}
-  .status b{color:var(--cy);font-weight:500}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--rd);box-shadow:0 0 10px var(--rd);margin-right:6px;vertical-align:middle}
-  .dot.on{background:#5cff9d;box-shadow:0 0 10px #5cff9d}
-  main{position:absolute;top:64px;bottom:0;left:0;right:0;display:grid;grid-template-columns:300px 1fr 340px;grid-template-rows:1fr 220px;gap:14px;padding:14px}
-  .panel{background:var(--pn);border:1px solid rgba(79,216,255,.2);border-radius:6px;padding:12px 14px;position:relative;overflow:hidden;backdrop-filter:blur(6px)}
-  .panel::before{content:"";position:absolute;top:0;left:0;width:60px;height:2px;background:var(--cy);box-shadow:0 0 12px var(--cy)}
-  .panel h2{font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--cy2);margin-bottom:10px;font-weight:500}
-  .scroll{overflow:auto;height:calc(100% - 26px);scrollbar-width:thin;scrollbar-color:rgba(79,216,255,.3) transparent}
-  #sys .gauge{margin:8px 0 12px}
-  #sys .lab{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;color:var(--mu);text-transform:uppercase}
-  #sys .lab b{color:var(--tx);font-weight:500}
-  #sys .bar{height:6px;background:rgba(79,216,255,.1);border-radius:3px;margin-top:5px;overflow:hidden}
-  #sys .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cy2),var(--cy));box-shadow:0 0 8px var(--cy);transition:width .6s ease}
-  #sys .bar i.hot{background:linear-gradient(90deg,#c87a1a,var(--am));box-shadow:0 0 8px var(--am)}
-  .kv{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12px;margin-top:6px}
-  .kv span{color:var(--mu)}.kv b{color:var(--tx);font-weight:500}
-  #core{display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:transparent;border:none}
-  #core::before{display:none}
-  canvas{display:block}
-  #estado{text-align:center;max-width:640px;font-size:13px;color:var(--mu)}
-  #estado b{display:block;color:var(--cy);letter-spacing:.2em;text-transform:uppercase;font-size:11px;margin-bottom:6px}
-  #chat{width:100%;max-width:760px}
-  #log{height:150px;overflow:auto;font-size:13px;padding:6px 2px;scrollbar-width:thin}
-  #log .u{color:var(--am)}#log .j{color:var(--tx)}#log .u::before{content:"JOÃO › ";color:var(--mu);letter-spacing:.1em;font-size:11px}#log .j::before{content:"JAIME › ";color:var(--cy2);letter-spacing:.1em;font-size:11px}
-  #log p{margin:4px 0;white-space:pre-wrap}
-  form{display:flex;gap:8px;margin-top:6px}
-  input{flex:1;background:rgba(5,10,18,.8);border:1px solid rgba(79,216,255,.35);color:var(--tx);padding:10px 14px;border-radius:4px;font-size:14px;outline:none;letter-spacing:.02em}
-  input:focus{border-color:var(--cy);box-shadow:0 0 14px rgba(79,216,255,.25)}
-  button{background:transparent;border:1px solid var(--cy);color:var(--cy);padding:0 18px;border-radius:4px;letter-spacing:.2em;text-transform:uppercase;font-size:11px;cursor:pointer}
-  button:hover{background:rgba(79,216,255,.12)}
-  .feed{font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace;font-size:12px}
-  .feed div{padding:5px 0;border-bottom:1px dashed rgba(79,216,255,.1);animation:in .3s ease}
-  .feed .t{color:var(--mu);margin-right:8px;font-size:11px}
+  html,body{height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 "Inter","Segoe UI",Roboto,system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+  #cena{position:fixed;inset:0;display:block}
+  .vinheta{position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 800px at 50% 45%,transparent 40%,rgba(2,5,10,.75) 100%)}
+
+  /* ── topo ── */
+  header{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;z-index:5;
+         background:linear-gradient(180deg,rgba(4,8,15,.85),transparent)}
+  .brand{display:flex;align-items:baseline;gap:12px}
+  .brand h1{font-size:22px;letter-spacing:.5em;color:var(--cy);font-weight:200;text-shadow:0 0 22px rgba(79,216,255,.55)}
+  .brand small{color:var(--mu);letter-spacing:.2em;font-size:10px;text-transform:uppercase}
+  .chips{display:flex;gap:8px;align-items:center}
+  .chip{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);padding:5px 10px;border:1px solid var(--bd);border-radius:20px;background:var(--pn);backdrop-filter:blur(8px)}
+  .chip b{color:var(--tx);font-weight:500;margin-left:6px}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rd);box-shadow:0 0 8px var(--rd);margin-right:6px;vertical-align:middle}
+  .dot.on{background:var(--gn);box-shadow:0 0 8px var(--gn)}
+  button.ico{cursor:pointer;border:1px solid var(--bd);background:var(--pn);color:var(--mu);border-radius:20px;padding:5px 12px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;backdrop-filter:blur(8px);transition:.2s}
+  button.ico:hover,button.ico.on{color:var(--cy);border-color:rgba(79,216,255,.5)}
+  button.ico.alerta{color:var(--am);border-color:rgba(255,179,71,.5)}
+
+  /* ── painéis laterais ── */
+  .painel{position:fixed;top:72px;width:290px;max-height:calc(100% - 200px);padding:14px 16px;border:1px solid var(--bd);border-radius:10px;background:var(--pn);backdrop-filter:blur(10px);z-index:4;
+          transition:opacity .35s,transform .35s;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+  .painel.esq{left:18px}.painel.dir{right:18px;width:340px}
+  body.sem-paineis .painel{opacity:0;pointer-events:none;transform:translateY(-8px)}
+  .painel h2{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--cy2);font-weight:500}
+  .gauge{margin:2px 0}
+  .lab{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.12em;color:var(--mu);text-transform:uppercase}
+  .lab b{color:var(--tx);font-weight:500}
+  .bar{height:3px;background:rgba(79,216,255,.1);border-radius:2px;margin-top:4px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cy2),var(--cy));box-shadow:0 0 8px var(--cy);transition:width .6s}
+  .bar i.hot{background:linear-gradient(90deg,#c87a1a,var(--am));box-shadow:0 0 8px var(--am)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:11px;color:var(--mu)}
+  .kv b{color:var(--tx);font-weight:500;text-align:right}
+  .texto{font-size:12px;color:var(--tx);white-space:pre-wrap;line-height:1.5;overflow:auto;scrollbar-width:thin;max-height:150px}
+  .feed{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:11px;overflow:auto;scrollbar-width:thin;flex:1;min-height:120px}
+  .feed div{padding:4px 0;border-bottom:1px dashed rgba(79,216,255,.08);animation:in .3s}
+  .feed .t{color:var(--mu);margin-right:8px;font-size:10px}
   .feed .f{color:var(--cy);margin-right:8px}
-  .feed .a{color:var(--tx)}
+  .feed .a{color:var(--tx);word-break:break-all}
   .feed .think{color:#a9c7d6;font-style:italic;white-space:pre-wrap}
   .feed .err{color:var(--rd)}
-  .feed .res{color:#8fb4c7;white-space:pre-wrap;padding-left:14px;font-size:11px}
+  .feed .res{color:#8fb4c7;white-space:pre-wrap;padding-left:12px;font-size:10.5px}
   @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  #gate{position:absolute;inset:0;background:rgba(5,10,18,.86);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;z-index:9;backdrop-filter:blur(4px)}
-  #gate h3{letter-spacing:.5em;color:var(--cy);font-weight:300;font-size:20px;text-transform:uppercase}
-  #gate p{color:var(--mu);font-size:12px;letter-spacing:.1em}
-  #gate input{width:280px;text-align:center;letter-spacing:.6em;font-size:20px}
-  #gate.off{display:none}
+
+  /* ── legenda (o que ele fala / o que você disse) ── */
+  #legenda{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);width:min(820px,86vw);text-align:center;z-index:4;pointer-events:none}
+  #estadoVoz{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:var(--cy);margin-bottom:12px;transition:color .3s}
+  #estadoVoz.trancado{color:var(--rd)}#estadoVoz.gravando{color:var(--am)}#estadoVoz.mudo{color:var(--mu)}
+  #fala{font-size:20px;font-weight:300;color:var(--tx);line-height:1.5;text-shadow:0 2px 24px rgba(0,0,0,.8);transition:opacity .6s;min-height:30px}
+  #fala.some{opacity:0}
+  #voce{font-size:12.5px;color:var(--mu);margin-top:10px;letter-spacing:.02em;transition:opacity .6s}
+  #voce.some{opacity:0}
+  #voce::before{content:"você · ";color:var(--am);letter-spacing:.12em;font-size:10.5px;text-transform:uppercase}
+  #voce.ign{opacity:.45;font-style:italic}#voce.ign::before{content:"ouvi (não era comigo) · ";color:var(--mu)}
+  #nivel{width:180px;height:2px;margin:14px auto 0;background:rgba(79,216,255,.12);border-radius:1px;overflow:hidden}
+  #nivel i{display:block;height:100%;width:0;background:var(--cy);transition:width .08s linear}
+  #nivel i.grav{background:var(--am)}
+
+  /* ── teclado (só quando pedido) ── */
+  #teclado{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(3,7,13,.55);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .2s}
+  #teclado.aberto{opacity:1;pointer-events:auto}
+  #teclado .caixa{width:min(680px,90vw);padding:26px 28px;border:1px solid rgba(79,216,255,.35);border-radius:14px;background:rgba(6,16,26,.92);box-shadow:0 0 60px rgba(79,216,255,.18);transform:translateY(8px);transition:transform .2s}
+  #teclado.aberto .caixa{transform:none}
+  #teclado h3{font-size:10.5px;letter-spacing:.4em;text-transform:uppercase;color:var(--cy);font-weight:400}
+  #teclado p{color:var(--mu);font-size:12.5px;margin:6px 0 14px}
+  #teclado textarea,#teclado input{width:100%;background:rgba(4,8,15,.8);border:1px solid rgba(79,216,255,.3);color:var(--tx);padding:12px 14px;border-radius:8px;font-size:16px;outline:none;font-family:inherit;resize:none}
+  #teclado textarea:focus,#teclado input:focus{border-color:var(--cy);box-shadow:0 0 18px rgba(79,216,255,.2)}
+  #teclado input{text-align:center;letter-spacing:.6em;font-size:22px}
+  #teclado .dica{display:flex;justify-content:space-between;color:var(--mu);font-size:11px;margin-top:10px;letter-spacing:.06em}
   .shake{animation:sh .35s}
-  @keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  @keyframes sh{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+
+  #aviso{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:6;font-size:11.5px;letter-spacing:.06em;color:var(--am);background:var(--pn);border:1px solid rgba(255,179,71,.35);padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none}
+  #aviso.on{opacity:1}
+  @media (max-width:1100px){.painel{display:none}}
 </style>
 </head>
 <body>
-<div class="grid"></div>
+<canvas id="cena"></canvas>
+<div class="vinheta"></div>
+
 <header>
-  <div class="brand"><h1>JAIME</h1><small>assistente operacional · v0.2</small></div>
-  <div class="status">
-    <span><i class="dot" id="dot"></i><b id="acesso">trancado</b></span>
-    <span>fase <b id="fase">—</b></span>
-    <span>máquina <b id="maq">—</b></span>
-    <span>modelo <b id="modelo">—</b></span>
-    <span id="notion" title="cérebro compartilhado">notion <b>—</b></span>
+  <div class="brand"><h1>JAIME</h1><small>assistente operacional</small></div>
+  <div class="chips">
+    <span class="chip"><i class="dot" id="dot"></i><span id="acesso">trancado</span></span>
+    <span class="chip" id="ctxChip" title="o que você está fazendo agora">você em<b id="ctx">—</b></span>
+    <span class="chip">máquina<b id="maq">—</b></span>
+    <span class="chip">modelo<b id="modelo">—</b></span>
+    <button class="ico on" id="btMic" title="microfone (M)">mic</button>
+    <button class="ico" id="btTeclado" title="teclado (T ou comece a digitar)">teclado</button>
+    <button class="ico on" id="btPaineis" title="painéis (H)">painéis</button>
+    <button class="ico" id="btLock" title="trancar (L)">trancar</button>
   </div>
 </header>
+<div id="aviso"></div>
 
-<main>
-  <section class="panel" id="sys">
-    <h2>Sistema</h2>
-    <div class="gauge"><div class="lab"><span>CPU</span><b id="cpu">—</b></div><div class="bar"><i id="cpu-b"></i></div></div>
-    <div class="gauge"><div class="lab"><span>Memória</span><b id="ram">—</b></div><div class="bar"><i id="ram-b"></i></div></div>
-    <div class="gauge"><div class="lab"><span>Disco</span><b id="disco">—</b></div><div class="bar"><i id="disco-b"></i></div></div>
-    <div class="kv">
-      <span>rede ↓</span><b id="down">—</b><span>rede ↑</span><b id="up">—</b>
-      <span>processos</span><b id="procs">—</b><span>uptime</span><b id="up-h">—</b>
-      <span>temperatura</span><b id="temp">—</b><span>bateria</span><b id="bat">—</b>
-    </div>
-    <h2 style="margin-top:18px">Próximos passos</h2>
-    <div id="prox" class="scroll" style="height:auto;max-height:180px;font-size:12px;color:var(--tx);white-space:pre-wrap"></div>
-  </section>
+<aside class="painel esq">
+  <h2>Sistema</h2>
+  <div class="gauge"><div class="lab"><span>CPU</span><b id="cpu">—</b></div><div class="bar"><i id="cpu-b"></i></div></div>
+  <div class="gauge"><div class="lab"><span>Memória</span><b id="ram">—</b></div><div class="bar"><i id="ram-b"></i></div></div>
+  <div class="gauge"><div class="lab"><span>Disco</span><b id="disco">—</b></div><div class="bar"><i id="disco-b"></i></div></div>
+  <div class="kv"><span>rede ↓</span><b id="down">—</b><span>rede ↑</span><b id="up">—</b><span>processos</span><b id="procs">—</b><span>bateria</span><b id="bat">—</b></div>
+  <h2 style="margin-top:6px">Situação</h2>
+  <div class="texto" id="sit">…</div>
+  <h2 style="margin-top:6px">Próximos passos</h2>
+  <div class="texto" id="prox"></div>
+</aside>
 
-  <section class="panel" id="core">
-    <canvas id="ring" width="520" height="420"></canvas>
-    <div id="estado"><b>situação</b><span id="sit">…</span></div>
-    <div id="chat">
-      <div id="log"></div>
-      <form id="f"><input id="in" autocomplete="off" placeholder="Fale com o Jaime… (ou diga a palavra-passe)"><button>enviar</button><button type="button" id="lock">trancar</button></form>
-    </div>
-  </section>
+<aside class="painel dir">
+  <h2>Raciocínio</h2>
+  <div class="feed" id="rac"></div>
+  <h2>Produção</h2>
+  <div class="feed" id="prod"></div>
+</aside>
 
-  <section class="panel"><h2>Raciocínio</h2><div id="rac" class="scroll feed"></div></section>
-
-  <section class="panel" style="grid-column:1/-1"><h2>Produção · ferramentas em uso</h2><div id="prod" class="scroll feed"></div></section>
-</main>
-
-<div id="gate">
-  <h3>Palavra-passe</h3>
-  <p>fale ou digite para abrir o cérebro do Jaime</p>
-  <input id="senha" type="password" inputmode="numeric" autofocus>
+<div id="legenda">
+  <div id="estadoVoz" class="trancado">iniciando</div>
+  <div id="fala"></div>
+  <div id="voce" class="some"></div>
+  <div id="nivel"><i id="nivel-i"></i></div>
 </div>
 
+<div id="teclado">
+  <div class="caixa">
+    <h3 id="tecTitulo">Teclado</h3>
+    <p id="tecMotivo">escreva e pressione Enter · Esc fecha</p>
+    <textarea id="tecTexto" rows="3" placeholder="…"></textarea>
+    <input id="tecSenha" type="password" inputmode="numeric" autocomplete="off" hidden>
+    <div class="dica"><span>Enter envia · Shift+Enter quebra linha</span><span>Esc volta para a voz</span></div>
+  </div>
+</div>
+
+<script src="/hud/vendor/three.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let falando=0, energia=0, liberado=false;
-
-// ── anel animado (pulsa quando o Jaime fala) ───────────────
-const cv=$('ring'),cx=cv.getContext('2d');
-let ang=0;
-function draw(){
-  const w=cv.width,h=cv.height,X=w/2,Y=h/2;
-  cx.clearRect(0,0,w,h);
-  energia+= (falando?1:0.12)-energia*0.08;             // amplitude alvo
-  const pulse=1+Math.sin(Date.now()/140)*0.04*energia;
-  const R=[150,118,90,62];
-  R.forEach((r,i)=>{
-    cx.beginPath();cx.strokeStyle=`rgba(79,216,255,${0.18+i*0.12})`;cx.lineWidth=i==3?3:1.2;
-    cx.setLineDash(i%2?[14,10]:[3,7]);cx.lineDashOffset=(i%2?1:-1)*ang*(i+1)*20;
-    cx.arc(X,Y,r*pulse,0,Math.PI*2);cx.stroke();
-  });
-  cx.setLineDash([]);
-  // segmentos que giram
-  for(let i=0;i<24;i++){const a=ang*1.6+i*Math.PI/12,len=i%3?6:16;
-    cx.beginPath();cx.strokeStyle=i%3?'rgba(79,216,255,.35)':'rgba(255,179,71,.8)';cx.lineWidth=2;
-    cx.moveTo(X+Math.cos(a)*(172*pulse),Y+Math.sin(a)*(172*pulse));cx.lineTo(X+Math.cos(a)*(172*pulse+len),Y+Math.sin(a)*(172*pulse+len));cx.stroke();}
-  // ondas de voz no núcleo
-  const bars=28;
-  for(let i=0;i<bars;i++){const a=i/bars*Math.PI*2;const amp=falando?(8+Math.random()*30*energia):3+Math.sin(Date.now()/300+i)*2;
-    cx.beginPath();cx.strokeStyle=`rgba(79,216,255,${0.35+energia*0.5})`;cx.lineWidth=3;cx.lineCap='round';
-    cx.moveTo(X+Math.cos(a)*30,Y+Math.sin(a)*30);cx.lineTo(X+Math.cos(a)*(30+amp),Y+Math.sin(a)*(30+amp));cx.stroke();}
-  const g=cx.createRadialGradient(X,Y,0,X,Y,40);g.addColorStop(0,`rgba(79,216,255,${0.5+energia*0.4})`);g.addColorStop(1,'rgba(79,216,255,0)');
-  cx.fillStyle=g;cx.beginPath();cx.arc(X,Y,40,0,Math.PI*2);cx.fill();
-  cx.fillStyle=liberado?'#4fd8ff':'#ff5f5f';cx.font='300 13px system-ui';cx.textAlign='center';cx.letterSpacing='6px';
-  cx.fillText(liberado?(falando?'FALANDO':'ONLINE'):'TRANCADO',X,Y+205);
-  ang+=0.004;requestAnimationFrame(draw);
-}
-draw();
-
-// ── helpers de UI ───────────────────────────────────────────
 const hora=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-function feed(el,html){const d=document.createElement('div');d.innerHTML=`<span class="t">${hora()}</span>${html}`;el.prepend(d);while(el.children.length>80)el.lastChild.remove();}
-function chat(cls,txt){const p=document.createElement('p');p.className=cls;p.textContent=txt;$('log').appendChild(p);$('log').scrollTop=1e6;}
-let bufJ=null;
-function setAcesso(on){liberado=on;$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado';$('gate').className=on?'off':'';if(!on){$('senha').value='';$('senha').focus()}else $('in').focus();}
-function pct(id,v,hot=85){$(id).textContent=v.toFixed(0)+'%';const b=$(id+'-b');b.style.width=v+'%';b.className=v>hot?'hot':'';}
 
-// ── eventos do Jaime ────────────────────────────────────────
-const es=new EventSource('/hud/stream');
-es.onmessage=e=>{
-  const ev=JSON.parse(e.data);
-  switch(ev.tipo){
-    case 'sistema': if(ev.erro){$('cpu').textContent=ev.erro;break}
-      pct('cpu',ev.cpu);pct('ram',ev.ram);pct('disco',ev.disco,90);
-      $('down').textContent=ev.down_kbs+' KB/s';$('up').textContent=ev.up_kbs+' KB/s';$('procs').textContent=ev.procs;$('up-h').textContent=ev.uptime_h+' h';
-      $('temp').textContent=ev.temp!=null?ev.temp+' °C':'n/d';$('bat').textContent=ev.bateria!=null?ev.bateria+'%':'—';break;
-    case 'estado': $('fase').textContent=ev.fase;$('sit').textContent=ev.situacao||'…';if(ev.maquina)$('maq').textContent=ev.maquina.host;if(ev.liberado!=null)setAcesso(ev.liberado);break;
-    case 'apresentacao': chat('j',ev.texto);break;
-    case 'conversa': chat('u',ev.texto);bufJ=null;break;
-    case 'fala': falando=1;if(!bufJ){bufJ=document.createElement('p');bufJ.className='j';$('log').appendChild(bufJ)}bufJ.textContent+=ev.texto;$('log').scrollTop=1e6;break;
-    case 'fala_fim': falando=0;bufJ=null;break;
-    case 'voz': falando=ev.falando?1:0;break;
-    case 'raciocinio': feed($('rac'),ev.ferramenta?`<span class="f">${ev.ferramenta}</span><span class="a">${ev.alvo||''}</span>`:`<span class="think">${(ev.texto||'').slice(0,400)}</span>`);break;
-    case 'producao': feed($('prod'),`<span class="f">${ev.ferramenta}</span><span class="a">${ev.alvo||''}</span>`);break;
-    case 'resultado': feed($('prod'),`<span class="res ${ev.erro?'err':''}">${(ev.texto||'').slice(0,240)}</span>`);break;
-    case 'acesso': setAcesso(ev.liberado);if(!ev.liberado&&$('gate').className==='')$('senha').classList.add('shake');setTimeout(()=>$('senha').classList.remove('shake'),400);break;
+// ── estado da interface ────────────────────────────────────────────────────
+const UI={liberado:false,voz:'iniciando',falando:false,pensando:false,nivel:0,gravando:false,micAtivo:true,energia:0.1};
+
+// ── cena 3D ────────────────────────────────────────────────────────────────
+const canvas=$('cena');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(48,1,0.1,100);
+const orbit={yaw:0.3,pitch:0.22,dist:7.6,auto:true};
+function camPos(){camera.position.set(Math.sin(orbit.yaw)*Math.cos(orbit.pitch)*orbit.dist,Math.sin(orbit.pitch)*orbit.dist,Math.cos(orbit.yaw)*Math.cos(orbit.pitch)*orbit.dist);camera.lookAt(0,0,0);}
+function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+// arrasto para girar, roda para aproximar
+let drag=null;
+canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};orbit.auto=false;});
+addEventListener('pointerup',()=>{drag=null;setTimeout(()=>orbit.auto=true,6000);});
+addEventListener('pointermove',e=>{if(!drag)return;orbit.yaw+=(e.clientX-drag.x)*0.005;orbit.pitch=Math.max(-1.2,Math.min(1.2,orbit.pitch+(e.clientY-drag.y)*0.004));drag={x:e.clientX,y:e.clientY};});
+canvas.addEventListener('wheel',e=>{orbit.dist=Math.max(4.5,Math.min(13,orbit.dist+e.deltaY*0.004));},{passive:true});
+
+// texturas procedurais (brilho e rótulos) — sem arquivos externos
+function texBrilho(cor){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+  const r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,cor);r.addColorStop(.35,cor.replace(/[\d.]+\)$/,'.35)'));r.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=r;g.fillRect(0,0,128,128);const t=new THREE.CanvasTexture(c);return t;}
+function texRotulo(txt,cor){const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');
+  g.font='500 26px Inter, Segoe UI, system-ui, sans-serif';g.textAlign='center';g.textBaseline='middle';
+  g.shadowColor=cor;g.shadowBlur=12;g.fillStyle=cor;g.fillText(txt.toUpperCase(),128,32);
+  const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;return t;}
+const GLOW_CY=texBrilho('rgba(79,216,255,1)'),GLOW_AM=texBrilho('rgba(255,179,71,1)'),GLOW_RD=texBrilho('rgba(255,95,95,1)'),GLOW_MU=texBrilho('rgba(80,110,130,1)');
+
+// ── o cérebro: nuvem de pontos em dois hemisférios com sulcos ─────────────
+const cerebro=new THREE.Group();scene.add(cerebro);
+function pontoCerebro(){
+  const s=Math.random()<.5?-1:1;                      // hemisfério
+  const u=Math.random()*Math.PI*2,v=Math.acos(2*Math.random()-1);
+  let x=Math.sin(v)*Math.cos(u),y=Math.cos(v),z=Math.sin(v)*Math.sin(u);
+  // sulcos (giros): ondulação da superfície
+  const dobra=1+0.055*Math.sin(9*u+4*v)+0.045*Math.sin(14*v+2*u)+0.03*Math.sin(21*u);
+  x*=1.42*dobra;y*=0.98*dobra;z*=0.62*dobra;
+  y-=0.18*Math.max(0,-y);                              // base mais achatada (tronco)
+  z=z*0.9+s*0.36;                                     // separação entre hemisférios
+  x-=0.05;
+  return [x,y,z];
+}
+const N_SUP=7000,N_INT=1800;
+function nuvem(n,tam,op,cor){const pos=new Float32Array(n*3),base=new Float32Array(n*3);
+  for(let i=0;i<n;i++){const [x,y,z]=pontoCerebro();const k=tam<2?(0.55+Math.random()*0.35):1;pos.set([x*k,y*k,z*k],i*3);}
+  base.set(pos);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const m=new THREE.PointsMaterial({color:cor,size:tam,sizeAttenuation:true,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false});
+  const p=new THREE.Points(g,m);p.userData.base=base;return p;}
+const superficie=nuvem(N_SUP,0.028,0.85,0x4fd8ff);
+const interior=nuvem(N_INT,0.016,0.35,0x8fe8ff);
+cerebro.add(superficie,interior);
+
+// sinapses: segmentos entre pontos próximos da superfície
+const posS=superficie.geometry.attributes.position.array;
+const pares=[];
+for(let tent=0;tent<40000&&pares.length<900;tent++){const a=(Math.random()*N_SUP|0),b=(Math.random()*N_SUP|0);
+  const dx=posS[a*3]-posS[b*3],dy=posS[a*3+1]-posS[b*3+1],dz=posS[a*3+2]-posS[b*3+2];
+  if(dx*dx+dy*dy+dz*dz<0.09&&a!==b)pares.push(a,b);}
+const sinPos=new Float32Array(pares.length*3);
+pares.forEach((idx,i)=>sinPos.set([posS[idx*3],posS[idx*3+1],posS[idx*3+2]],i*3));
+const sinGeo=new THREE.BufferGeometry();sinGeo.setAttribute('position',new THREE.BufferAttribute(sinPos,3));
+const sinMat=new THREE.LineBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.16,blending:THREE.AdditiveBlending,depthWrite:false});
+const sinapses=new THREE.LineSegments(sinGeo,sinMat);cerebro.add(sinapses);
+
+// núcleo brilhante + malha interna
+const nucleo=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW_CY,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false}));
+nucleo.scale.set(2.2,2.2,1);cerebro.add(nucleo);
+const malha=new THREE.Mesh(new THREE.IcosahedronGeometry(0.62,2),new THREE.MeshBasicMaterial({color:0x1aa0c8,wireframe:true,transparent:true,opacity:0.14}));
+cerebro.add(malha);
+
+// anéis de escuta (nível do microfone) — horizontais, em volta do cérebro
+const anelMat=new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.22,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false});
+const anel=new THREE.Mesh(new THREE.RingGeometry(1.92,1.96,128),anelMat);anel.rotation.x=Math.PI/2;scene.add(anel);
+const anel2=new THREE.Mesh(new THREE.RingGeometry(2.08,2.09,128,1,0,Math.PI*1.4),new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.35,side:THREE.DoubleSide}));
+anel2.rotation.x=Math.PI/2;scene.add(anel2);
+
+// ── conexões: nós orbitando o cérebro ────────────────────────────────────
+const NOS=[
+  {id:'vault',nome:'Obsidian'},{id:'maquina',nome:'Máquina'},{id:'voz',nome:'Voz'},{id:'web',nome:'Web'},
+  {id:'github',nome:'GitHub'},{id:'notion',nome:'Notion'},{id:'gmail',nome:'Gmail'},{id:'drive',nome:'Drive'},
+  {id:'n8n',nome:'n8n'},{id:'whatsapp',nome:'WhatsApp'},
+];
+const orbita=new THREE.Group();orbita.rotation.x=0.36;orbita.rotation.z=-0.12;scene.add(orbita);
+const nos={};
+NOS.forEach((n,i)=>{
+  const a=i/NOS.length*Math.PI*2,R=3.35;
+  const pos=new THREE.Vector3(Math.cos(a)*R,Math.sin(a*2)*0.25,Math.sin(a)*R);
+  const g=new THREE.Group();g.position.copy(pos);
+  const esfera=new THREE.Mesh(new THREE.SphereGeometry(0.075,20,20),new THREE.MeshBasicMaterial({color:0x2a3a48}));
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW_MU,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false}));halo.scale.set(0.7,0.7,1);
+  const rot=new THREE.Sprite(new THREE.SpriteMaterial({map:texRotulo(n.nome,'#6b93a8'),transparent:true,opacity:0.85,depthWrite:false}));rot.scale.set(1.5,0.375,1);rot.position.y=-0.3;
+  g.add(esfera,halo,rot);orbita.add(g);
+  const lg=new THREE.BufferGeometry().setFromPoints([pos,new THREE.Vector3(0,0,0)]);
+  const linha=new THREE.Line(lg,new THREE.LineBasicMaterial({color:0x2a3a48,transparent:true,opacity:0.25}));orbita.add(linha);
+  nos[n.id]={...n,g,esfera,halo,rot,linha,pos,ligado:false,pulso:0,pacotes:[],proximo:Math.random()*6};
+});
+function ligarNo(id,ligado,detalhe){const n=nos[id];if(!n)return;n.ligado=ligado;n.detalhe=detalhe||'';
+  n.esfera.material.color.set(ligado?0x4fd8ff:0x2a3a48);n.halo.material.map=ligado?GLOW_CY:GLOW_MU;n.halo.material.opacity=ligado?0.9:0.4;
+  n.linha.material.color.set(ligado?0x4fd8ff:0x2a3a48);n.linha.material.opacity=ligado?0.35:0.12;
+  n.rot.material.map=texRotulo(n.nome,ligado?'#cfe9f5':'#4d6a7c');n.rot.material.needsUpdate=true;}
+const pacoteGeo=new THREE.SphereGeometry(0.035,8,8);
+function pulsar(id,cor=0x4fd8ff){const n=nos[id];if(!n)return;n.pulso=1;
+  const m=new THREE.Mesh(pacoteGeo,new THREE.MeshBasicMaterial({color:cor}));orbita.add(m);n.pacotes.push({m,t:0,v:0.9+Math.random()*0.5,ida:Math.random()<.5});}
+function noDaFerramenta(f){f=(f||'').toLowerCase();
+  if(f.startsWith('mcp__cerebro'))return 'vault';if(f.includes('github'))return 'github';if(f.includes('notion'))return 'notion';
+  if(f.includes('gmail'))return 'gmail';if(f.includes('drive'))return 'drive';if(f.includes('n8n'))return 'n8n';if(f.includes('whatsapp'))return 'whatsapp';
+  if(f.startsWith('web'))return 'web';if(['bash','write','edit','multiedit','read','glob','grep','task'].includes(f))return 'maquina';return null;}
+
+// ── animação ──────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+function animar(){
+  const dt=Math.min(clock.getDelta(),0.05),t=clock.elapsedTime;
+  const nivelAlvo=UI.micAtivo?UI.nivel:0;UI.nivelSuave=(UI.nivelSuave||0)+(nivelAlvo-(UI.nivelSuave||0))*Math.min(1,dt*12);
+  const voce=!UI.falando&&UI.liberado&&UI.micAtivo&&(UI.gravando||UI.nivelSuave>0.12);   // você está falando
+  const alvo=!UI.liberado?0.05:UI.falando?1:voce?0.6+UI.nivelSuave*0.4:UI.pensando?0.55:0.12;
+  UI.energia+=(alvo-UI.energia)*Math.min(1,dt*4);
+  const e=UI.energia;
+  cerebro.rotation.y+=dt*0.12;cerebro.rotation.x=Math.sin(t*0.2)*0.06;
+  // ele falando: pulsa azul; você falando: pisca âmbar e cresce com o volume
+  const pisca=voce?(0.75+0.25*Math.abs(Math.sin(t*14))):1;
+  const pulso=(1+Math.sin(t*(UI.falando?9:2.2))*0.035*e)*(voce?1+UI.nivelSuave*0.55:1);cerebro.scale.setScalar(pulso);
+  superficie.material.size=0.028+0.012*e;superficie.material.opacity=0.55+0.4*e;
+  sinMat.opacity=0.08+0.35*e*(0.6+0.4*Math.sin(t*13+Math.sin(t*7)));
+  nucleo.material.opacity=0.35+0.5*e;nucleo.scale.setScalar(2.0+0.9*e);
+  malha.rotation.y-=dt*0.35;malha.rotation.z+=dt*0.1;malha.material.opacity=0.08+0.2*e;
+  const corBase=!UI.liberado?0xff5f5f:voce?0xffb347:UI.pensando?0xffd08a:0x4fd8ff;
+  superficie.material.color.setHex(!UI.liberado?0xff7a7a:voce?0xffc46b:0x4fd8ff);superficie.material.opacity*=pisca;
+  interior.material.color.setHex(voce?0xffd9a0:0x8fe8ff);sinMat.color.setHex(corBase);
+  nucleo.material.map=!UI.liberado?GLOW_RD:(voce||UI.pensando)?GLOW_AM:GLOW_CY;nucleo.material.opacity*=pisca;
+  // anéis de escuta
+  anel.scale.setScalar(1+UI.nivelSuave*0.35);anelMat.opacity=(UI.micAtivo?0.18:0.05)+UI.nivelSuave*0.6;anelMat.color.setHex(UI.gravando?0xffb347:0x4fd8ff);
+  anel2.rotation.z+=dt*0.5;anel2.material.color.setHex(UI.gravando?0xffb347:0x4fd8ff);
+  // nós
+  orbita.rotation.y-=dt*0.05;
+  for(const id in nos){const n=nos[id];n.pulso=Math.max(0,n.pulso-dt*1.2);
+    const s=1+n.pulso*0.9;n.esfera.scale.setScalar(s);n.halo.scale.setScalar(0.7*(1+n.pulso*1.6));
+    if(n.pulso>0){n.esfera.material.color.setHex(0xffffff);n.linha.material.opacity=0.35+n.pulso*0.6;}else n.esfera.material.color.setHex(n.ligado?0x4fd8ff:0x2a3a48);
+    if(n.ligado&&UI.liberado){n.proximo-=dt;if(n.proximo<=0){n.proximo=5+Math.random()*9;const m=new THREE.Mesh(pacoteGeo,new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.7}));orbita.add(m);n.pacotes.push({m,t:0,v:0.5,ida:Math.random()<.5});}}
+    n.pacotes=n.pacotes.filter(p=>{p.t+=dt*p.v;if(p.t>=1){orbita.remove(p.m);return false;}const k=p.ida?p.t:1-p.t;p.m.position.copy(n.pos).multiplyScalar(1-k);return true;});
   }
-};
-es.onerror=()=>{$('acesso').textContent='reconectando…'};
+  if(orbit.auto)orbit.yaw+=dt*0.04;camPos();
+  renderer.render(scene,camera);requestAnimationFrame(animar);
+}
+animar();
 
-// ── estado inicial ──────────────────────────────────────────
-fetch('/hud/estado').then(r=>r.json()).then(s=>{
-  $('fase').textContent=s.fase;$('maq').textContent=s.maquina.host;$('modelo').textContent=s.modelo;
-  $('sit').textContent=s.situacao||'…';$('prox').textContent=s.proximos||'';
-  $('notion').innerHTML='notion <b>'+(s.notion?'sincronizando':'desligado')+'</b>';
-  setAcesso(s.liberado);if(s.apresentacao&&!$('log').children.length)chat('j',s.apresentacao);
+// ── legenda / voz ─────────────────────────────────────────────────────────
+const ROTULO={iniciando:'iniciando',carregando:'carregando voz',ouvindo:'ouvindo · diga "Jaime" para falar comigo',ativo:'ouvindo você',transcrevendo:'transcrevendo',pensando:'pensando',falando:'falando',mudo:'microfone desligado',erro:'voz indisponível',trancado:'trancado · diga a palavra-passe'};
+function setVoz(estado){UI.voz=estado;const el=$('estadoVoz');const chave=!UI.liberado?'trancado':estado;
+  el.textContent=ROTULO[chave]||chave;el.className=!UI.liberado?'trancado':estado==='gravando'?'gravando':(estado==='mudo'||estado==='erro')?'mudo':'';
+  UI.pensando=(estado==='pensando'||estado==='transcrevendo');}
+let somemFala=null,somemVoce=null,bufFala='';
+function mostrarFala(txt,acumula){bufFala=acumula?bufFala+txt:txt;$('fala').textContent=bufFala.slice(-420);$('fala').classList.remove('some');
+  clearTimeout(somemFala);somemFala=setTimeout(()=>$('fala').classList.add('some'),12000);}
+function mostrarVoce(txt,ignorado){$('voce').textContent=txt;$('voce').classList.toggle('ign',!!ignorado);$('voce').classList.remove('some');clearTimeout(somemVoce);somemVoce=setTimeout(()=>$('voce').classList.add('some'),ignorado?4000:9000);}
+function setAcesso(on){UI.liberado=on;$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado';setVoz(UI.voz);
+  if(!on&&tecladoAberto()){$('tecSenha').hidden=false;$('tecTexto').hidden=true;$('tecSenha').focus();}}
+function aviso(txt,ms=6000){const a=$('aviso');a.textContent=txt;a.classList.add('on');clearTimeout(a._t);a._t=setTimeout(()=>a.classList.remove('on'),ms);}
+function feed(el,html){const d=document.createElement('div');d.innerHTML=`<span class="t">${hora()}</span>${html}`;el.prepend(d);while(el.children.length>60)el.lastChild.remove();}
+function pct(id,v,hot=85){$(id).textContent=v.toFixed(0)+'%';const b=$(id+'-b');b.style.width=v+'%';b.className=v>hot?'hot':'';}
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// ── teclado sob demanda ───────────────────────────────────────────────────
+const tecladoAberto=()=>$('teclado').classList.contains('aberto');
+function abrirTeclado(motivo,inicial){
+  $('teclado').classList.add('aberto');
+  const senha=!UI.liberado;$('tecSenha').hidden=!senha;$('tecTexto').hidden=senha;
+  $('tecTitulo').textContent=senha?'Palavra-passe':'Teclado';
+  $('tecMotivo').textContent=motivo||(senha?'digite a palavra-passe (ou fale)':'escreva e pressione Enter · Esc volta para a voz');
+  const campo=senha?$('tecSenha'):$('tecTexto');campo.value=inicial||'';setTimeout(()=>campo.focus(),30);
+  fetch('/hud/teclado',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({aberto:true,motivo:motivo||''})}).catch(()=>{});
+}
+function fecharTeclado(){$('teclado').classList.remove('aberto');$('tecTexto').value='';$('tecSenha').value='';}
+async function enviar(t){t=t.trim();if(!t)return;await fetch('/hud/falar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:t})});}
+$('tecTexto').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const t=$('tecTexto').value;fecharTeclado();enviar(t);}if(e.key==='Escape')fecharTeclado();};
+$('tecSenha').onkeydown=e=>{if(e.key==='Enter'){const t=$('tecSenha').value;$('tecSenha').value='';if(t)enviar(t);}if(e.key==='Escape')fecharTeclado();};
+$('teclado').onclick=e=>{if(e.target.id==='teclado')fecharTeclado();};
+$('btTeclado').onclick=()=>tecladoAberto()?fecharTeclado():abrirTeclado();
+addEventListener('keydown',e=>{
+  if(tecladoAberto()||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key==='t'||e.key==='T'){e.preventDefault();abrirTeclado();return;}
+  if(e.key==='h'||e.key==='H'){togglePaineis();return;}
+  if(e.key==='m'||e.key==='M'){toggleMic();return;}
+  if(e.key==='l'||e.key==='L'){fetch('/hud/trancar',{method:'POST'});return;}
+  if(e.key.length===1){abrirTeclado(null,e.key);e.preventDefault();}   // começou a digitar: abre com a letra
 });
 
-// ── entrada ─────────────────────────────────────────────────
-async function falar(t){await fetch('/hud/falar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:t})});}
-$('f').onsubmit=e=>{e.preventDefault();const t=$('in').value.trim();if(!t)return;$('in').value='';falar(t);};
-$('senha').onkeydown=e=>{if(e.key==='Enter'){const t=$('senha').value.trim();if(t)falar(t);$('senha').value='';}};
-$('lock').onclick=()=>fetch('/hud/trancar',{method:'POST'});
-setInterval(()=>fetch('/hud/estado').then(r=>r.json()).then(s=>{$('prox').textContent=s.proximos||'';}),20000);
+// ── botões ────────────────────────────────────────────────────────────────
+function togglePaineis(){document.body.classList.toggle('sem-paineis');$('btPaineis').classList.toggle('on',!document.body.classList.contains('sem-paineis'));}
+async function toggleMic(){UI.micAtivo=!UI.micAtivo;$('btMic').classList.toggle('on',UI.micAtivo);
+  const r=await fetch('/hud/voz',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ativa:UI.micAtivo})});
+  if(!r.ok){UI.micAtivo=!UI.micAtivo;$('btMic').classList.toggle('on',UI.micAtivo);aviso('voz indisponível neste servidor');}}
+$('btPaineis').onclick=togglePaineis;$('btMic').onclick=toggleMic;$('btLock').onclick=()=>fetch('/hud/trancar',{method:'POST'});
+
+// ── eventos do Jaime (SSE) ────────────────────────────────────────────────
+function ligarStream(){
+  const es=new EventSource('/hud/stream');
+  es.onmessage=ev=>{const e=JSON.parse(ev.data);
+    switch(e.tipo){
+      case 'sistema': if(e.erro)break;pct('cpu',e.cpu);pct('ram',e.ram);pct('disco',e.disco,90);
+        $('down').textContent=e.down_kbs+' KB/s';$('up').textContent=e.up_kbs+' KB/s';$('procs').textContent=e.procs;$('bat').textContent=e.bateria!=null?e.bateria+'%':'—';break;
+      case 'estado': $('sit').textContent=e.situacao||'…';if(e.maquina)$('maq').textContent=e.maquina.host;if(e.liberado!=null)setAcesso(e.liberado);break;
+      case 'apresentacao': mostrarFala(e.texto,false);break;
+      case 'conversa': mostrarVoce(e.texto);bufFala='';UI.pensando=true;if(UI.liberado)setVoz('pensando');break;
+      case 'fala': UI.pensando=false;mostrarFala(e.texto,true);break;
+      case 'fala_fim': UI.pensando=false;break;
+      case 'voz': UI.falando=!!e.falando;if(e.ativacao==='sempre')ROTULO.ouvindo='ouvindo';if(e.estado)setVoz(e.estado);if(e.estado==='falando'&&e.texto)mostrarFala(e.texto,false);
+        if(e.estado==='erro'){aviso('voz: '+(e.erro||'erro'),12000);$('btMic').classList.add('alerta');}if(e.estado==='falando')pulsar('voz');break;
+      case 'escuta': UI.nivel=Math.max(e.nivel||0,(e.voz||0)*0.8);UI.gravando=!!e.gravando;UI.janelaAtiva=!!e.janela_ativa;
+        $('nivel-i').style.width=(UI.nivel*100)+'%';$('nivel-i').className=UI.gravando?'grav':'';
+        if(UI.liberado&&!UI.falando&&!UI.pensando)setVoz(UI.gravando?'gravando':(UI.micAtivo?(UI.janelaAtiva?'ativo':'ouvindo'):'mudo'));break;
+      case 'contexto': $('ctx').textContent=(e.app||'—')+(e.janela?' · '+e.janela.slice(0,38):'');$('ctxChip').title=e.janela||'';break;
+      case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
+      case 'raciocinio': feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
+        {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
+      case 'producao': feed($('prod'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n);}break;
+      case 'resultado': feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);break;
+      case 'acesso': setAcesso(e.liberado);if(!e.liberado&&tecladoAberto()){$('tecSenha').classList.add('shake');setTimeout(()=>$('tecSenha').classList.remove('shake'),400);}
+        if(e.liberado&&tecladoAberto())fecharTeclado();break;
+      case 'teclado': if(e.aberto&&!tecladoAberto())abrirTeclado(e.motivo?('Jaime pede: '+e.motivo):null);break;
+      case 'conexoes': if(e.nos)for(const id in e.nos)ligarNo(id,!!e.nos[id].ligado,e.nos[id].detalhe);if(e.erro)aviso('conexões: '+e.erro);break;
+    }};
+  es.onerror=()=>{$('estadoVoz').textContent='reconectando…';es.close();setTimeout(ligarStream,2000);};
+}
+ligarStream();
+
+// ── estado inicial ────────────────────────────────────────────────────────
+function carregarEstado(){fetch('/hud/estado').then(r=>r.json()).then(s=>{
+  $('maq').textContent=s.maquina.host;$('modelo').textContent=s.modelo;
+  $('sit').textContent=s.situacao||'…';$('prox').textContent=s.proximos||'';setAcesso(s.liberado);
+  if(s.voz){UI.micAtivo=!!s.voz.ativa&&!!s.voz.disponivel;$('btMic').classList.toggle('on',UI.micAtivo);if(s.voz.disponivel===false&&s.voz.motivo&&s.voz.motivo!=='iniciando'){$('btMic').classList.add('alerta');}}
+  if(s.conexoes&&s.conexoes.nos)for(const id in s.conexoes.nos)ligarNo(id,!!s.conexoes.nos[id].ligado,s.conexoes.nos[id].detalhe);
+  ligarNo('maquina',true,s.maquina.host);ligarNo('web',true,'');
+  if(s.apresentacao&&!bufFala)mostrarFala(s.apresentacao,false);
+}).catch(()=>{});}
+carregarEstado();setInterval(carregarEstado,30000);
 </script>
 </body>
 </html>

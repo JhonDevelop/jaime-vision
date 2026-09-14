@@ -20,3 +20,7 @@ dist/
 # runtime do Jaime
 *.log
 .jaime/
+
+# Obsidian: estado de janelas é por máquina
+vault/.obsidian/workspace*.json
+vault/.obsidian/cache

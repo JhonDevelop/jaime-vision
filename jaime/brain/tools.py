@@ -3,6 +3,7 @@ from __future__ import annotations
 from claude_agent_sdk import tool, create_sdk_mcp_server
 from .vault import Vault
 from .estado import Estado
+from ..hud.events import bus
 
 def _txt(s: str) -> dict:
     return {"content": [{"type": "text", "text": s}]}
@@ -55,8 +56,14 @@ def build_cerebro_server(vault: Vault, estado: Estado | None = None):
         estado.atualizar_secao(args["secao"], args["corpo"])
         return _txt(f"Seção '{args['secao']}' atualizada.")
 
+    @tool("pedir_teclado", "Abre o teclado no HUD quando você precisa que o João DIGITE algo (senha, chave, URL, "
+                           "texto longo). Fora isso a conversa é por voz. motivo: o que ele deve escrever.", {"motivo": str})
+    async def pedir_teclado(args):
+        bus.emitir("teclado", aberto=True, motivo=(args.get("motivo") or "")[:120])
+        return _txt("Teclado aberto no HUD. Diga em uma frase o que ele deve digitar e espere.")
+
     return create_sdk_mcp_server(
-        name="cerebro", version="1.1.0",
+        name="cerebro", version="1.2.0",
         tools=[lembrar, buscar_memoria, ler_nota, registrar_diario, criar_tarefa, tarefas_abertas,
-               ler_estado, atualizar_estado],
+               ler_estado, atualizar_estado, pedir_teclado],
     )
