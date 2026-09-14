@@ -32,3 +32,13 @@ def test_turno_registra_conversa_e_maquina(estado):
     assert "que horas são" in estado.secao("Última conversa")
     assert any(p.name.endswith(".md") for p in (estado.vault.root / "60-Conversas").iterdir())
     assert estado.turnos == 1 and not estado.precisa_refletir()
+
+def test_vigia_protege_o_proprio_codigo():
+    import asyncio
+    from jaime.vigia.hooks import Vigia
+    v = Vigia()
+    negado = asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "/x/jaime-vision/jaime/voice/tts.py"}}, None, None))
+    assert negado.get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    v.armar()
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "jaime/voice/tts.py"}}, None, None)) == {}
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Write", "tool_input": {"file_path": "/Users/x/projetos/app/main.py"}}, None, None)) == {}

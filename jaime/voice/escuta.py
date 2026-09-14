@@ -14,7 +14,7 @@ Ativação (JAIME_ATIVACAO):
 Regras que evitam o Jaime se ouvir e responder a si mesmo: o microfone fica mudo enquanto ele fala, e
 transcrições curtas demais ou iguais às "alucinações" clássicas do Whisper em silêncio são descartadas."""
 from __future__ import annotations
-import asyncio, re, threading, time
+import asyncio, random, re, threading, time
 from collections import deque
 from ..config import Settings
 from ..hud.events import bus
@@ -29,12 +29,14 @@ MAX_FALA_S = 20
 VAD_INICIO = 0.5            # probabilidade para começar a gravar
 VAD_FIM = 0.35              # abaixo disto conta como silêncio (histerese)
 JANELA_VAD = 8              # frames de contexto para o Silero (256 ms)
+MULETA_S = 1.6              # silêncio máximo antes de ele dizer algo enquanto pensa
+MULETAS = ["Deixa eu ver…", "Só um segundo.", "Hmm… deixa eu olhar isso.", "Peraí, já te digo."]
 
 LIXO_WHISPER = re.compile(r"(legendas? pela comunidade|amara\.org|obrigad[oa] por assistir|tchau tchau|^\W*$|^\.+$)", re.I)
 PEDIDOS_TECLADO = {"teclado", "abre o teclado", "abrir teclado", "deixa eu escrever", "quero escrever",
                    "vou escrever", "deixa eu digitar", "quero digitar"}
 # como o Whisper costuma escrever "Jaime"
-NOME_RX = re.compile(r"\b(jaime|jayme|jaimi|jaimy|jamie|jaine|jaim)\b[,.!?…\s]*", re.I)
+NOME_RX = re.compile(r"\b(jaime|jayme|jaimi|jaimy|jamie|jaine|jaim|jaimes|jaimin|jardim|gênio|genio|jay me)\b[,.!?…\s]*", re.I)
 CHAMADA_RX = re.compile(r"^(ô|oi|ei|hey|olá|ola|e aí|eai|alô|alo|fala)[,\s]*$|^(você\s+)?(tá|ta|está|esta)\s+a[íi]\??$|^(me\s+)?(ouve|escuta|ouvindo|escutando)\??$|^acorda\??$", re.I)
 
 def quer_teclado(texto: str) -> bool:
@@ -62,7 +64,8 @@ def interpretar_chamada(texto: str, modo: str = "nome") -> tuple[str, str]:
     if not NOME_RX.search(t):
         return "sem_nome", t
     resto = NOME_RX.sub("", t, count=1).strip()
-    resto = re.sub(r"^(ô|oi|ei|hey|olá|ola|e aí|eai|alô|alo|fala)[,\s]+", "", resto, flags=re.I).strip()
+    # sobra de vocativo antes ou depois do nome: "Ô Jaime", "O jardim está aí" → "está aí"
+    resto = re.sub(r"^(o|ô|oi|ei|hey|olá|ola|e aí|eai|alô|alo|fala)\b[,\s]*", "", resto, flags=re.I).strip()
     if not resto or CHAMADA_RX.match(resto.rstrip(".!?…")):
         return "chamou", ""
     return "pediu", resto
@@ -216,19 +219,46 @@ class Ouvido:
             bus.emitir("voz", estado="pensando", falando=False)
             buffer = ""
             contexto = self.observador.contexto() if self.observador else ""
+            # se a primeira frase não sair em 1,6 s, ele preenche o silêncio ("deixa eu ver…") em vez de sumir
+            primeira = asyncio.Event()
+            async def muleta():
+                try:
+                    await asyncio.wait_for(primeira.wait(), MULETA_S)
+                except asyncio.TimeoutError:
+                    if not primeira.is_set():
+                        self._enfileirar(random.choice(MULETAS))
+            asyncio.create_task(muleta())
+            # Cada frase entra na fila do TTS assim que fica pronta, sem bloquear: o sintetizador
+            # prepara a próxima enquanto a atual toca, e a resposta sai emendada em vez de picotada.
             async for trecho in self.jaime.ask_stream(texto, canal="voice", contexto=contexto):
                 buffer += trecho
                 prontas, buffer = frases(buffer)
                 for f in prontas:
-                    await asyncio.to_thread(self._falar, f)
+                    primeira.set(); self._enfileirar(f)
             if buffer.strip():
-                await asyncio.to_thread(self._falar, buffer)
+                self._enfileirar(buffer)
+            await asyncio.to_thread(self._aguardar_fala)
             self.ativo_ate = time.time() + self.s.janela_ativa_s
         except Exception as e:
             bus.emitir("voz", estado="erro", erro=f"{type(e).__name__}: {e}"[:200], falando=False)
         finally:
             self.ocupado = False
             bus.emitir("voz", estado="ouvindo", falando=False)
+
+    def _enfileirar(self, texto: str):
+        """Manda a frase para a fila do TTS e cala o microfone; quem espera é `_aguardar_fala`."""
+        if not self._tts:
+            return
+        self.mudo = True
+        self._tts.enfileirar(texto)
+
+    def _aguardar_fala(self):
+        """Espera a fila de fala esvaziar; volta a ouvir 250 ms depois (cauda do alto-falante)."""
+        try:
+            if self._tts:
+                self._tts.aguardar()
+        finally:
+            time.sleep(0.25); self.mudo = False
 
     def _falar(self, texto: str):
         """Microfone mudo enquanto fala; volta a ouvir 250 ms depois (cauda do alto-falante)."""

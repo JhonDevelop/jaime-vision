@@ -59,3 +59,13 @@ claude.ai Canva: https://mcp.canva.com/mcp - ! Needs authentication
     r = parse_mcp_list(saida)
     assert r["github"]["ligado"] and r["notion"]["ligado"] and not r["n8n"]["ligado"]
     assert "404" in r["n8n"]["detalhe"] and "canva" not in r
+
+def test_nome_com_erros_da_transcricao():
+    assert interpretar_chamada("O jardim está aí?") == ("chamou", "")
+    assert interpretar_chamada("Gênio, abre o Finder") == ("pediu", "abre o Finder")
+
+def test_limpar_para_fala_tira_markdown():
+    from jaime.voice.tts import limpar_para_fala
+    t = limpar_para_fala("Estou aqui. O build do **BUB** está no `pod install`.\n\n- item um\n- item dois\nVeja https://x.y/z ok")
+    assert "`" not in t and "*" not in t and "\n" not in t and "https" not in t and "- item" not in t
+    assert t.startswith("Estou aqui. O build do BUB está no pod install.")

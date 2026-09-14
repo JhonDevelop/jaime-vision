@@ -22,7 +22,7 @@ class STT:
     async def transcrever(self, pcm16: bytes, sr: int = 16000) -> str:
         if self.s.deepgram_key:
             async with httpx.AsyncClient(timeout=30) as c:
-                r = await c.post("https://api.deepgram.com/v1/listen?model=nova-3&language=pt-BR&smart_format=true",
+                r = await c.post("https://api.deepgram.com/v1/listen?model=nova-3&language=pt-BR&smart_format=true&keyterm=Jaime&keyterm=Jaime%20est%C3%A1%20a%C3%AD",
                                  headers={"Authorization": f"Token {self.s.deepgram_key}", "Content-Type": "audio/wav"},
                                  content=_wav_bytes(pcm16, sr))
                 r.raise_for_status()

@@ -17,6 +17,8 @@ BASH_PERIGOSO = [
 ]
 TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete)", re.I)
 CAMINHOS_PROTEGIDOS = re.compile(r"(^|/)(\.env|vault/00-Jaime/)")
+# o próprio código do Jaime: editar exige "confirmo" (e só vale depois de reiniciar o servidor)
+CODIGO_PROPRIO = re.compile(r"(^|/)jaime-vision/(jaime|tests)/.+\.py$|^(jaime|tests)/.+\.py$")
 
 class Vigia:
     def __init__(self):
@@ -52,6 +54,8 @@ class Vigia:
             alvo = args.get("file_path", "")
             if CAMINHOS_PROTEGIDOS.search(alvo):
                 return self._negar(f"arquivo protegido: {alvo}")
+            if CODIGO_PROPRIO.search(alvo):
+                return {} if self._consome() else self._negar(f"isso é o seu próprio código ({alvo.split('/')[-1]}); mudança precisa de 'confirmo' e de reiniciar o servidor")
         elif TOOLS_DE_ENVIO.match(nome):
             return {} if self._consome() else self._negar(f"ação externa: {nome}")
         return {}

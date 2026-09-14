@@ -5,7 +5,7 @@ registro da conversa no vault → reflexão a cada N turnos → espelho no Notio
 from __future__ import annotations
 import asyncio
 from claude_agent_sdk import (
-    ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, UserMessage, ResultMessage,
+    ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, UserMessage, ResultMessage, StreamEvent,
     TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,
 )
 from ..config import Settings
@@ -55,6 +55,7 @@ class Jaime:
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
             permission_mode="bypassPermissions",
+            include_partial_messages=True,   # texto chega token a token: a voz começa na primeira frase
         )
         if self.s.thinking_tokens > 0:
             kw["max_thinking_tokens"] = self.s.thinking_tokens   # mostra parte do raciocínio no HUD
@@ -86,13 +87,33 @@ class Jaime:
     async def _stream(self, texto: str):
         """Envia ao Claude e gera trechos de texto; emite eventos de raciocínio/produção para o HUD."""
         await self._client.query(texto)
+        por_delta = False          # texto já foi entregue token a token? então o bloco inteiro não repete
+        pensando = ""
         async for msg in self._client.receive_response():
+            if isinstance(msg, StreamEvent):
+                if msg.parent_tool_use_id:      # fala de subagente (maester) não é fala do Jaime
+                    continue
+                ev = msg.event or {}
+                if ev.get("type") == "content_block_delta":
+                    d = ev.get("delta") or {}
+                    if d.get("type") == "text_delta" and d.get("text"):
+                        por_delta = True
+                        bus.emitir("fala", texto=d["text"]); yield d["text"]
+                    elif d.get("type") == "thinking_delta" and d.get("thinking"):
+                        pensando += d["thinking"]
+                        if len(pensando) > 240:
+                            bus.emitir("raciocinio", texto=pensando[:600]); pensando = ""
+                continue
             if isinstance(msg, AssistantMessage):
                 for b in msg.content:
                     if isinstance(b, TextBlock) and b.text.strip():
-                        bus.emitir("fala", texto=b.text); yield b.text
+                        if not por_delta:
+                            bus.emitir("fala", texto=b.text); yield b.text
                     elif isinstance(b, ThinkingBlock):
-                        bus.emitir("raciocinio", texto=b.thinking[:600])
+                        if pensando:
+                            bus.emitir("raciocinio", texto=pensando[:600]); pensando = ""
+                        elif not por_delta:
+                            bus.emitir("raciocinio", texto=b.thinking[:600])
                     elif isinstance(b, ToolUseBlock):
                         tipo = "producao" if b.name in ("Write", "Edit", "MultiEdit", "Bash", "Task") or b.name.startswith("mcp__") else "raciocinio"
                         bus.emitir(tipo, ferramenta=b.name, alvo=_resumo_tool(b.name, b.input or {}))
