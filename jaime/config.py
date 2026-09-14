@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def _env(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
+    """Variável ausente OU vazia no .env cai no default — um `X=` no arquivo não deve
+    apagar um default sensato (foi o que derrubou o JAIME_PASSPHRASE_HASH no primeiro boot)."""
+    return os.environ.get(name, "").strip() or default
 
 @dataclass
 class Settings:
@@ -28,5 +30,17 @@ class Settings:
     evolution_instance: str = _env("EVOLUTION_INSTANCE", "jaime")
     owner_phone: str = _env("JAIME_OWNER_PHONE")
     server_token: str = _env("JAIME_SERVER_TOKEN", "troque-isto")
+    bind: str = _env("JAIME_BIND", "127.0.0.1")     # só local por padrão
+    port: int = int(_env("JAIME_PORT", "8787"))
+    # acesso ao cérebro (palavra-passe falada ou digitada) — hash SHA-256 de "12341234" por padrão
+    passphrase_hash: str = _env("JAIME_PASSPHRASE_HASH", "1718c24b10aeb8099e3fc44960ab6949ab76a267352459f203ea1036bec382c2")
+    acesso_timeout_min: int = int(_env("JAIME_ACESSO_TIMEOUT_MIN", "30"))
+    thinking_tokens: int = int(_env("JAIME_THINKING_TOKENS", "4000"))
+    # cérebro compartilhado (Notion)
+    notion_token: str = _env("NOTION_TOKEN")
+    notion_root: str = _env("NOTION_ROOT_PAGE_ID", "3db6fab2-88b8-8180-bbe0-dfd72b7f58ff")
+    notion_db_diario: str = _env("NOTION_DB_DIARIO", "4f742e96b84140c0a475f857d0d95502")
+    notion_db_tarefas: str = _env("NOTION_DB_TAREFAS", "52224d3a0f6d40f0a4e46eaee885c074")
+    notion_db_conversas: str = _env("NOTION_DB_CONVERSAS", "714d55db72a3428db267940cdf7ba757")
 
 settings = Settings()
