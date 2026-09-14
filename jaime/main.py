@@ -1,19 +1,17 @@
-"""Entrada: `python -m jaime chat | voice | serve`."""
+"""Entrada: `python -m jaime chat | voice | hud | serve | senha`."""
 from __future__ import annotations
-import argparse, asyncio, sys
+import argparse, asyncio, sys, webbrowser
 from .config import settings
 
 async def _chat():
     from .orchestrator.jaime import Jaime
     j = Jaime(settings)
-    await j.start()
-    print("Jaime online. (Ctrl+C para sair)\n")
+    print("jaime ›", await j.start(), "\n")
     try:
         while True:
             texto = await asyncio.to_thread(input, "você › ")
-            if not texto.strip():
-                continue
-            print("jaime ›", await j.ask(texto, canal="cli"), "\n")
+            if texto.strip():
+                print("jaime ›", await j.ask(texto, canal="cli"), "\n")
     except (KeyboardInterrupt, EOFError):
         pass
     finally:
@@ -22,27 +20,40 @@ async def _chat():
 async def _voice():
     from .orchestrator.jaime import Jaime
     from .voice.loop import VoiceLoop
+    from .voice.tts import TTS
     j = Jaime(settings)
-    await j.start()
+    TTS(settings).falar(await j.start())
     try:
         await VoiceLoop(j, settings).run()
     finally:
         await j.stop()
 
-def _serve():
+def _serve(abrir_hud: bool):
     import uvicorn
-    uvicorn.run("jaime.server:app", host="0.0.0.0", port=8787, reload=False)
+    url = f"http://{settings.bind}:{settings.port}"
+    print(f"Jaime em {url}  (HUD em / · API em /ask · bind={settings.bind})")
+    if abrir_hud:
+        webbrowser.open(url if settings.bind != "0.0.0.0" else f"http://127.0.0.1:{settings.port}")
+    uvicorn.run("jaime.server:app", host=settings.bind, port=settings.port, reload=False, log_level="warning")
+
+def _senha():
+    from .vigia.acesso import hash_senha
+    import getpass
+    s1 = getpass.getpass("Nova palavra-passe (dígitos ou por extenso): ")
+    s2 = getpass.getpass("Repita: ")
+    if s1 != s2:
+        print("Não confere."); return 1
+    print(f"\nColoque no .env:\nJAIME_PASSPHRASE_HASH={hash_senha(s1)}")
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "serve"])
-    args = ap.parse_args(argv)
-    if args.modo == "chat":
-        asyncio.run(_chat())
-    elif args.modo == "voice":
-        asyncio.run(_voice())
-    else:
-        _serve()
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha"])
+    m = ap.parse_args(argv).modo
+    if m == "chat": asyncio.run(_chat())
+    elif m == "voice": asyncio.run(_voice())
+    elif m == "hud": _serve(abrir_hud=True)
+    elif m == "serve": _serve(abrir_hud=False)
+    else: return _senha()
 
 if __name__ == "__main__":
     sys.exit(main())

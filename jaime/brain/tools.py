@@ -2,11 +2,12 @@
 from __future__ import annotations
 from claude_agent_sdk import tool, create_sdk_mcp_server
 from .vault import Vault
+from .estado import Estado
 
 def _txt(s: str) -> dict:
     return {"content": [{"type": "text", "text": s}]}
 
-def build_cerebro_server(vault: Vault):
+def build_cerebro_server(vault: Vault, estado: Estado | None = None):
     @tool("lembrar", "Salva um fato durável sobre o João ou um projeto numa nota do vault (append).",
           {"nota": str, "texto": str})
     async def lembrar(args):
@@ -42,7 +43,20 @@ def build_cerebro_server(vault: Vault):
         t = vault.tarefas_abertas()
         return _txt("\n".join(t) if t else "Inbox vazio.")
 
+    @tool("ler_estado", "Lê o seu próprio Estado (fase, situação, andamento, próximos passos).", {})
+    async def ler_estado(args):
+        return _txt(estado.ler() if estado else vault.read("01-Estado/Estado.md"))
+
+    @tool("atualizar_estado", "Reescreve UMA seção do seu Estado. secao: Fase | Situação agora | Em andamento | Próximos passos | Aprendizados recentes.",
+          {"secao": str, "corpo": str})
+    async def atualizar_estado(args):
+        if not estado:
+            return _txt("Estado indisponível.")
+        estado.atualizar_secao(args["secao"], args["corpo"])
+        return _txt(f"Seção '{args['secao']}' atualizada.")
+
     return create_sdk_mcp_server(
-        name="cerebro", version="1.0.0",
-        tools=[lembrar, buscar_memoria, ler_nota, registrar_diario, criar_tarefa, tarefas_abertas],
+        name="cerebro", version="1.1.0",
+        tools=[lembrar, buscar_memoria, ler_nota, registrar_diario, criar_tarefa, tarefas_abertas,
+               ler_estado, atualizar_estado],
     )

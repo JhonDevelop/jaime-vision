@@ -2,6 +2,11 @@
 
 Jaime tem acesso real ao computador. Três camadas evitam que isso vire um problema:
 
+## 0. Só local + palavra-passe
+- O servidor sobe em `127.0.0.1` e recusa qualquer IP que não seja loopback (middleware), a menos que `JAIME_BIND` mude.
+- O cérebro fica trancado até a palavra-passe (falada: "um dois três quatro…", ou digitada). Guardamos só o SHA-256; padrão 12341234 — troque com `python -m jaime senha`. Timeout de 30 min sem uso; "tranca" fecha na hora.
+- Tentativas de senha não vão para o log de conversas.
+
 ## 1. Vigia (hooks em runtime) — `jaime/vigia/hooks.py`
 Bloqueia até receber "confirmo" (uma confirmação libera **uma** ação, por 120 s):
 - Bash: `rm -rf`, `sudo`, `mkfs`, `git push --force`, push em `main`, `reset --hard`, `curl | sh`, `DROP TABLE`, `shutdown`…

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>JAIME</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#050a12;--cy:#4fd8ff;--cy2:#1aa0c8;--am:#ffb347;--rd:#ff5f5f;--tx:#cfe9f5;--mu:#5f8ba0;--pn:rgba(10,26,40,.72)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",Roboto,system-ui,sans-serif;overflow:hidden}
+  body{background:radial-gradient(1200px 700px at 50% 40%,#0b1a2a 0%,var(--bg) 60%)}
+  .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(79,216,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(79,216,255,.05) 1px,transparent 1px);background-size:48px 48px;pointer-events:none}
+  header{position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid rgba(79,216,255,.18);background:linear-gradient(180deg,rgba(5,10,18,.9),transparent)}
+  .brand{display:flex;align-items:baseline;gap:14px}
+  .brand h1{font-size:28px;letter-spacing:.42em;color:var(--cy);font-weight:300;text-shadow:0 0 18px rgba(79,216,255,.6)}
+  .brand small{color:var(--mu);letter-spacing:.18em;font-size:11px;text-transform:uppercase}
+  .status{display:flex;gap:22px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}
+  .status b{color:var(--cy);font-weight:500}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--rd);box-shadow:0 0 10px var(--rd);margin-right:6px;vertical-align:middle}
+  .dot.on{background:#5cff9d;box-shadow:0 0 10px #5cff9d}
+  main{position:absolute;top:64px;bottom:0;left:0;right:0;display:grid;grid-template-columns:300px 1fr 340px;grid-template-rows:1fr 220px;gap:14px;padding:14px}
+  .panel{background:var(--pn);border:1px solid rgba(79,216,255,.2);border-radius:6px;padding:12px 14px;position:relative;overflow:hidden;backdrop-filter:blur(6px)}
+  .panel::before{content:"";position:absolute;top:0;left:0;width:60px;height:2px;background:var(--cy);box-shadow:0 0 12px var(--cy)}
+  .panel h2{font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--cy2);margin-bottom:10px;font-weight:500}
+  .scroll{overflow:auto;height:calc(100% - 26px);scrollbar-width:thin;scrollbar-color:rgba(79,216,255,.3) transparent}
+  #sys .gauge{margin:8px 0 12px}
+  #sys .lab{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;color:var(--mu);text-transform:uppercase}
+  #sys .lab b{color:var(--tx);font-weight:500}
+  #sys .bar{height:6px;background:rgba(79,216,255,.1);border-radius:3px;margin-top:5px;overflow:hidden}
+  #sys .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cy2),var(--cy));box-shadow:0 0 8px var(--cy);transition:width .6s ease}
+  #sys .bar i.hot{background:linear-gradient(90deg,#c87a1a,var(--am));box-shadow:0 0 8px var(--am)}
+  .kv{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12px;margin-top:6px}
+  .kv span{color:var(--mu)}.kv b{color:var(--tx);font-weight:500}
+  #core{display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:transparent;border:none}
+  #core::before{display:none}
+  canvas{display:block}
+  #estado{text-align:center;max-width:640px;font-size:13px;color:var(--mu)}
+  #estado b{display:block;color:var(--cy);letter-spacing:.2em;text-transform:uppercase;font-size:11px;margin-bottom:6px}
+  #chat{width:100%;max-width:760px}
+  #log{height:150px;overflow:auto;font-size:13px;padding:6px 2px;scrollbar-width:thin}
+  #log .u{color:var(--am)}#log .j{color:var(--tx)}#log .u::before{content:"JOÃO › ";color:var(--mu);letter-spacing:.1em;font-size:11px}#log .j::before{content:"JAIME › ";color:var(--cy2);letter-spacing:.1em;font-size:11px}
+  #log p{margin:4px 0;white-space:pre-wrap}
+  form{display:flex;gap:8px;margin-top:6px}
+  input{flex:1;background:rgba(5,10,18,.8);border:1px solid rgba(79,216,255,.35);color:var(--tx);padding:10px 14px;border-radius:4px;font-size:14px;outline:none;letter-spacing:.02em}
+  input:focus{border-color:var(--cy);box-shadow:0 0 14px rgba(79,216,255,.25)}
+  button{background:transparent;border:1px solid var(--cy);color:var(--cy);padding:0 18px;border-radius:4px;letter-spacing:.2em;text-transform:uppercase;font-size:11px;cursor:pointer}
+  button:hover{background:rgba(79,216,255,.12)}
+  .feed{font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace;font-size:12px}
+  .feed div{padding:5px 0;border-bottom:1px dashed rgba(79,216,255,.1);animation:in .3s ease}
+  .feed .t{color:var(--mu);margin-right:8px;font-size:11px}
+  .feed .f{color:var(--cy);margin-right:8px}
+  .feed .a{color:var(--tx)}
+  .feed .think{color:#a9c7d6;font-style:italic;white-space:pre-wrap}
+  .feed .err{color:var(--rd)}
+  .feed .res{color:#8fb4c7;white-space:pre-wrap;padding-left:14px;font-size:11px}
+  @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  #gate{position:absolute;inset:0;background:rgba(5,10,18,.86);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;z-index:9;backdrop-filter:blur(4px)}
+  #gate h3{letter-spacing:.5em;color:var(--cy);font-weight:300;font-size:20px;text-transform:uppercase}
+  #gate p{color:var(--mu);font-size:12px;letter-spacing:.1em}
+  #gate input{width:280px;text-align:center;letter-spacing:.6em;font-size:20px}
+  #gate.off{display:none}
+  .shake{animation:sh .35s}
+  @keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style>
+</head>
+<body>
+<div class="grid"></div>
+<header>
+  <div class="brand"><h1>JAIME</h1><small>assistente operacional · v0.2</small></div>
+  <div class="status">
+    <span><i class="dot" id="dot"></i><b id="acesso">trancado</b></span>
+    <span>fase <b id="fase">—</b></span>
+    <span>máquina <b id="maq">—</b></span>
+    <span>modelo <b id="modelo">—</b></span>
+    <span id="notion" title="cérebro compartilhado">notion <b>—</b></span>
+  </div>
+</header>
+
+<main>
+  <section class="panel" id="sys">
+    <h2>Sistema</h2>
+    <div class="gauge"><div class="lab"><span>CPU</span><b id="cpu">—</b></div><div class="bar"><i id="cpu-b"></i></div></div>
+    <div class="gauge"><div class="lab"><span>Memória</span><b id="ram">—</b></div><div class="bar"><i id="ram-b"></i></div></div>
+    <div class="gauge"><div class="lab"><span>Disco</span><b id="disco">—</b></div><div class="bar"><i id="disco-b"></i></div></div>
+    <div class="kv">
+      <span>rede ↓</span><b id="down">—</b><span>rede ↑</span><b id="up">—</b>
+      <span>processos</span><b id="procs">—</b><span>uptime</span><b id="up-h">—</b>
+      <span>temperatura</span><b id="temp">—</b><span>bateria</span><b id="bat">—</b>
+    </div>
+    <h2 style="margin-top:18px">Próximos passos</h2>
+    <div id="prox" class="scroll" style="height:auto;max-height:180px;font-size:12px;color:var(--tx);white-space:pre-wrap"></div>
+  </section>
+
+  <section class="panel" id="core">
+    <canvas id="ring" width="520" height="420"></canvas>
+    <div id="estado"><b>situação</b><span id="sit">…</span></div>
+    <div id="chat">
+      <div id="log"></div>
+      <form id="f"><input id="in" autocomplete="off" placeholder="Fale com o Jaime… (ou diga a palavra-passe)"><button>enviar</button><button type="button" id="lock">trancar</button></form>
+    </div>
+  </section>
+
+  <section class="panel"><h2>Raciocínio</h2><div id="rac" class="scroll feed"></div></section>
+
+  <section class="panel" style="grid-column:1/-1"><h2>Produção · ferramentas em uso</h2><div id="prod" class="scroll feed"></div></section>
+</main>
+
+<div id="gate">
+  <h3>Palavra-passe</h3>
+  <p>fale ou digite para abrir o cérebro do Jaime</p>
+  <input id="senha" type="password" inputmode="numeric" autofocus>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let falando=0, energia=0, liberado=false;
+
+// ── anel animado (pulsa quando o Jaime fala) ───────────────
+const cv=$('ring'),cx=cv.getContext('2d');
+let ang=0;
+function draw(){
+  const w=cv.width,h=cv.height,X=w/2,Y=h/2;
+  cx.clearRect(0,0,w,h);
+  energia+= (falando?1:0.12)-energia*0.08;             // amplitude alvo
+  const pulse=1+Math.sin(Date.now()/140)*0.04*energia;
+  const R=[150,118,90,62];
+  R.forEach((r,i)=>{
+    cx.beginPath();cx.strokeStyle=`rgba(79,216,255,${0.18+i*0.12})`;cx.lineWidth=i==3?3:1.2;
+    cx.setLineDash(i%2?[14,10]:[3,7]);cx.lineDashOffset=(i%2?1:-1)*ang*(i+1)*20;
+    cx.arc(X,Y,r*pulse,0,Math.PI*2);cx.stroke();
+  });
+  cx.setLineDash([]);
+  // segmentos que giram
+  for(let i=0;i<24;i++){const a=ang*1.6+i*Math.PI/12,len=i%3?6:16;
+    cx.beginPath();cx.strokeStyle=i%3?'rgba(79,216,255,.35)':'rgba(255,179,71,.8)';cx.lineWidth=2;
+    cx.moveTo(X+Math.cos(a)*(172*pulse),Y+Math.sin(a)*(172*pulse));cx.lineTo(X+Math.cos(a)*(172*pulse+len),Y+Math.sin(a)*(172*pulse+len));cx.stroke();}
+  // ondas de voz no núcleo
+  const bars=28;
+  for(let i=0;i<bars;i++){const a=i/bars*Math.PI*2;const amp=falando?(8+Math.random()*30*energia):3+Math.sin(Date.now()/300+i)*2;
+    cx.beginPath();cx.strokeStyle=`rgba(79,216,255,${0.35+energia*0.5})`;cx.lineWidth=3;cx.lineCap='round';
+    cx.moveTo(X+Math.cos(a)*30,Y+Math.sin(a)*30);cx.lineTo(X+Math.cos(a)*(30+amp),Y+Math.sin(a)*(30+amp));cx.stroke();}
+  const g=cx.createRadialGradient(X,Y,0,X,Y,40);g.addColorStop(0,`rgba(79,216,255,${0.5+energia*0.4})`);g.addColorStop(1,'rgba(79,216,255,0)');
+  cx.fillStyle=g;cx.beginPath();cx.arc(X,Y,40,0,Math.PI*2);cx.fill();
+  cx.fillStyle=liberado?'#4fd8ff':'#ff5f5f';cx.font='300 13px system-ui';cx.textAlign='center';cx.letterSpacing='6px';
+  cx.fillText(liberado?(falando?'FALANDO':'ONLINE'):'TRANCADO',X,Y+205);
+  ang+=0.004;requestAnimationFrame(draw);
+}
+draw();
+
+// ── helpers de UI ───────────────────────────────────────────
+const hora=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function feed(el,html){const d=document.createElement('div');d.innerHTML=`<span class="t">${hora()}</span>${html}`;el.prepend(d);while(el.children.length>80)el.lastChild.remove();}
+function chat(cls,txt){const p=document.createElement('p');p.className=cls;p.textContent=txt;$('log').appendChild(p);$('log').scrollTop=1e6;}
+let bufJ=null;
+function setAcesso(on){liberado=on;$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado';$('gate').className=on?'off':'';if(!on){$('senha').value='';$('senha').focus()}else $('in').focus();}
+function pct(id,v,hot=85){$(id).textContent=v.toFixed(0)+'%';const b=$(id+'-b');b.style.width=v+'%';b.className=v>hot?'hot':'';}
+
+// ── eventos do Jaime ────────────────────────────────────────
+const es=new EventSource('/hud/stream');
+es.onmessage=e=>{
+  const ev=JSON.parse(e.data);
+  switch(ev.tipo){
+    case 'sistema': if(ev.erro){$('cpu').textContent=ev.erro;break}
+      pct('cpu',ev.cpu);pct('ram',ev.ram);pct('disco',ev.disco,90);
+      $('down').textContent=ev.down_kbs+' KB/s';$('up').textContent=ev.up_kbs+' KB/s';$('procs').textContent=ev.procs;$('up-h').textContent=ev.uptime_h+' h';
+      $('temp').textContent=ev.temp!=null?ev.temp+' °C':'n/d';$('bat').textContent=ev.bateria!=null?ev.bateria+'%':'—';break;
+    case 'estado': $('fase').textContent=ev.fase;$('sit').textContent=ev.situacao||'…';if(ev.maquina)$('maq').textContent=ev.maquina.host;if(ev.liberado!=null)setAcesso(ev.liberado);break;
+    case 'apresentacao': chat('j',ev.texto);break;
+    case 'conversa': chat('u',ev.texto);bufJ=null;break;
+    case 'fala': falando=1;if(!bufJ){bufJ=document.createElement('p');bufJ.className='j';$('log').appendChild(bufJ)}bufJ.textContent+=ev.texto;$('log').scrollTop=1e6;break;
+    case 'fala_fim': falando=0;bufJ=null;break;
+    case 'voz': falando=ev.falando?1:0;break;
+    case 'raciocinio': feed($('rac'),ev.ferramenta?`<span class="f">${ev.ferramenta}</span><span class="a">${ev.alvo||''}</span>`:`<span class="think">${(ev.texto||'').slice(0,400)}</span>`);break;
+    case 'producao': feed($('prod'),`<span class="f">${ev.ferramenta}</span><span class="a">${ev.alvo||''}</span>`);break;
+    case 'resultado': feed($('prod'),`<span class="res ${ev.erro?'err':''}">${(ev.texto||'').slice(0,240)}</span>`);break;
+    case 'acesso': setAcesso(ev.liberado);if(!ev.liberado&&$('gate').className==='')$('senha').classList.add('shake');setTimeout(()=>$('senha').classList.remove('shake'),400);break;
+  }
+};
+es.onerror=()=>{$('acesso').textContent='reconectando…'};
+
+// ── estado inicial ──────────────────────────────────────────
+fetch('/hud/estado').then(r=>r.json()).then(s=>{
+  $('fase').textContent=s.fase;$('maq').textContent=s.maquina.host;$('modelo').textContent=s.modelo;
+  $('sit').textContent=s.situacao||'…';$('prox').textContent=s.proximos||'';
+  $('notion').innerHTML='notion <b>'+(s.notion?'sincronizando':'desligado')+'</b>';
+  setAcesso(s.liberado);if(s.apresentacao&&!$('log').children.length)chat('j',s.apresentacao);
+});
+
+// ── entrada ─────────────────────────────────────────────────
+async function falar(t){await fetch('/hud/falar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:t})});}
+$('f').onsubmit=e=>{e.preventDefault();const t=$('in').value.trim();if(!t)return;$('in').value='';falar(t);};
+$('senha').onkeydown=e=>{if(e.key==='Enter'){const t=$('senha').value.trim();if(t)falar(t);$('senha').value='';}};
+$('lock').onclick=()=>fetch('/hud/trancar',{method:'POST'});
+setInterval(()=>fetch('/hud/estado').then(r=>r.json()).then(s=>{$('prox').textContent=s.proximos||'';}),20000);
+</script>
+</body>
+</html>

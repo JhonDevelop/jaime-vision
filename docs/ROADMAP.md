@@ -2,7 +2,7 @@
 
 | Fase | Entrega | Critério de pronto |
 |---|---|---|
-| 0 | Esqueleto (este commit) | `python -m jaime chat` responde e escreve no vault |
+| 0 | Esqueleto + cérebro conectado, HUD, palavra-passe, espelho Notion | `python -m jaime hud` abre, aceita 12341234, o Jaime se apresenta e escreve no vault |
 | 1 | MCPs conectados | GitHub, Notion e n8n autenticados; maester-dev abre branch e commita |
 | 2 | Agenda | n8n expõe Google Calendar; maester-agenda lista e cria eventos |
 | 3 | Voz local | wake word → Whisper → ElevenLabs, latência < 3 s por turno |

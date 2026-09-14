@@ -17,6 +17,9 @@ você fala ──► ouvido (wake word + STT) ──► JAIME (orquestrador) ─
 | **Maesters** | `.claude/agents/*.md` | Especialistas: dev, agenda, comms, arquivista, ops. Cada um com ferramentas e regras próprias. |
 | **Cérebro** | `vault/` + `jaime/brain/` | Vault Obsidian. Identidade, regras, projetos, tarefas, diário. Jaime lê no início e escreve durante o dia. |
 | **Vigia** | `jaime/vigia/` | Hooks que interceptam ações perigosas e exigem "confirmo". |
+| **HUD** | `jaime/hud/` | Interface estilo Jarvis: anéis que pulsam quando ele fala, monitor da máquina, raciocínio e produção ao vivo, porta com palavra-passe. |
+| **Estado** | `jaime/brain/estado.py` + `vault/01-Estado/` | Autoconsciência: fase, situação, última conversa, máquinas; reescrito pelo próprio Jaime. |
+| **Espelho** | `jaime/brain/notion_sync.py` | Cérebro compartilhado no Notion (Estado, Diário, Tarefas, Conversas). |
 | **Voz** | `jaime/voice/` | Porcupine (wake word) → Whisper/Deepgram (STT) → ElevenLabs (TTS). |
 | **Canais** | `jaime/channels/` + `jaime/server.py` | CLI, WhatsApp (Evolution API / Meta), telefone (Twilio), webhooks do n8n. |
 
@@ -28,6 +31,7 @@ bash scripts/install.sh          # venv + deps + .env
 cp .env.example .env             # preencha ANTHROPIC_API_KEY
 python -m jaime chat             # conversa por texto
 python -m jaime voice            # modo voz (precisa das deps de voz)
+python -m jaime hud              # interface Jarvis (local) + apresentação + palavra-passe
 python -m jaime serve            # API + webhooks (WhatsApp, n8n)
 ```
 
