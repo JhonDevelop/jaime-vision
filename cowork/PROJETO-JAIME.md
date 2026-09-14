@@ -17,8 +17,9 @@ está escrito como **não consta**, não como "pendente".
 | ⬜ | Não consta no repo |
 | 🔒 | Exige "confirmo" do João para operar |
 
-> Nenhuma funcionalidade está ✅ hoje. O ambiente onde este arquivo foi escrito não
-> tem `claude_agent_sdk` nem `pytest` instalados, então nem a fase 0 foi comprovada.
+> Só F6 está ✅ — é a única verificável sem executar o Jaime. O ambiente onde este
+> arquivo foi escrito não tem `claude_agent_sdk` nem `pytest` instalados, então o
+> critério da fase 0 segue não comprovado.
 
 ## Necessidades (o porquê)
 
@@ -45,7 +46,7 @@ Critério de pronto (roadmap): `python -m jaime chat` responde e escreve no vaul
 | F3 | Vigia: hooks PreToolUse + fluxo "confirmo" | 🟡 🔒 | `jaime/vigia/hooks.py` — 14 padrões de bash, tools de envio, `.env` e `00-Jaime/` protegidos. Sem teste do hook em si. |
 | F4 | Maesters carregados de `.claude/agents/*.md` | 🔴 | `orchestrator/maesters.py` lê o diretório, mas **`.claude/` não existe**. `carregar_maesters()` devolve `{}` — hoje não há nenhum maester e a delegação não acontece. Bloqueia F9, F14, F20. |
 | F5 | CLI `python -m jaime chat` | 🟡 | `jaime/main.py` — três modos (chat/voice/serve). Critério da fase 0 **não comprovado**. |
-| F6 | Higiene de repo e segredos | 🔴 | `.gitignore` é um template do Dynamics 365 Business Central (AL): não ignora `.env`, `venv/` nem `__pycache__/`. `.env.example` **não consta**, mas `scripts/install.sh` e o README mandam copiá-lo. Risco de commitar a `ANTHROPIC_API_KEY`. Corrigir antes de qualquer `.env`. |
+| F6 | Higiene de repo e segredos | ✅ | `.gitignore` de Python (o anterior era template do Dynamics 365/AL e não ignorava `.env`). `.env.example` com as 14 variáveis de `config.py` + `ANTHROPIC_API_KEY`. Verificado: `git check-ignore` confirma `.env` ignorado e `.env.example` versionado; `git grep` não acha chave preenchida. Notas do vault seguem versionadas. |
 
 ### Fase 1 — MCPs conectados
 Critério (roadmap): GitHub, Notion e n8n autenticados; maester-dev abre branch e commita.
@@ -109,7 +110,7 @@ Critério: controle visual de apps sem API, só com confirmação.
 
 | Fase | ✅ | 🟡 | 🔴 | ⬜ |
 |---|---|---|---|---|
-| 0 — Esqueleto | 0 | 4 | 2 | 0 |
+| 0 — Esqueleto | 1 | 4 | 1 | 0 |
 | 1 — MCPs | 0 | 0 | 0 | 6 |
 | 2 — Agenda | 0 | 0 | 0 | 2 |
 | 3 — Voz | 0 | 3 | 0 | 1 |
@@ -117,13 +118,13 @@ Critério: controle visual de apps sem API, só com confirmação.
 | 5 — Arquivista | 0 | 0 | 0 | 1 |
 | 6 — Telefone | 0 | 1 | 0 | 0 |
 | 7 — Computer use | 0 | 0 | 0 | 1 |
-| **Total** | **0** | **9** | **2** | **11** |
+| **Total** | **1** | **9** | **1** | **11** |
 
 ## Caminho crítico
 
 ```
-F6 (segredos)  ─┐
-F5 (chat roda) ─┼─► F4 (maesters) ─► F7 (.mcp.json) ─► F8 (auth) ─► F9 (dev commita)
+F6 (segredos) ✅ ─┐
+F5 (chat roda)  ─┼─► F4 (maesters) ─► F7 (.mcp.json) ─► F8 (auth) ─► F9 (dev commita)
                 │                          │
                 └─► F11 (estado/boot)      └─► F10 (Notion) ─► F13/F14 (agenda)
 ```
