@@ -8,9 +8,9 @@
 Primeiro boot concluído no MacBookPro. Instalação, testes (9 passando), CLI claude 2.1.270 e acesso por palavra-passe funcionando. Máquina registrada em Maquinas.md. Respondendo pelo canal cli.
 
 ## Última conversa
-- canal: hud
-- quando: 14/09/2026 15:53 em MacBookPro
-- tema: 12341234
+- canal: cli
+- quando: 14/09/2026 16:02 em MacBookPro
+- tema: diga apenas: ok
 
 ## Em andamento
 Conectar Notion (NOTION_TOKEN vazio) e corrigir a URL do MCP Server Trigger do n8n (HTTP 404). Testar voz (falta instalar mpv). Resolver saldo do ANTHROPIC_API_KEY em Billing — por ora rodando pela assinatura do CLI claude.

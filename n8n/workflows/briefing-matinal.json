@@ -1,0 +1,48 @@
+{
+  "name": "Jaime — Briefing matinal (WhatsApp)",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "cronExpression", "expression": "0 7 * * 1-5"}]}},
+      "id": "a1", "name": "Todo dia útil 07:00", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0]
+    },
+    {
+      "parameters": {"assignments": {"assignments": [
+        {"id": "c1", "name": "jaime_url", "value": "https://SEU-TUNEL.trycloudflare.com", "type": "string"},
+        {"id": "c2", "name": "jaime_token", "value": "troque-isto", "type": "string"},
+        {"id": "c3", "name": "evolution_url", "value": "https://evo.seudominio.com", "type": "string"},
+        {"id": "c4", "name": "evolution_key", "value": "SUA-APIKEY-EVOLUTION", "type": "string"},
+        {"id": "c5", "name": "evolution_instance", "value": "jaime", "type": "string"},
+        {"id": "c6", "name": "owner_phone", "value": "5516999999999", "type": "string"}
+      ]}, "options": {}},
+      "id": "a2", "name": "Config", "type": "n8n-nodes-base.set", "typeVersion": 3.4, "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "={{ $json.jaime_url }}/ask",
+        "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-Jaime-Token", "value": "={{ $json.jaime_token }}"}]},
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ { texto: 'briefing. Responda como mensagem de WhatsApp: sem markdown, no máximo 8 linhas.', canal: 'n8n' } }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "a3", "name": "Perguntar ao Jaime", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.evolution_url }}/message/sendText/{{ $('Config').item.json.evolution_instance }}",
+        "sendHeaders": true, "headerParameters": {"parameters": [{"name": "apikey", "value": "={{ $('Config').item.json.evolution_key }}"}]},
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ { number: $('Config').item.json.owner_phone, text: $json.resposta } }}",
+        "options": {}
+      },
+      "id": "a4", "name": "Enviar no WhatsApp", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Todo dia útil 07:00": {"main": [[{"node": "Config", "type": "main", "index": 0}]]},
+    "Config": {"main": [[{"node": "Perguntar ao Jaime", "type": "main", "index": 0}]]},
+    "Perguntar ao Jaime": {"main": [[{"node": "Enviar no WhatsApp", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "timezone": "America/Sao_Paulo"},
+  "active": false
+}

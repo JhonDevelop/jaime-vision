@@ -1,0 +1,55 @@
+{
+  "name": "Jaime — Ferramentas MCP (Agenda e E-mail)",
+  "nodes": [
+    {
+      "parameters": {"path": "jaime-ferramentas", "authentication": "bearerAuth"},
+      "id": "m1", "name": "MCP Server Trigger", "type": "@n8n/n8n-nodes-langchain.mcpTrigger", "typeVersion": 1, "position": [400, 0],
+      "webhookId": "jaime-ferramentas"
+    },
+    {
+      "parameters": {
+        "operation": "getAll", "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "timeMin": "={{ $fromAI('inicio', 'Início do intervalo, ISO 8601 com fuso, ex: 2026-09-15T00:00:00-03:00', 'string') }}",
+        "timeMax": "={{ $fromAI('fim', 'Fim do intervalo, ISO 8601 com fuso', 'string') }}",
+        "options": {"singleEvents": true, "orderBy": "startTime"}
+      },
+      "id": "m2", "name": "agenda_listar", "type": "n8n-nodes-base.googleCalendarTool", "typeVersion": 1.3, "position": [0, 200]
+    },
+    {
+      "parameters": {
+        "operation": "create", "calendar": {"__rl": true, "mode": "list", "value": "primary"},
+        "start": "={{ $fromAI('inicio', 'Início do evento, ISO 8601 com fuso', 'string') }}",
+        "end": "={{ $fromAI('fim', 'Fim do evento, ISO 8601 com fuso', 'string') }}",
+        "additionalFields": {
+          "summary": "={{ $fromAI('titulo', 'Título do evento', 'string') }}",
+          "description": "={{ $fromAI('descricao', 'Descrição opcional', 'string') }}"
+        }
+      },
+      "id": "m3", "name": "agenda_criar", "type": "n8n-nodes-base.googleCalendarTool", "typeVersion": 1.3, "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "operation": "getAll", "returnAll": false, "limit": 10, "simple": true,
+        "filters": {"q": "={{ $fromAI('busca', 'Filtro de busca do Gmail, ex: is:unread newer_than:1d', 'string') }}"}
+      },
+      "id": "m4", "name": "email_buscar", "type": "n8n-nodes-base.gmailTool", "typeVersion": 2.1, "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "resource": "draft", "operation": "create",
+        "subject": "={{ $fromAI('assunto', 'Assunto do e-mail', 'string') }}",
+        "message": "={{ $fromAI('corpo', 'Corpo do e-mail em texto simples', 'string') }}",
+        "options": {"sendTo": "={{ $fromAI('para', 'Destinatário', 'string') }}"}
+      },
+      "id": "m5", "name": "email_rascunho", "type": "n8n-nodes-base.gmailTool", "typeVersion": 2.1, "position": [900, 200]
+    }
+  ],
+  "connections": {
+    "agenda_listar": {"ai_tool": [[{"node": "MCP Server Trigger", "type": "ai_tool", "index": 0}]]},
+    "agenda_criar": {"ai_tool": [[{"node": "MCP Server Trigger", "type": "ai_tool", "index": 0}]]},
+    "email_buscar": {"ai_tool": [[{"node": "MCP Server Trigger", "type": "ai_tool", "index": 0}]]},
+    "email_rascunho": {"ai_tool": [[{"node": "MCP Server Trigger", "type": "ai_tool", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "timezone": "America/Sao_Paulo"},
+  "active": false
+}
