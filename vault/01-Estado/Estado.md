@@ -9,8 +9,8 @@ Voz direta funcionando (Silero VAD, Deepgram, ElevenLabs em streaming), HUD 3D, 
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 07:36 em MacBookPro
-- tema: Tá tudo certo.
+- quando: 15/09/2026 07:40 em MacBookPro
+- tema: confirmo — pode executar a ação que o Vigia bloqueou.
 
 ## Em andamento
 - fase 2, etapa 2: Córtex (roteador de modelos) + placar
