@@ -28,7 +28,7 @@ from .eco import SupressorDeEco
 
 SILENCIO_FECHOU_MS = 450      # antecipador diz que a frase fechou
 SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
-SILENCIO_ABERTO_MS = 1200     # antecipador diz que o João ainda vai continuar ("…e também")
+SILENCIO_ABERTO_MS = 1500     # antecipador diz que o João ainda vai continuar ("…e também")
 BARGE_IN_PROB = 0.85          # VAD mais exigente enquanto o Jaime fala
 BARGE_IN_MS = 200             # voz contínua necessária para cortar
 BARGE_IN_ECO_X = 2.5          # RMS do João precisa ser 2,5× o eco medido (sem AEC)
