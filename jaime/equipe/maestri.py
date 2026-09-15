@@ -9,7 +9,7 @@ import glob, json, os, shlex, subprocess, tempfile
 from pathlib import Path
 
 CLI_PADRAO = "/Applications/Maestri.app/Contents/Resources/maestri"
-NOME_MAESTRO = ("J.A.I.M.E", "JAIME", "Jaime")
+NOME_PREFERIDO = ("J.A.I.M.E", "JAIME", "Jaime")
 
 def descobrir_socket() -> str:
     if (s := os.environ.get("JAIME_MAESTRI_SOCKET") or os.environ.get("MAESTRI_SOCKET")):
@@ -21,10 +21,8 @@ def descobrir_socket() -> str:
     candidatos = sorted(set(candidatos), key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0, reverse=True)
     return candidatos[0] if candidatos else ""
 
-def descobrir_terminal(nome_preferido: tuple[str, ...] = NOME_MAESTRO) -> tuple[str, str]:
-    """(terminal_id, nome) do terminal Maestro; prefere o que tem 'J.A.I.M.E' no nome."""
-    if (t := os.environ.get("JAIME_MAESTRI_TERMINAL_ID") or os.environ.get("MAESTRI_TERMINAL_ID")):
-        return t, os.environ.get("JAIME_MAESTRI_TERMINAL_NOME", "")
+def _maestros() -> list[tuple[str, str]]:
+    """(id, nome) dos terminais com Maestro ligado, em todos os workspaces do Maestri."""
     achados = []
     for f in glob.glob(os.path.expanduser("~/.maestri/workspaces/*/workspace.json")):
         try:
@@ -35,10 +33,25 @@ def descobrir_terminal(nome_preferido: tuple[str, ...] = NOME_MAESTRO) -> tuple[
             t = ((n.get("content") or {}).get("terminal") or {}).get("_0")
             if t and t.get("isManager") and t.get("status") == "running":
                 achados.append((t.get("id", ""), t.get("name", "")))
-    for tid, nome in achados:
+    return achados
+
+def descobrir_terminal(nome_preferido: tuple[str, ...] = NOME_PREFERIDO) -> tuple[str, str]:
+    """(terminal_id, nome) do terminal Maestro que o Jaime usa para recrutar.
+    Ordem: JAIME_MAESTRI_TERMINAL_ID explícito → o próprio terminal (MAESTRI_TERMINAL_ID) se ele for Maestro →
+    um Maestro com 'J.A.I.M.E' no nome → o primeiro Maestro. Quando o serviço roda num terminal do Maestri que NÃO é
+    Maestro (um nó "Shell" com `jaime serve`), ele age pelo Maestro do workspace — por isso o env do próprio terminal
+    não vale sozinho."""
+    if (t := os.environ.get("JAIME_MAESTRI_TERMINAL_ID")):
+        return t, os.environ.get("JAIME_MAESTRI_TERMINAL_NOME", "")
+    maestros = _maestros()
+    proprio = os.environ.get("MAESTRI_TERMINAL_ID", "")
+    for tid, nome in maestros:
+        if proprio and tid == proprio:
+            return tid, nome
+    for tid, nome in maestros:
         if any(p.lower() in nome.lower() for p in nome_preferido):
             return tid, nome
-    return achados[0] if achados else ("", "")
+    return maestros[0] if maestros else ("", "")
 
 class Maestri:
     def __init__(self, executor=None, cli: str | None = None):

@@ -11,6 +11,17 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
+## Como o Jaime roda agora (15/09, 14:10)
+- **O serviço roda dentro do Maestri**, no nó "J.A.I.M.E · serviço" (preset Shell, `python -u -m jaime serve | tee -a ~/Jaime/jaime.log`,
+  pasta jaime-vision). O LaunchAgent `com.jaime` foi **parado** (`servico.sh parar`) para não disputar a porta; se o Maestri fechar,
+  o Jaime cai — para voltar ao modo serviço: `bash jaime/ops/servico.sh ligar`. Não rode os dois.
+- O serviço age no canvas pelo Maestro "Cerebro Principal J.A.I.M.E" (descoberta automática em `jaime/equipe/maestri.py`).
+- **"J.A.I.M.E · mente"** (Claude Code, papel "Mente do J.A.I.M.E", worktree `../jaime-mente`, branch `feat/mente`): lê log, diário
+  e problemas, escreve `docs/MENTE.md` (problema → hipótese → solução → validação), implementa melhorias com testes e avisa o
+  Cérebro Principal; pode recrutar Codex. Só o Cérebro Principal (esta sessão) faz merge e reinicia o serviço.
+- Nós conectados: Bússola, Fagulha (ociosos), nota `fase3-progresso`, papel "Codex do Jaime" pronto para recrutas Codex.
+- `main` = fase 3 completa (merge 621a0f1); **push pendente** (`git push origin main` no terminal do João).
+
 ## Fase 3 — tempo real (branch `feat/fase3-duplex`, 15/09 tarde) — A, B, C, D, E prontos
 - Tese e prompts em `docs/FASE-3-TEMPO-REAL.md`; Maestri em `docs/MAESTRI.md`; prompt do Codex em `docs/PROMPT-CODEX.md`.
 - **A (ouvido em tempo real)**: `voice/stt_stream.py` (Deepgram ao vivo, OpenAI Realtime, Whisper pseudo), `voice/antecipador.py`
