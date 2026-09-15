@@ -86,6 +86,8 @@
 
   #telaBox{position:fixed;right:18px;bottom:44px;width:300px;border:1px solid var(--bd);border-radius:10px;background:var(--pn);backdrop-filter:blur(10px);padding:8px;z-index:4;text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
   #telaBox img{width:100%;border-radius:6px;display:block;margin-bottom:6px}
+  #tempo{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:4px;z-index:4;pointer-events:none}
+  #tempo i{display:inline-block;width:14px;height:14px;border-radius:3px;font-style:normal;font-size:9px;line-height:14px;text-align:center;color:var(--tx);background:rgba(79,216,255,.12);border:1px solid var(--bd);animation:in .3s}
   #aviso{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:6;font-size:11.5px;letter-spacing:.06em;color:var(--am);background:var(--pn);border:1px solid rgba(255,179,71,.35);padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none}
   #aviso.on{opacity:1}
   @media (max-width:1100px){.painel{display:none}}
@@ -135,6 +137,7 @@
 </aside>
 
 <div id="telaBox" hidden><img id="telaImg" alt="tela"><span>o que ele está vendo</span></div>
+<div id="tempo" title="últimos eventos"></div>
 <div id="legenda">
   <div id="estadoVoz" class="trancado">iniciando</div>
   <div id="fala"></div>
@@ -289,8 +292,12 @@ async function carregarVault(){
   if(ls.length){constelacao.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ls),new THREE.LineBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.08})))}
 }
 function tocarNota(ref){if(!ref)return;const id=Object.keys(estrelas).find(k=>k===ref||k.endsWith('/'+ref)||k.endsWith('/'+ref+'.md')||estrelas[k].nome===ref.replace(/\.md$/,''));
-  if(!id)return;const e=estrelas[id];e.pulso=1;e.m.material.color.setHex(0xffffff);
+  if(!id)return;const e=estrelas[id];e.pulso=1;e.m.material.color.setHex(0xffffff);feixe(e.m.getWorldPosition(new THREE.Vector3()));
   fetch('/hud/nota?rel='+encodeURIComponent(id)).then(r=>r.json()).then(n=>mostrarTrecho(id,n.texto)).catch(()=>{});}
+function linhaTempo(icone){const t=$('tempo');const i=document.createElement('i');i.textContent=icone;t.appendChild(i);while(t.children.length>24)t.firstChild.remove();}
+const feixes=[];
+function feixe(alvo){const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),alvo.clone()]);
+  const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.9}));scene.add(l);feixes.push({l,t:0});}
 function mostrarTrecho(arq,txt){const el=$('trecho');el.innerHTML='';const a=document.createElement('span');a.className='arq';a.textContent=arq;el.appendChild(a);el.appendChild(document.createTextNode((txt||'').slice(0,1500)));el.scrollTop=0;}
 carregarVault();setInterval(carregarVault,120000);
 
@@ -327,11 +334,35 @@ function animar(){
     n.pacotes=n.pacotes.filter(p=>{p.t+=dt*p.v;if(p.t>=1){orbita.remove(p.m);return false;}const k=p.ida?p.t:1-p.t;p.m.position.copy(n.pos).multiplyScalar(1-k);return true;});
   }
   constelacao.rotation.y+=dt*0.02;
+  for(let i=feixes.length-1;i>=0;i--){const f=feixes[i];f.t+=dt;f.l.material.opacity=Math.max(0,0.9-f.t*1.2);if(f.t>0.8){scene.remove(f.l);feixes.splice(i,1)}}
   for(const id in estrelas){const e=estrelas[id];if(e.pulso>0){e.pulso=Math.max(0,e.pulso-dt*0.6);e.m.scale.setScalar(1+e.pulso*2.5);e.m.material.opacity=0.55+e.pulso*0.45;if(e.pulso===0)e.m.material.color.setHex(e.cor);}}
   if(orbit.auto)orbit.yaw+=dt*0.04;camPos();
   renderer.render(scene,camera);requestAnimationFrame(animar);
 }
 animar();
+
+// ── sons: sintetizados no browser (Web Audio), discretos; tecla S silencia ──
+const SOM={ctx:null,mudo:false};
+try{SOM.mudo=localStorage.getItem('jaime.mudo')==='1'}catch(e){}
+function ac(){if(!SOM.ctx){try{SOM.ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(SOM.ctx&&SOM.ctx.state==='suspended')SOM.ctx.resume();return SOM.ctx;}
+function tom(freq,dur,tipo='sine',vol=0.05,t0=0,decay=true){const c=ac();if(!c||SOM.mudo)return;const o=c.createOscillator(),g=c.createGain();o.type=tipo;o.frequency.value=freq;
+  g.gain.setValueAtTime(0,c.currentTime+t0);g.gain.linearRampToValueAtTime(vol,c.currentTime+t0+0.01);g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+t0+dur);
+  o.connect(g);g.connect(c.destination);o.start(c.currentTime+t0);o.stop(c.currentTime+t0+dur+0.05);}
+const SONS={
+  boot:()=>{[523,659,784].forEach((f,i)=>tom(f,0.35,'sine',0.05,i*0.12))},
+  ativacao:()=>{tom(880,0.09,'sine',0.06);tom(1320,0.12,'sine',0.05,0.1)},
+  dispensa:()=>{tom(1320,0.09,'sine',0.04);tom(880,0.14,'sine',0.04,0.1)},
+  ouvindo:()=>tom(1500,0.03,'square',0.012),
+  pensando:()=>tom(110,0.25,'sine',0.03),
+  fala:()=>tom(440,0.08,'triangle',0.025),
+  notificacao:()=>{tom(988,0.1,'sine',0.05);tom(1319,0.16,'sine',0.05,0.11)},
+  erro:()=>tom(160,0.35,'sawtooth',0.04),
+  vigia:()=>{tom(330,0.15,'square',0.03);tom(262,0.25,'square',0.03,0.16)},
+};
+let pensandoTimer=null;
+function somPensando(on){clearInterval(pensandoTimer);pensandoTimer=null;if(on)pensandoTimer=setInterval(()=>{if(UI.pensando)SONS.pensando();else{clearInterval(pensandoTimer);pensandoTimer=null}},2000);}
+function toggleSom(){SOM.mudo=!SOM.mudo;try{localStorage.setItem('jaime.mudo',SOM.mudo?'1':'0')}catch(e){}aviso(SOM.mudo?'sons desligados':'sons ligados',2500);}
+document.addEventListener('pointerdown',()=>ac(),{once:true});
 
 // ── legenda / voz ─────────────────────────────────────────────────────────
 const ROTULO={iniciando:'iniciando',carregando:'carregando voz',ouvindo:'ouvindo · diga "Jaime, está aí?"',ativo:'ativo — fale à vontade · "encerrado" para dispensar',transcrevendo:'transcrevendo',pensando:'pensando',falando:'falando',mudo:'microfone desligado',erro:'voz indisponível',trancado:'trancado · diga a palavra-passe'};
@@ -371,6 +402,7 @@ addEventListener('keydown',e=>{
   if(e.key==='h'||e.key==='H'){togglePaineis();return;}
   if(e.key==='m'||e.key==='M'){toggleMic();return;}
   if(e.key==='l'||e.key==='L'){fetch('/hud/trancar',{method:'POST'});return;}
+  if(e.key==='s'||e.key==='S'){toggleSom();return;}
   if(e.key.length===1){abrirTeclado(null,e.key);e.preventDefault();}   // começou a digitar: abre com a letra
 });
 
@@ -382,20 +414,22 @@ async function toggleMic(){UI.micAtivo=!UI.micAtivo;$('btMic').classList.toggle(
 $('btPaineis').onclick=togglePaineis;$('btMic').onclick=toggleMic;$('btLock').onclick=()=>fetch('/hud/trancar',{method:'POST'});
 
 // ── eventos do Jaime (SSE) ────────────────────────────────────────────────
+let bootTocado=false;
 function ligarStream(){
   const es=new EventSource('/hud/stream');
+  es.onopen=()=>{if(!bootTocado){bootTocado=true;setTimeout(()=>SONS.boot(),300)}};
   es.onmessage=ev=>{const e=JSON.parse(ev.data);
     switch(e.tipo){
       case 'sistema': if(e.erro)break;pct('cpu',e.cpu);pct('ram',e.ram);pct('disco',e.disco,90);
         $('down').textContent=e.down_kbs+' KB/s';$('up').textContent=e.up_kbs+' KB/s';$('procs').textContent=e.procs;$('bat').textContent=e.bateria!=null?e.bateria+'%':'—';break;
       case 'estado': $('sit').textContent=e.situacao||'…';if(e.maquina)$('maq').textContent=e.maquina.host;if(e.liberado!=null)setAcesso(e.liberado);break;
       case 'apresentacao': mostrarFala(e.texto,false);break;
-      case 'conversa': mostrarVoce(e.texto);bufFala='';UI.pensando=true;if(UI.liberado)setVoz('pensando');break;
-      case 'fala': UI.pensando=false;mostrarFala(e.texto,true);break;
+      case 'conversa': mostrarVoce(e.texto);bufFala='';UI.pensando=true;if(UI.liberado)setVoz('pensando');somPensando(true);break;
+      case 'fala': if(UI.pensando){SONS.fala()}UI.pensando=false;somPensando(false);mostrarFala(e.texto,true);break;
       case 'fala_fim': UI.pensando=false;break;
-      case 'voz': UI.falando=!!e.falando;if(e.ativacao==='sempre')ROTULO.ouvindo='ouvindo';if(e.ativo===true)UI.janelaAtiva=true;if(e.ativo===false)UI.janelaAtiva=false;if(e.estado)setVoz(e.estado);if(e.estado==='falando'&&e.texto)mostrarFala(e.texto,false);
+      case 'voz': UI.falando=!!e.falando;if(e.ativacao==='sempre')ROTULO.ouvindo='ouvindo';if(e.ativo===true&&!UI.janelaAtiva){SONS.ativacao()}if(e.ativo===false&&UI.janelaAtiva){SONS.dispensa()}if(e.ativo===true)UI.janelaAtiva=true;if(e.ativo===false)UI.janelaAtiva=false;if(e.estado==='erro')SONS.erro();if(e.estado)setVoz(e.estado);if(e.estado==='falando'&&e.texto)mostrarFala(e.texto,false);
         if(e.estado==='erro'){aviso('voz: '+(e.erro||'erro'),12000);$('btMic').classList.add('alerta');}if(e.estado==='falando')pulsar('voz');break;
-      case 'escuta': UI.nivel=Math.max(e.nivel||0,(e.voz||0)*0.8);UI.gravando=!!e.gravando;UI.janelaAtiva=!!e.janela_ativa;
+      case 'escuta': if(e.gravando&&!UI.gravando)SONS.ouvindo();UI.nivel=Math.max(e.nivel||0,(e.voz||0)*0.8);UI.gravando=!!e.gravando;UI.janelaAtiva=!!e.janela_ativa;
         $('nivel-i').style.width=(UI.nivel*100)+'%';$('nivel-i').className=UI.gravando?'grav':'';
         if(UI.liberado&&!UI.falando&&!UI.pensando)setVoz(UI.gravando?'gravando':(UI.micAtivo?(UI.janelaAtiva?'ativo':'ouvindo'):'mudo'));break;
       case 'contexto': $('ctx').textContent=(e.app||'—')+(e.janela?' · '+e.janela.slice(0,38):'');$('ctxChip').title=e.janela||'';break;
@@ -409,7 +443,7 @@ function ligarStream(){
       case 'conexoes_canal': if(e.texto)mostrarVoce(`${e.canal}: ${e.de} — ${e.texto}`,true);if(e.erro)aviso(e.canal+': '+e.erro);break;
       case 'visao': feed($('prod'),`<span class="f">visão ${esc(e.passo)}/${esc(e.max)}</span><span class="a">${esc(e.acao||e.estado)} · ${esc(e.objetivo)}${e.motivo?' · '+esc(e.motivo):''}</span>`);if(e.estado==='ativa')aviso('visão contínua ativa — diga "para" para encerrar',8000);break;
       case 'evolucao': feed($('rac'),`<span class="f">evolução</span><span class="a">${esc(e.id||'')} ${esc(e.titulo||'')} · ${esc(e.estado||e.msg||'')}</span>`);if(e.estado==='pronta')aviso('melhoria pronta: '+e.titulo+' — diga "confirmo" para o merge',20000);break;
-      case 'notificacao': feed($('prod'),`<span class="f">🔔 ${esc(e.app)}</span><span class="a">${esc(e.titulo)} ${esc(e.texto||'')}</span>`);aviso('🔔 '+e.app+': '+e.titulo,8000);break;
+      case 'notificacao': SONS.notificacao();feed($('prod'),`<span class="f">🔔 ${esc(e.app)}</span><span class="a">${esc(e.titulo)} ${esc(e.texto||'')}</span>`);aviso('🔔 '+e.app+': '+e.titulo,8000);break;
       case 'notificacoes': if(e.erro)aviso('notificações: '+e.erro,15000);break;
       case 'gravador': feed($('prod'),`<span class="f">gravador</span><span class="a">${esc(e.estado)} · ${esc(e.nome||'')}${e.passos!=null?' · '+e.passos+' passos':''}</span>`);if(e.estado==='gravando')aviso('● gravando processo — não digite senhas · "para de gravar" encerra',12000);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
@@ -419,9 +453,9 @@ function ligarStream(){
       case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
       case 'raciocinio': feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
-      case 'producao': feed($('prod'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n);}
+      case 'producao': linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n);}
         if(e.trecho)mostrarTrecho(e.ferramenta+' · '+(e.alvo||''),e.trecho);if(e.nota)tocarNota(e.nota);else if((e.alvo||'').includes('/vault/'))tocarNota((e.alvo||'').split('/vault/')[1]);break;
-      case 'resultado': feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);break;
+      case 'resultado': if(e.erro&&/VIGIA/.test(e.texto||''))SONS.vigia();feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);linhaTempo(e.erro?'✘':'✔');break;
       case 'acesso': setAcesso(e.liberado);if(!e.liberado&&tecladoAberto()){$('tecSenha').classList.add('shake');setTimeout(()=>$('tecSenha').classList.remove('shake'),400);}
         if(e.liberado&&tecladoAberto())fecharTeclado();break;
       case 'teclado': if(e.aberto&&!tecladoAberto())abrirTeclado(e.motivo?((UI.nome||'Jaime')+' pede: '+e.motivo):null);break;

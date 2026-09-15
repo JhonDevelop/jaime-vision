@@ -245,6 +245,19 @@ class Ouvido:
             bus.emitir("voz", estado="pensando", falando=False)
             buffer = ""
             contexto = self.observador.contexto() if self.observador else ""
+            # narrador: em tarefas longas ele diz o que está fazendo ("lendo os arquivos…"), como o Jarvis
+            from .narrador import Narrador
+            narrador = Narrador(self._enfileirar); narrador.comecar()
+            fila_eventos = bus.assinar()
+            async def narrar():
+                try:
+                    while True:
+                        ev = await fila_eventos.get()
+                        if ev.get("tipo") in ("producao", "raciocinio") and ev.get("ferramenta") and not primeira.is_set():
+                            narrador.evento(ev["ferramenta"], ev.get("alvo", ""))
+                except asyncio.CancelledError:
+                    pass
+            tarefa_narrar = asyncio.create_task(narrar())
             # se a primeira frase não sair em 1,6 s, ele preenche o silêncio ("deixa eu ver…") em vez de sumir
             primeira = asyncio.Event()
             async def muleta():
@@ -263,6 +276,7 @@ class Ouvido:
                     primeira.set(); self._enfileirar(f)
             if buffer.strip():
                 self._enfileirar(buffer)
+            narrador.parar(); tarefa_narrar.cancel(); bus.cancelar(fila_eventos)
             await asyncio.to_thread(self._aguardar_fala)
             self.ativo_ate = time.time() + self.s.janela_ativa_s
         except Exception as e:

@@ -43,7 +43,11 @@ def _esperar_tts(ouvido, s: float = 60):
         time.sleep(0.25)
 
 def _serve(abrir_hud: bool):
-    import uvicorn
+    import socket, uvicorn
+    # instância única: dois Jaimes disputando o mesmo microfone e alto-falante já causaram "pensar e falar duas vezes"
+    with socket.socket() as s:
+        if s.connect_ex((settings.bind if settings.bind != "0.0.0.0" else "127.0.0.1", settings.port)) == 0:
+            print(f"Já existe um Jaime em {settings.bind}:{settings.port}. Use o HUD dele ou pare-o (bash jaime/ops/servico.sh parar)."); return 1
     url = f"http://{settings.bind}:{settings.port}"
     print(f"Jaime em {url}  (HUD em / · API em /ask · bind={settings.bind})")
     if abrir_hud:
@@ -165,8 +169,8 @@ def main(argv=None):
         return rodar()
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
-    elif m == "hud": _serve(abrir_hud=True)
-    elif m == "serve": _serve(abrir_hud=False)
+    elif m == "hud": return _serve(abrir_hud=True)
+    elif m == "serve": return _serve(abrir_hud=False)
     else: return _senha()
 
 if __name__ == "__main__":

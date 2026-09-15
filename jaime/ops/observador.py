@@ -19,7 +19,7 @@ JANELA_S = 180              # quanto de histórico a heurística olha
 TROCAS_TRAVADO = 12         # trocas de janela/app nesse período sem descansar em nenhuma…
 DESCANSO_S = 25             # …"descansar" = ficar mais que isto na mesma janela
 BUSCA_TRAVADO_S = 75        # ou tanto tempo seguido numa janela de busca
-COOLDOWN_S = 600            # entre duas ofertas de ajuda
+COOLDOWN_S = 1800           # entre duas ofertas de ajuda (10 min era chato)
 BUSCA_RX = re.compile(r"(spotlight|pesquis|search|busca|procur|finder|google|find)", re.I)
 ACEITES = {"sim", "pode", "quero", "ajuda", "me ajuda", "pode ajudar", "vai", "por favor", "isso", "claro", "bora"}
 RECUSAS = {"não", "nao", "deixa", "depois", "agora não", "agora nao", "tô bem", "to bem", "de boa"}
@@ -63,7 +63,8 @@ def parece_travado(historico, agora: float) -> str | None:
                 apps.append(app)
         return "pulando entre " + ", ".join(apps[:3]) + " sem parar em nenhum"
     ultimo = recente[-1]
-    if BUSCA_RX.search(f"{ultimo[1]} {ultimo[2]}"):
+    # só o TÍTULO da janela conta como busca — "Google Chrome" no nome do app disparava toda hora
+    if ultimo[2] and BUSCA_RX.search(ultimo[2]):
         desde = ultimo[0]
         for h in reversed(recente):
             if (h[1], h[2]) == (ultimo[1], ultimo[2]):
