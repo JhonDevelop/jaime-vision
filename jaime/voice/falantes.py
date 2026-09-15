@@ -15,6 +15,9 @@ from pathlib import Path
 
 PASTA = Path(os.environ.get("JAIME_VOZES", "~/Jaime/vozes")).expanduser()
 LIMIAR = 0.75            # similaridade mínima para dizer "é fulano"
+REJEITAR = 0.55          # abaixo disto é outra pessoa; entre REJEITAR e LIMIAR é "incerto" (áudio ruim, não estranho)
+EMA = 0.6                # peso da fala atual na média móvel entre tentativas seguidas (P-0003)
+EMA_JANELA_S = 20.0      # duas falas mais distantes que isto não se somam
 MARGEM = 0.05            # e precisa vencer o segundo colocado por isto
 EXEMPLOS = 5             # falas para fechar um cadastro
 MIN_S = 1.2              # falas mais curtas que isto não identificam nem cadastram
@@ -41,6 +44,7 @@ class Falantes:
         self.perfis: dict[str, list] = {}
         self.cadastrando: tuple[str, list] | None = None      # (nome, embeddings já coletados)
         self.ultimo: tuple[str, float] = ("", 0.0)
+        self._ema: tuple[str, float, float] = ("", 0.0, 0.0)     # (nome, score suavizado, quando) da última fala incerta
         self._carregar()
 
     # ── modelo ────────────────────────────────────────
@@ -76,8 +80,14 @@ class Falantes:
     def _carregar(self):
         import numpy as np
         for p in self.pasta.glob("*.npy"):
+            if p.stem.endswith(".amostras"):
+                continue
             try:
-                self.perfis[p.stem] = [np.load(p)]
+                vetores = [np.load(p)]
+                amostras = p.with_name(f"{p.stem}.amostras.npy")
+                if amostras.exists():                      # as 5 frases do cadastro: o score usa a melhor delas também
+                    vetores += list(np.load(amostras))
+                self.perfis[p.stem] = vetores
             except Exception:
                 pass
 
@@ -85,7 +95,8 @@ class Falantes:
         import numpy as np
         media = np.mean(np.stack(vetores), axis=0); media = media / (np.linalg.norm(media) + 1e-9)
         np.save(self.pasta / f"{nome}.npy", media.astype(np.float32))
-        self.perfis[nome] = [media]
+        np.save(self.pasta / f"{nome}.amostras.npy", np.stack(vetores).astype(np.float32))
+        self.perfis[nome] = [media] + list(vetores)
         meta = self.pasta / "vozes.json"
         d = json.loads(meta.read_text()) if meta.exists() else {}
         d[nome] = {"exemplos": len(vetores), "quando": time.strftime("%Y-%m-%d %H:%M")}
@@ -116,19 +127,32 @@ class Falantes:
 
     # ── identificação ─────────────────────────────────
     def identificar(self, pcm16: bytes, sr: int = 16000) -> tuple[str, float]:
-        """(nome, similaridade). 'desconhecido' quando ninguém passa do limiar; '' quando não dá para avaliar."""
+        """(nome, similaridade). Três zonas (P-0003): ≥ LIMIAR é a pessoa; < REJEITAR é 'desconhecido'; no meio é
+        'incerto' — áudio ruim de alguém conhecido, não um estranho. Falas incertas seguidas (≤ EMA_JANELA_S) somam numa
+        média móvel: repetir a frase pode fechar a decisão. '' quando não dá para avaliar."""
         if not self.perfis:
             return "", 0.0
         e = self.embedding(pcm16, sr)
         if e is None:
             return "", 0.0
         import numpy as np
-        pares = sorted(((float(np.dot(e, v[0]) / (np.linalg.norm(e) * np.linalg.norm(v[0]) + 1e-9)), n) for n, v in self.perfis.items()), reverse=True)
+        ne = np.linalg.norm(e) + 1e-9
+        def sim(v): return float(np.dot(e, v) / (ne * np.linalg.norm(v) + 1e-9))
+        # score = max(centróide, melhor amostra do cadastro): um só embedding médio pune quem varia o jeito de falar
+        pares = sorted(((max(sim(v) for v in vs), n) for n, vs in self.perfis.items()), reverse=True)
         melhor, nome = pares[0]
         segundo = pares[1][0] if len(pares) > 1 else -1.0
         if melhor >= LIMIAR and melhor - segundo >= MARGEM:
-            self.ultimo = (nome, melhor); return nome, melhor
-        self.ultimo = ("desconhecido", melhor); return "desconhecido", melhor
+            self._ema = ("", 0.0, 0.0); self.ultimo = (nome, melhor); return nome, melhor
+        if melhor < REJEITAR:
+            self._ema = ("", 0.0, 0.0); self.ultimo = ("desconhecido", melhor); return "desconhecido", melhor
+        agora = time.time()
+        n_ant, s_ant, t_ant = self._ema
+        score = EMA * melhor + (1 - EMA) * s_ant if n_ant == nome and agora - t_ant <= EMA_JANELA_S else melhor
+        self._ema = (nome, score, agora)
+        if score >= LIMIAR and melhor - segundo >= MARGEM:
+            self.ultimo = (nome, score); return nome, score
+        self.ultimo = ("incerto", score); return "incerto", score
 
     def eh_dono(self, nome: str) -> bool:
         """Sem perfil do dono cadastrado, todo mundo é tratado como ele (comportamento antigo)."""
