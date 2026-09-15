@@ -60,6 +60,21 @@ async def lifespan(app: FastAPI):
     notificacoes = Notificacoes(jaime, ouvido)
     notif_t = asyncio.create_task(notificacoes.rodar())
     app.state.notificacoes = notificacoes
+    # fase 3 — D: telemetria local (janela ativa + pedidos), modo atento, orçamento diário e prioridades de estudo
+    from .telemetria.uso import Telemetria
+    from .telemetria import prioridades
+    from .cortex.orcamento import Orcamento
+    from .agenda.scheduler import Atencao
+    orcamento = Orcamento(settings.vault, float(os.environ.get("JAIME_ORCAMENTO_DIA_USD", "0").strip() or 0))
+    orcamento.ligar_ao_placar(jaime.placar)                 # todo custo de turno entra no orçamento (60/25/15)
+    atencao = Atencao()                                      # última fala do João, pelo bus
+    telemetria = Telemetria(jaime.vault, placar=jaime.placar)
+    jaime.estudo.orcamento, jaime.estudo.atencao = orcamento, atencao
+    jaime.agenda.ao("fecha o dia", lambda: prioridades.recalcular(jaime.vault, telemetria, jaime.placar))
+    jaime.agenda.ao("fecha a semana", lambda: telemetria.escrever_uso())
+    telemetria_t = asyncio.create_task(telemetria.rodar(observador))
+    atencao_t = asyncio.create_task(atencao.escutar_bus())
+    app.state.orcamento, app.state.telemetria, app.state.atencao = orcamento, telemetria, atencao
     jaime.agenda.ouvido = ouvido; jaime.agenda.start()      # rotinas e lembretes, no processo (sem n8n)
     # mente contínua (mínima): estuda um problema em aberto a cada 30 min, só quando ninguém está falando com ele
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
@@ -79,6 +94,7 @@ async def lifespan(app: FastAPI):
     yield
     monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
     app.state.vontade.parar()   # fase 3 — E
+    telemetria_t.cancel(); atencao_t.cancel(); telemetria.salvar()      # fase 3 — D
     if ouvido:
         ouvido.stop()
     await jaime.stop()

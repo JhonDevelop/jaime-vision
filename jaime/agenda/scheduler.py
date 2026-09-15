@@ -2,9 +2,15 @@
 
 Rotinas: `vault/30-Tarefas/Rotinas.md`, linhas `- <cron> · <ordem>`; lidas no boot e recarregadas quando o
 arquivo muda. Cada rotina vira `jaime.ask(ordem, canal="rotina")` e a resposta é falada (se houver voz) e vai
-para o HUD. Lembretes: `30-Tarefas/Lembretes.md`, agendados como jobs de data única."""
+para o HUD. Lembretes: `30-Tarefas/Lembretes.md`, agendados como jobs de data única.
+
+Fase 3 (§5): a tabela de Rotinas.md ganhou o dia inteiro (preparar o dia, briefing, revisão, fecha o dia/semana,
+auto-avaliação, consolidação). O que NÃO é cron fica aqui como função pura, testável com relógio falso:
+`modo_atento()` (nada de estudo/criação se houve fala nos últimos 15 min), `noite_criativa()` (janela 21h–06h) e
+`pode_estudar()`/`pode_criar()` que juntam as duas com o orçamento. `Atencao` guarda a última fala ouvindo o bus.
+Ganchos: `Agenda.ao("fecha o dia", fn)` roda `fn` antes de a ordem ir ao modelo (recalcular prioridades, Uso.md)."""
 from __future__ import annotations
-import asyncio, re
+import asyncio, inspect, re, time
 from datetime import datetime
 from pathlib import Path
 from ..hud.events import bus
@@ -15,6 +21,69 @@ ROTINAS_REL = "30-Tarefas/Rotinas.md"
 LINHA_RX = re.compile(r"^\s*-\s*([^·]+?)\s*·\s*(.+?)\s*$")
 CRON_RX = re.compile(r"^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$")
 VIGIA_ARQUIVO_S = 30
+ATENTO_JANELA_S = 15 * 60          # §5: nada de estudo/criação se houve fala nos últimos 15 min
+NOITE_INICIO_H, NOITE_FIM_H = 21, 6   # §5: noite criativa 21h–06h (janela, não cron)
+EVENTOS_FALA = ("conversa", "ouvido", "transcricao_viva")
+
+# ── funções puras (fase 3, §5) ───────────────────────────────
+def modo_atento(ultima_fala_ts: float | None, agora: float | None = None, janela_s: int = ATENTO_JANELA_S) -> bool:
+    """True se o João falou (ou pediu algo) nos últimos `janela_s` segundos — aí é só demanda, nada de estudo/criação."""
+    if not ultima_fala_ts:
+        return False
+    agora = time.time() if agora is None else agora
+    return 0 <= agora - ultima_fala_ts < janela_s
+
+def noite_criativa(agora: datetime) -> bool:
+    """21h–06h: janela de projetos autônomos e criações próprias."""
+    return agora.hour >= NOITE_INICIO_H or agora.hour < NOITE_FIM_H
+
+def pode_estudar(ultima_fala_ts: float | None, agora: float | None = None, orcamento=None) -> tuple[bool, str]:
+    """(pode, motivo). Estudo cabe fora do modo atento e enquanto a fatia 'estudo' do orçamento tiver saldo."""
+    agora = time.time() if agora is None else agora
+    if modo_atento(ultima_fala_ts, agora):
+        return False, f"modo atento: fala há {int((agora - ultima_fala_ts) // 60)} min"
+    if orcamento is not None and not orcamento.pode("estudo"):
+        return False, "orçamento de estudo do dia esgotado"
+    return True, ""
+
+def pode_criar(ultima_fala_ts: float | None, agora: datetime, orcamento=None) -> tuple[bool, str]:
+    """Criação: só na noite criativa, fora do modo atento e com saldo na fatia 'criacao'."""
+    if not noite_criativa(agora):
+        return False, "fora da noite criativa (21h–06h)"
+    if modo_atento(ultima_fala_ts, agora.timestamp()):
+        return False, "modo atento: o João falou há pouco"
+    if orcamento is not None and not orcamento.pode("criacao"):
+        return False, "orçamento de criação do dia esgotado"
+    return True, ""
+
+class Atencao:
+    """Última vez que o João falou/pediu algo. `escutar_bus()` atualiza pelos eventos do HUD; `ouviu()` serve para
+    quem tem o microfone (o servidor) e para os testes."""
+    def __init__(self, agora=time.time):
+        self.agora = agora
+        self.ultima_fala: float = 0.0
+
+    def ouviu(self, ts: float | None = None) -> None:
+        self.ultima_fala = max(self.ultima_fala, self.agora() if ts is None else ts)
+
+    def atento(self, agora: float | None = None) -> bool:
+        return modo_atento(self.ultima_fala, self.agora() if agora is None else agora)
+
+    def evento(self, evt: dict) -> bool:
+        """True se o evento conta como fala do João (e atualiza a última fala)."""
+        tipo = evt.get("tipo")
+        if tipo not in EVENTOS_FALA or evt.get("ignorado") or evt.get("texto") == "•••":
+            return False
+        self.ouviu(evt.get("t"))
+        return True
+
+    async def escutar_bus(self) -> None:
+        q = bus.assinar()
+        try:
+            while True:
+                self.evento(await q.get())
+        finally:
+            bus.cancelar(q)
 
 def parse_rotinas(texto: str) -> list[tuple[dict, str]]:
     """'- 0 7 * * 1-5 · briefing' → ({minute:'0', hour:'7', day:'*', month:'*', day_of_week:'1-5'}, 'briefing')"""
@@ -36,6 +105,28 @@ class Agenda:
         self._sched = None
         self._mtime = 0.0
         self.rotinas: list[tuple[dict, str]] = []
+        self.ganchos: dict[str, list] = {}       # "fecha o dia" → [fn, ...] (fn sync ou async, sem argumentos)
+
+    # ── ganchos (fase 3 — D) ─────────────────────────────
+    def ao(self, chave: str, fn) -> None:
+        """Registra `fn` para rodar antes de qualquer ordem que contenha `chave` (ex.: recalcular prioridades no fecha-dia)."""
+        self.ganchos.setdefault(chave.lower(), []).append(fn)
+
+    async def executar_ganchos(self, ordem: str) -> list[str]:
+        """Roda os ganchos cuja chave aparece na ordem. Devolve as chaves disparadas; erro num gancho não derruba a rotina."""
+        o = (ordem or "").lower(); disparadas = []
+        for chave, fns in self.ganchos.items():
+            if chave not in o:
+                continue
+            disparadas.append(chave)
+            for fn in fns:
+                try:
+                    r = fn()
+                    if inspect.isawaitable(r):
+                        await r
+                except Exception as e:
+                    bus.emitir("agenda", erro=f"gancho '{chave}' falhou: {type(e).__name__}: {e}"[:160])
+        return disparadas
 
     # ── ciclo de vida ────────────────────────────────────
     def start(self):
@@ -85,6 +176,7 @@ class Agenda:
         self.vault.diario(f"Rotina disparada: {ordem}", "Log")
         if not self.jaime.acesso.liberado:
             bus.emitir("fala", texto=f"Rotina '{ordem}' esperando: cérebro trancado."); bus.emitir("fala_fim"); return
+        await self.executar_ganchos(ordem)     # fase 3 — D: prioridades/Uso.md prontos antes de o modelo fechar o dia
         if ordem.lower().startswith("consolida o que ouvi"):
             # ouvido passivo: à noite, silencioso — o resultado aparece no primeiro "está aí" do dia seguinte
             from ..brain.ouvido_passivo import prompt_consolidar

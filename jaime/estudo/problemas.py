@@ -18,6 +18,8 @@ from ..brain.vault import Vault
 from ..emocao.perguntas import similaridade
 
 ARQUIVO = "90-Estudo/Problemas.md"
+ARQUIVO_PRIORIDADES = "90-Estudo/Prioridades.md"      # escrito por jaime/telemetria/prioridades.py no fecha-dia
+PRIORIDADE_RX = re.compile(r"^\|\s*(P-\d{4})\s*\|[^|]*\|\s*([\d.]+)\s*\|", re.M)
 CABECALHO = "# Problemas em aberto\n\n"
 SECAO_RX = re.compile(r"^## (P-\d{4}) · (.+?) · (aberto|resolvido) · (\d{4}-\d{2}-\d{2})\s*$", re.M)
 ORIGENS = ("ferramenta_falhou", "teste_quebrou", "joao_pediu", "sem_resposta", "correcao", "manual")
@@ -42,6 +44,16 @@ class Problema:
         linhas.append("### Tentativas")
         linhas += self.tentativas or ["- (nenhuma)"]
         return "\n".join(linhas) + "\n"
+
+def ler_prioridades(texto: str) -> dict[str, float]:
+    """Linhas `| P-0003 | título | 4.20 | ...` → {"P-0003": 4.2}."""
+    out = {}
+    for pid, valor in PRIORIDADE_RX.findall(texto or ""):
+        try:
+            out[pid] = float(valor)
+        except ValueError:
+            pass
+    return out
 
 class Problemas:
     def __init__(self, vault: Vault):
@@ -71,10 +83,20 @@ class Problemas:
     def por_id(self, pid: str) -> Problema | None:
         return next((p for p in self.todos() if p.id == pid), None)
 
+    def prioridades(self) -> dict[str, float]:
+        """{id: prioridade} lido de Prioridades.md (frequência × taxa de erro × tempo sem estudar). Vazio se não existe."""
+        return ler_prioridades(self.vault.read(ARQUIVO_PRIORIDADES))
+
     def proximo(self) -> Problema | None:
-        """O que estudar agora: menos tentativas primeiro; empate → o mais antigo."""
+        """O que estudar agora: o aberto de maior prioridade em Prioridades.md (fase 3, §4). Sem o arquivo — ou
+        sem nenhum dos abertos nele — cai na heurística antiga: menos tentativas primeiro; empate → o mais antigo."""
         ab = self.abertos()
-        return min(ab, key=lambda p: (len(p.tentativas), p.aberto_em)) if ab else None
+        if not ab:
+            return None
+        prio = self.prioridades()
+        if any(p.id in prio for p in ab):
+            return max(ab, key=lambda p: (prio.get(p.id, 0.0), -len(p.tentativas), -p.aberto_em.toordinal()))
+        return min(ab, key=lambda p: (len(p.tentativas), p.aberto_em))
 
     # ── escrita ───────────────────────────────────────
     def _salvar(self, lista: list[Problema]) -> None:
