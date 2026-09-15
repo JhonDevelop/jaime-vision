@@ -83,7 +83,14 @@
 - Validar: `python -m jaime voz latencia` → antecipados ≥ 7/10 e mediana fala→1ª frase < 700 ms nas frases cobertas;
   no diário, `antecipacao usado=True` em "abre o Finder". Custo: 1 chamada de TTS extra por pedido reconhecido.
 
-#### M-08 · Frases fixas sintetizadas uma vez (proposta)
+#### M-09 · Tarefas com ferramenta: 1º som em ~4,5 s — **CORRIGIDO em feat/mente**
+- Diário 14:22–14:23: «quem me mandou mensagem?» 4,44 s e «você sabe sobre o meu» 4,47 s de texto→1ª frase. A muleta
+  ("deixa eu ver…") esperava a ferramenta (até 3 s) e depois mais 2 s; o narrador só fala a partir de 5 s.
+- Solução: muleta 0,4 s depois da 1ª ferramenta, se a resposta não começou (`MULETA_APOS_FERRAMENTA_S`). Testes em
+  `tests/test_muleta.py`. Com M-08 (cache) a muleta passa a custar ~0 de TTS.
+- Validar: no diário, turnos com ferramenta com texto→1ª frase < 2 s.
+
+#### M-08 · Frases fixas sintetizadas uma vez (delegado ao Codex às 15:45)
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
   consultado em `enfileirar`/`tocar_pronto`, faz essas responderem em ~150 ms. Candidato a delegar ao Codex.
@@ -94,7 +101,7 @@
 
 #### M-06 · FutureWarning np.long — **CORRIGIDO**: o próprio `hasattr(np, "long")` emitia o aviso; envolto em `catch_warnings`.
 
-#### M-07 · Telemetria sem amostras — observar 1 dia com o serviço estável antes de mexer.
+#### M-07 · Telemetria sem amostras — **resolvido pelo tempo**: `vault/.jaime/telemetria.json` já acumula (1 hora, 5 títulos, 9 pedidos às 14:28); `Uso.md` só é reescrito no fecha-semana.
 
 ### Fila de melhorias (por impacto)
 | # | Item | Impacto hoje | Estado |
@@ -105,7 +112,8 @@
 | 4 | M-03 TTS 1º byte | meta 700 ms | depende de chave |
 | 5 | M-05 Notion ruído no log | observabilidade | pronto |
 | 6 | M-06 FutureWarning | cosmético | pronto |
-| 7 | M-07 telemetria vazia | estudo dirigido | observar |
+| 7 | M-07 telemetria vazia | estudo dirigido | resolvido (acumulando) |
+| 7b | M-09 muleta tardia | 4,5 s → ~2 s com ferramenta | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | proposta (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -118,3 +126,4 @@
 - 14:45 — M-02 implementado (3 zonas + EMA + amostras; silêncio trancado; senha digitada sem voz) e M-06; 187 testes; Cérebro avisado.
 - 15:05 — serviço voltou às 14:10 (Cérebro, JAIME_BARGE_IN=off). No log pós-reinício o João repete a senha 3× e pede a interface 3× sem ser atendido — é o M-02; merge urgente. Commitados: `🔈 jaime ›` no log e M-05 (Notion).
 - 15:35 — Cérebro mergeou os 5 commits na main (194 testes, serviço no ar com barge-in ligado). `git merge main` feito. M-04 medido e corrigido com rascunho local (commits WIP + testes); 200 testes.
+- 15:55 — M-09 (muleta logo após a ferramenta) commitado; 205 testes. M-08 aguardando o Codex.
