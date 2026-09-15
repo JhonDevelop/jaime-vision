@@ -15,6 +15,7 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - 2026-09-15 — Córtex: modelo escolhido por tarefa (Fable 5.1 decisão, Opus 5 código, Sonnet padrão, Haiku rotina) com placar em 01-Estado/Placar.md; troca via ClaudeSDKClient.set_model, sem perder a conversa.
 - 2026-09-15 — OpenAI entra como segundo provedor só para texto/pesquisa/redação (gpt-5.5; Responses API); as mãos ficam na Anthropic. Juiz (Fable 5.1) arbitra decisões e "pensa bem".
 - 2026-09-15 — Cérebro emocional: toda pergunta ao João passa por perguntar_ao_joao (10-Eu/Perguntas-Feitas.md; >90 dias confirma em meia frase); Datas.md/Jeito.md; humor em 4 eixos com regras de coerência (nunca leve em problema, nunca grave em conquista, sem drama) dirigindo a prosódia da ElevenLabs.
+- 2026-09-15 — Agenda própria: APScheduler no processo lendo 30-Tarefas/Rotinas.md; lembretes em Lembretes.md; hora/clima/feriado respondidos sem modelo. O n8n não volta.
 - 2026-09-15 — `jaime cerebro check` roda no boot; INDEX.md de Conhecimento e Projetos são gerados por código e entram no contexto inicial.
 - 2026-09-14 — Notion como espelho (página raiz + Diário, Tarefas, Conversas); vault continua sendo a fonte primária.
 - 2026-09-14 — Só local por padrão; palavra-passe com hash; reflexão a cada 6 turnos reescreve o Estado.
@@ -26,7 +27,8 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - [x] fase 2, etapa 2 — Córtex + placar (15/09)
 - [x] fase 2, etapa 3 — OpenAI + juiz (15/09; falta crédito na conta OpenAI para rodar ao vivo)
 - [x] fase 2, etapa 4 — cérebro emocional (15/09)
-- [ ] fase 2, etapa 5 — scheduler, relógio, clima, lembretes
+- [x] fase 2, etapa 5 — agenda própria (15/09)
+- [ ] fase 2, etapa 6 — cérebro de estudo
 - [ ] NOTION_TOKEN para religar o espelho
 - [ ] `.claude/agents/` — os maesters ainda não existem como arquivos
 

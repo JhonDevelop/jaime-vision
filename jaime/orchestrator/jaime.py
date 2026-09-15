@@ -30,6 +30,9 @@ from ..emocao.humor import Humor, detectar_tom
 from ..emocao.momento import momento as calcular_momento
 from ..emocao.prosodia import prosodia
 from ..emocao.tools import build_emocao_server
+from ..agenda.scheduler import Agenda
+from ..agenda.tools import build_mundo_server
+from ..agenda import relogio, clima, lembretes as lem
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -78,6 +81,8 @@ class Jaime:
         self.perguntas = Perguntas(self.vault)
         self.humor = Humor()
         self.momento = calcular_momento(self.perfil)
+        # agenda própria (rotinas, lembretes) — o servidor liga o scheduler depois do boot
+        self.agenda = Agenda(self)
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -89,7 +94,8 @@ class Jaime:
             setting_sources=["project"],
             agents=carregar_maesters(self.s.root),
             mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self),
-                         "emocao": build_emocao_server(self.perfil, self.perguntas, self.humor)},
+                         "emocao": build_emocao_server(self.perfil, self.perguntas, self.humor),
+                         "mundo": build_mundo_server(self.agenda, self.s.lat, self.s.lon)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -243,6 +249,8 @@ class Jaime:
         assert self._client, "Chame start() antes."
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")
         curta = self._porta(texto)
+        if curta is None and self.acesso.liberado:
+            curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo
         if curta is not None:
             bus.emitir("fala", texto=curta); bus.emitir("fala_fim"); yield curta; return
         async with self._lock:
@@ -323,6 +331,20 @@ class Jaime:
             self.modelo_atual = modelo
         except Exception as e:
             bus.emitir("cortex", tarefa="", modelo=self.modelo_atual, motivo=f"não consegui trocar para {modelo}: {type(e).__name__}", exploracao=False)
+
+    async def _mundo(self, texto: str) -> str | None:
+        """Perguntas de hora/data/clima e pedidos de lembrete são respondidos aqui, em milissegundos."""
+        if (r := relogio.responder(texto)):
+            return r
+        if clima.pergunta_de_clima(texto):
+            return await clima.responder(texto, self.s.lat, self.s.lon)
+        if (l := lem.interpretar(texto)):
+            quando, o_que = l
+            try:
+                return self.agenda.criar_lembrete(quando, o_que)
+            except Exception as e:
+                return f"Não consegui agendar o lembrete ({type(e).__name__})."
+        return None
 
     async def ask(self, texto: str, canal: str = "cli", contexto: str = "") -> str:
         return "".join([t async for t in self.ask_stream(texto, canal, contexto)]).strip() or "(sem resposta)"

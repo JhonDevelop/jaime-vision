@@ -27,6 +27,9 @@ class Settings:
     openai_model_rapido: str = _env("JAIME_OPENAI_MODEL_RAPIDO", "gpt-5.6-luna")
     vault: Path = field(default_factory=lambda: Path(_env("JAIME_VAULT", "./vault")).expanduser().resolve())
     workspace: Path = field(default_factory=lambda: Path(_env("JAIME_WORKSPACE", "~/projetos")).expanduser())
+    # onde o João está (clima, fuso): Franca/SP por padrão
+    lat: float = float(_env("JAIME_LAT", "-20.5386"))
+    lon: float = float(_env("JAIME_LON", "-47.4008"))
     # voz
     picovoice_key: str = _env("PICOVOICE_ACCESS_KEY")
     wake_word: str = _env("JAIME_WAKE_WORD", "jarvis")

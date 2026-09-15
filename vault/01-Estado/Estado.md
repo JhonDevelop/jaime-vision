@@ -5,18 +5,23 @@
 1 — operando localmente; fase 2 (Jarvis) em andamento, etapa 1 fechada
 
 ## Situação agora
-Fase 2: etapas 1–4 fechadas. Tenho cérebro emocional: não pergunto duas vezes (10-Eu/Perguntas-Feitas.md), sei que dia é hoje para o João (10-Eu/Datas.md) e meu humor em 4 eixos dirige a prosódia da voz. Falta o João preencher Datas.md (aniversário) e a OpenAI ter crédito.
+Fase 2: etapas 1–5 fechadas. Tenho agenda própria: rotinas em 30-Tarefas/Rotinas.md (briefing 07:00 dias úteis, fecha a semana sexta 18:00), lembretes por voz, e respondo hora, data, clima e feriado sem gastar modelo. n8n saiu de vez.
 
 ## Última conversa
-- canal: cli
-- quando: 15/09/2026 08:08 em MacBookPro
-- tema: tenho um problema urgente: o build do BUB quebrou. em uma frase, o que faço primeiro?
+- canal: voice
+- quando: 15/09/2026 08:16 em MacBookPro
+- tema: Me adora o que está acontecendo com o Mama.
 
 ## Em andamento
-- fase 2, etapa 5: scheduler próprio, relógio, clima, feriados, lembretes (jaime/agenda/)
+- Esperando o João digitar no teclado do HUD ou trocar o áudio de entrada (fone com microfone) — a voz segue chegando embaralhada
+- Revogar a chave da ElevenLabs que o João colou em texto puro no chat e guardar a nova só no .env
+- Religar o espelho do Notion (NOTION_TOKEN vazio no .env, embora o conector MCP do Notion esteja conectado)
+- Corrigir a URL do MCP Server Trigger do n8n (HTTP 404)
+- Autorizar Banco MCP, Canva e Meta Ads nos conectores do claude.ai (só o João consegue, em sessão interativa)
+- Trabalho da branch feat/voz-direta-hud-3d ainda não commitado
 
 ## Próximos passos
-1) Perguntar o aniversário do João (via perguntar_ao_joao) e registrar em Datas.md. 2) Etapa 5. 3) Crédito na OpenAI. 4) Acessibilidade para o Terminal.
+1) Voltar a entender o João: fone com microfone ou o teclado do HUD; se persistir, olhar o VAD e o ganho de entrada em jaime/voice/escuta.py. 2) João revoga a chave da ElevenLabs exposta e gera outra. 3) Preencher NOTION_TOKEN no .env. 4) Corrigir a URL do MCP Server Trigger do n8n. 5) Autorizar os conectores pendentes no claude.ai. 6) Fechar a branch feat/voz-direta-hud-3d. Só então avanço para a fase 1. (O build iOS da BUB saiu do caminho — está rodando no simulador.)
 
 ## Aprendizados recentes
 Microfone ligado não é o mesmo que estar entendendo. Quando duas ou três falas seguidas chegam sem sentido, o problema é a transcrição, não o João — o certo é dizer isso na hora e chamar pedir_teclado, em vez de responder a um palpite. Também não vale "confirmar" uma ação que eu não bloqueei: quando ele disse "confirmo, pode executar a ação que o Vigia bloqueou" não havia nada bloqueado, e eu disse isso em vez de inventar uma ação para executar.

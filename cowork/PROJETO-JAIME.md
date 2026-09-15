@@ -28,10 +28,10 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F9 | Espelho Notion: Estado, Diário, Tarefas, Conversas | funcional | feito (precisa NOTION_TOKEN) |
 | F10 | MCPs GitHub/Notion autenticados no SDK | funcional | feito (14/09) |
 | F11 | Voz local completa (wake → STT → TTS) | funcional | esqueleto; calibrar |
-| F12 | Agenda (scheduler próprio + Google Calendar) | funcional | fase 2, etapa 5/8 |
+| F12 | Agenda (scheduler próprio + Google Calendar) | funcional | scheduler feito (15/09); Calendar na etapa 8 |
 | F13 | WhatsApp (Evolution API) só para o dono | funcional | esqueleto |
 | F14 | Ligações (Twilio) | funcional | esqueleto |
-| F15 | Fechamento do dia automático (scheduler → "fecha o dia") | ideal | fase 2, etapa 5 |
+| F15 | Fechamento do dia automático (scheduler → "fecha o dia") | ideal | rotina `0 18 * * 5 · fecha a semana` (15/09) |
 | F16 | Busca semântica no vault (FTS5/embeddings) quando passar de 1k notas | ideal | pendente |
 | F17 | HUD: painel por maester (quem está trabalhando em quê) | ideal | pendente |
 | F18 | Modo "sombra": Jaime observa a tela e sugere sem agir | ideal | pendente |
@@ -46,6 +46,7 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F27 | Córtex: roteador de modelos por tipo de tarefa + placar de acertos/erros/custo | funcional | feito (15/09) |
 | F28 | OpenAI como segundo provedor (Responses API) + juiz Fable 5.1 para decisões | funcional | feito (15/09) — aguarda crédito na OpenAI |
 | F29 | Cérebro emocional: perguntas nunca repetidas, datas/momento do dia, humor em 4 eixos → prosódia da voz e HUD | funcional | feito (15/09) |
+| F30 | Agenda própria: scheduler (Rotinas.md), lembretes, relógio, clima, feriados — sem n8n | funcional | feito (15/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -60,5 +61,5 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 
 ## Fase atual
 **1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
-em andamento: etapas 1–4 (limpeza/identidade, Córtex, OpenAI + juiz, cérebro emocional) fechadas em 15/09; próxima é a etapa 5 (scheduler próprio, relógio, clima, lembretes).
+em andamento: etapas 1–5 (limpeza/identidade, Córtex, OpenAI + juiz, cérebro emocional, agenda própria) fechadas em 15/09; próxima é a etapa 6 (cérebro de estudo).
 n8n saiu do projeto — automações viram código nosso.

@@ -50,7 +50,11 @@ class Momento:
 def momento(perfil: Perfil, hoje: date | None = None, tarefas_abertas: int | None = None) -> Momento:
     hoje = hoje or date.today()
     m = Momento(hoje)
-    m.feriado = FERIADOS_FIXOS.get((hoje.month, hoje.day))
+    try:
+        from ..agenda.feriados import feriado
+        m.feriado = feriado(hoje)
+    except Exception:
+        m.feriado = FERIADOS_FIXOS.get((hoje.month, hoje.day))
     if tarefas_abertas is None:
         try:
             tarefas_abertas = len(perfil.vault.tarefas_abertas())

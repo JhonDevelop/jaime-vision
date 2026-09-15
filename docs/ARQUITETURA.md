@@ -92,3 +92,14 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
   nunca passa de 0,85 (sem drama). É expressão, não manipulação.
 - `prosodia.py`: humor + canal → `{"instructions", "tags" (Eleven v3), "eleven": {stability, style}}`. O ouvido aplica
   `eleven` no TTS antes de cada frase; `instructions` serve ao gpt-4o-mini-tts (etapa 9). O HUD mostra o humor no header.
+
+
+## Agenda e mundo (fase 2, etapa 5) — `jaime/agenda/`
+- `scheduler.py`: APScheduler dentro do processo do servidor. Lê `30-Tarefas/Rotinas.md` (`- <cron> · <ordem>`), recarrega
+  quando o arquivo muda (vigia a cada 30 s) e executa cada rotina como `jaime.ask(ordem, canal="rotina")`, falando a
+  resposta. Padrão: `0 7 * * 1-5 · briefing` e `0 18 * * 5 · fecha a semana`. Substitui o n8n.
+- `lembretes.py`: "me lembra em 20 min de X", "às 15h", "amanhã às 9", "dia 20" → `30-Tarefas/Lembretes.md` + job de data.
+- `relogio.py` (hora/data/dia da semana, fuso America/Sao_Paulo), `clima.py` (Open-Meteo, sem chave; `JAIME_LAT/LON`,
+  cache 10 min), `feriados.py` (`holidays` BR+SP; tabela fixa de reserva).
+- Perguntas de hora, data e clima e pedidos de lembrete **não vão ao modelo**: `Jaime._mundo()` responde em milissegundos.
+- Ferramentas MCP `mundo`: `agora`, `clima`, `feriado_hoje`, `criar_lembrete`, `rotinas`.

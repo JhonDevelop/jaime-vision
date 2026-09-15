@@ -39,8 +39,9 @@ async def lifespan(app: FastAPI):
         if jaime.apresentacao:
             asyncio.get_running_loop().run_in_executor(None, _falar_quando_pronto, jaime.apresentacao)
     vigilancia = asyncio.create_task(observador.rodar())   # de olho no que o João faz na máquina
+    jaime.agenda.ouvido = ouvido; jaime.agenda.start()      # rotinas e lembretes, no processo (sem n8n)
     yield
-    monitor.cancel(); sonda.cancel(); vigilancia.cancel()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); jaime.agenda.stop()
     if ouvido:
         ouvido.stop()
     await jaime.stop()
