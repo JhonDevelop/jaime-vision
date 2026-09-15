@@ -22,7 +22,7 @@ class Conexoes:
         nos = {
             "vault":    {"nome": "Obsidian", "ligado": s.vault.is_dir(), "detalhe": str(s.vault.name)},
             "voz":      {"nome": "Voz", "ligado": s.voz != "off",
-                         "detalhe": ("ElevenLabs" if s.elevenlabs_key else "say") + " · " + ("Deepgram" if s.deepgram_key else f"Whisper {s.whisper_modelo}")},
+                         "detalhe": {"openai": "OpenAI onyx", "elevenlabs": "ElevenLabs"}.get(__import__("os").environ.get("JAIME_TTS", "auto"), "auto") + " · " + ("Deepgram" if s.deepgram_key else f"Whisper {s.whisper_modelo}")},
             "notion":   {"nome": "Notion", "ligado": bool(j.notion.ativo), "detalhe": "espelho" if j.notion.ativo else "sem token"},
             "whatsapp": {"nome": "WhatsApp", "ligado": bool(s.evolution_url and s.evolution_key), "detalhe": s.evolution_instance},
             "github":   {"nome": "GitHub", "ligado": False, "detalhe": "mcp"},

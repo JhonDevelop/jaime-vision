@@ -3,7 +3,7 @@
 Local por padrão (127.0.0.1). O HUD (/) não usa token porque só é alcançável na própria máquina;
 /ask e /webhook/* exigem X-Jaime-Token e só fazem sentido expostos via túnel (JAIME_BIND=0.0.0.0)."""
 from __future__ import annotations
-import asyncio, ipaddress, json
+import asyncio, ipaddress, json, os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -124,7 +124,7 @@ def _voz_estado() -> dict:
         return {"disponivel": False, "ativa": False, "motivo": "iniciando"}
     return {"disponivel": not ouvido.erro, "ativa": ouvido.ativo, "motivo": ouvido.erro,
             "stt": "deepgram" if settings.deepgram_key else f"whisper:{settings.whisper_modelo}",
-            "tts": "elevenlabs" if settings.elevenlabs_key else "say"}
+            "tts": {"openai": "openai:" + os.environ.get("JAIME_OPENAI_VOZ", "onyx"), "elevenlabs": "elevenlabs"}.get(os.environ.get("JAIME_TTS", "auto"), "auto") if (settings.openai_key or settings.elevenlabs_key) else "say"}
 
 @app.get("/hud/conexoes")
 async def hud_conexoes():
