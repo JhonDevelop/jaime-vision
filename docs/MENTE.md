@@ -48,7 +48,7 @@
 - Validar ao vivo: com fone (`JAIME_BARGE_IN=fone`), falar por cima 10× seguidas; nenhum crash; áudio cala < 150 ms;
   nada da frase antiga volta a tocar. Até o merge: `JAIME_BARGE_IN=off` no .env evita a repetição.
 
-#### M-02 · Tranca responde a conversa ambiente; senha recusada com voz ruidosa — **em implementação**
+#### M-02 · Tranca responde a conversa ambiente; senha recusada com voz ruidosa — **CORRIGIDO em feat/mente**
 - Problema: em `escuta._tratar_texto`, o filtro "não era comigo" (`sem_nome` + janela inativa) só vale se `acesso.liberado`.
   Trancado, tudo vai a `_porta` → "Palavra-passe, por favor." falado. Além disso `_porta` recusa a senha se
   `falante_atual` ∈ {outro, "desconhecido"} — e `identificar()` devolve "desconhecido" para qualquer score < 0,75,
@@ -81,7 +81,7 @@
 - Não é código: página não compartilhada com a integração. Proposta: depois de 3 falhas iguais seguidas, silenciar
   o log por 1 h e registrar 1 linha no diário ("espelho parado: compartilhe a página com a integração"). Validar: log limpo.
 
-#### M-06 · FutureWarning np.long em `falantes.py:50` — remover o shim quando resemblyzer não precisar; ou `warnings.filterwarnings` local.
+#### M-06 · FutureWarning np.long — **CORRIGIDO**: o próprio `hasattr(np, "long")` emitia o aviso; envolto em `catch_warnings`.
 
 #### M-07 · Telemetria sem amostras — observar 1 dia com o serviço estável antes de mexer.
 
@@ -89,11 +89,11 @@
 | # | Item | Impacto hoje | Estado |
 |---|---|---|---|
 | 1 | M-01 barge-in segfault | serviço morto | pronto, aguardando merge |
-| 2 | M-02 tranca/senha por voz | irritação diária | implementando |
+| 2 | M-02 tranca/senha por voz | irritação diária | pronto, aguardando merge |
 | 3 | M-04 antecipador | meta 700 ms | a medir |
 | 4 | M-03 TTS 1º byte | meta 700 ms | depende de chave |
 | 5 | M-05 Notion ruído no log | observabilidade | pequeno |
-| 6 | M-06 FutureWarning | cosmético | pequeno |
+| 6 | M-06 FutureWarning | cosmético | pronto |
 | 7 | M-07 telemetria vazia | estudo dirigido | observar |
 | 8 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -103,3 +103,4 @@
 
 ## Ciclos
 - 14:10 — leitura inicial; serviço caído detectado; Cérebro avisado; M-01 corrigido e commitado (10ff5ea).
+- 14:45 — M-02 implementado (3 zonas + EMA + amostras; silêncio trancado; senha digitada sem voz) e M-06; 187 testes; Cérebro avisado.
