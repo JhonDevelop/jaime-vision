@@ -5,34 +5,45 @@
 <title>JAIME</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  :root{--bg:#04080f;--cy:#4fd8ff;--cy2:#1aa0c8;--am:#ffb347;--rd:#ff5f5f;--gn:#5cff9d;--tx:#d6ecf7;--mu:#6b93a8;--pn:rgba(8,20,32,.55);--bd:rgba(79,216,255,.16)}
+  :root{--bg:#04080f;--cy:#4fd8ff;--cy2:#1aa0c8;--am:#ffb347;--rd:#ff5f5f;--gn:#5cff9d;--vi:#c6a5ff;--tx:#d6ecf7;--mu:#6b93a8;--pn:rgba(8,20,32,.55);--bd:rgba(79,216,255,.16)}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 "Inter","Segoe UI",Roboto,system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
   #cena{position:fixed;inset:0;display:block}
-  .vinheta{position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 800px at 50% 45%,transparent 40%,rgba(2,5,10,.75) 100%)}
+  .vinheta{position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 800px at 50% 45%,transparent 40%,rgba(2,5,10,.75) 100%);transition:opacity 2s}
+  body.noite .vinheta{background:radial-gradient(1100px 700px at 50% 45%,rgba(0,0,0,.15) 30%,rgba(1,3,7,.88) 100%)}
+  #tinta{position:fixed;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;background:transparent;transition:background-color 2s,opacity 2s}
 
   /* ── topo ── */
-  header{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;z-index:5;
+  header{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 22px;z-index:5;
          background:linear-gradient(180deg,rgba(4,8,15,.85),transparent)}
-  .brand{display:flex;align-items:baseline;gap:12px}
+  .brand{display:flex;align-items:baseline;gap:12px;flex:none}
   .brand h1{font-size:22px;letter-spacing:.5em;color:var(--cy);font-weight:200;text-shadow:0 0 22px rgba(79,216,255,.55)}
   .brand small{color:var(--mu);letter-spacing:.2em;font-size:10px;text-transform:uppercase}
-  .chips{display:flex;gap:8px;align-items:center}
-  .chip{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);padding:5px 10px;border:1px solid var(--bd);border-radius:20px;background:var(--pn);backdrop-filter:blur(8px)}
+  .chips{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;overflow:hidden;min-width:0;flex:1 1 auto;justify-content:flex-end}
+  .chips.estreito{justify-content:flex-start}
+  .botoes{display:flex;gap:8px;align-items:center;flex:none}
+  .chip{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);padding:5px 10px;border:1px solid var(--bd);border-radius:20px;background:var(--pn);backdrop-filter:blur(8px);white-space:nowrap;flex:none}
   .chip b{color:var(--tx);font-weight:500;margin-left:6px}
+  #ctxChip b{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
   .hb{display:inline-flex;gap:2px;margin-left:8px;vertical-align:middle}.hb i{display:inline-block;width:4px;height:10px;background:rgba(79,216,255,.15);border-radius:1px;position:relative;overflow:hidden}
-  .hb i::after{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--v,0%);background:var(--cy)}
+  .hb i::after{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--v,0%);background:var(--cy);transition:height .8s}
   .hb i:nth-child(2)::after{background:var(--am)}.hb i:nth-child(3)::after{background:var(--rd)}.hb i:nth-child(4)::after{background:var(--gn)}
+  .hb.hb6 i::after{background:var(--vi)!important}
+  .ob{display:inline-block;width:40px;height:3px;margin-left:8px;vertical-align:middle;background:rgba(79,216,255,.12);border-radius:2px;overflow:hidden}
+  .ob i{display:block;height:100%;width:0;background:var(--cy);transition:width .8s}
+  #orcChip.alto .ob i{background:var(--am)}#orcChip.esgotado .ob i{background:var(--rd)}
+  #rotChip.atento b{color:var(--cy)}#rotChip.noite b{color:var(--vi)}#rotChip.ocioso b{color:var(--mu)}
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rd);box-shadow:0 0 8px var(--rd);margin-right:6px;vertical-align:middle}
   .dot.on{background:var(--gn);box-shadow:0 0 8px var(--gn)}
-  button.ico{cursor:pointer;border:1px solid var(--bd);background:var(--pn);color:var(--mu);border-radius:20px;padding:5px 12px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;backdrop-filter:blur(8px);transition:.2s}
+  button.ico{cursor:pointer;border:1px solid var(--bd);background:var(--pn);color:var(--mu);border-radius:20px;padding:5px 12px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;backdrop-filter:blur(8px);transition:.2s;flex:none}
   button.ico:hover,button.ico.on{color:var(--cy);border-color:rgba(79,216,255,.5)}
   button.ico.alerta{color:var(--am);border-color:rgba(255,179,71,.5)}
+  @media (max-width:1400px){.brand small{display:none}#ctxChip{font-size:0;padding:4px 8px}#ctxChip b{font-size:10px;margin-left:0;max-width:80px}#rotChip{display:none}.chip{padding:4px 8px;letter-spacing:.08em}.chips{gap:6px;justify-content:flex-start}}
 
   /* ── painéis laterais ── */
   .painel{position:fixed;top:72px;width:290px;max-height:calc(100% - 200px);padding:14px 16px;border:1px solid var(--bd);border-radius:10px;background:var(--pn);backdrop-filter:blur(10px);z-index:4;
           transition:opacity .35s,transform .35s;overflow:hidden;display:flex;flex-direction:column;gap:10px}
-  .painel.esq{left:18px}.painel.dir{right:18px;width:340px}
+  .painel.esq{left:18px;overflow-y:auto;scrollbar-width:thin}.painel.dir{right:18px;width:340px}
   body.sem-paineis .painel{opacity:0;pointer-events:none;transform:translateY(-8px)}
   .painel h2{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--cy2);font-weight:500}
   .gauge{margin:2px 0}
@@ -44,10 +55,13 @@
   .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:11px;color:var(--mu)}
   .kv b{color:var(--tx);font-weight:500;text-align:right}
   .texto{font-size:12px;color:var(--tx);white-space:pre-wrap;line-height:1.5;overflow:auto;scrollbar-width:thin;max-height:150px}
-  .feed{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:11px;overflow:auto;scrollbar-width:thin;flex:1;min-height:120px}
+  #sit{max-height:96px;font-size:11.5px;color:#a9c7d6}
+  #prox{max-height:70px}
+  .feed{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:11px;overflow:auto;scrollbar-width:thin;flex:1;min-height:100px}
   .feed div{padding:4px 0;border-bottom:1px dashed rgba(79,216,255,.08);animation:in .3s}
   .feed .t{color:var(--mu);margin-right:8px;font-size:10px}
   .feed .f{color:var(--cy);margin-right:8px}
+  .feed .f.ju{color:var(--vi)}.feed .f.ag{color:var(--gn)}
   .feed .a{color:var(--tx);word-break:break-all}
   .feed .think{color:#a9c7d6;font-style:italic;white-space:pre-wrap}
   .feed .err{color:var(--rd)}
@@ -56,21 +70,53 @@
   .codigo{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:10.5px;line-height:1.4;color:#a9d8ea;background:rgba(4,8,15,.6);border:1px solid var(--bd);border-radius:6px;padding:8px;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;scrollbar-width:thin}
   .codigo .arq{color:var(--am);display:block;margin-bottom:4px;font-size:10px;letter-spacing:.08em}
 
+  /* ── fase 3 — HUD vivo: córtex e turno (painel Raciocínio) ── */
+  .cx{font-size:11px;color:var(--mu);border:1px solid var(--bd);border-radius:8px;padding:6px 9px;background:rgba(4,8,15,.35)}
+  .cxl{display:flex;align-items:center;gap:8px;min-width:0}
+  .cxl b{color:var(--cy);font-weight:500;white-space:nowrap}.cx.juiz .cxl b{color:var(--vi)}
+  .cxl .ta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conf{display:inline-block;width:44px;height:3px;flex:none;background:rgba(79,216,255,.12);border-radius:2px;overflow:hidden;margin-left:auto}
+  .conf i{display:block;height:100%;width:0;background:var(--cy);transition:width .5s}
+  .cxm{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .turno{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:10.5px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .turno b{color:var(--tx);font-weight:500}.turno.vivo{color:#ffd08a}.turno.vivo b{color:#ffe7bf}
+
+  /* ── fase 3 — HUD vivo: painel Sistemas ── */
+  .sis{display:flex;flex-direction:column}
+  .sl{display:grid;grid-template-columns:52px 1fr;gap:8px;font-size:11px;color:var(--mu);padding:3px 0;border-bottom:1px dashed rgba(79,216,255,.08);min-width:0}
+  .sl>span{letter-spacing:.12em;text-transform:uppercase;font-size:10px;padding-top:1px}
+  .sl b{color:var(--tx);font-weight:400;min-width:0;overflow:hidden}
+  .sl b.err{color:var(--rd)}.sl b.on{color:var(--cy)}.sl b.esp{color:var(--am)}
+  .fi{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fi.em_andamento{color:var(--cy)}.fi.interrompida{color:var(--am)}.fi.retomada{color:var(--cy)}.fi.concluida,.fi.descartada{color:var(--mu)}.fi.esp{color:var(--am);font-weight:500}
+  .filho{display:inline-block;margin-right:8px;white-space:nowrap}.filho.vivo{color:var(--tx)}.filho.parado{color:var(--mu)}.filho.novo{color:var(--vi)}
+  .pend{border:1px solid rgba(255,179,71,.5);background:rgba(255,179,71,.08);border-radius:8px;padding:7px 10px;font-size:11.5px;color:var(--am);animation:respira 2.4s ease-in-out infinite;line-height:1.4}
+  .pend h4{font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;font-weight:500;margin-bottom:3px}
+  .pend div{padding:2px 0;color:var(--tx)}.pend small{color:var(--am);margin-left:6px;letter-spacing:.06em;text-transform:uppercase;font-size:9.5px}
+  @keyframes respira{50%{box-shadow:0 0 16px rgba(255,179,71,.35)}}
+  #querer{font-size:11px;color:var(--mu);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
   /* ── legenda (o que ele fala / o que você disse) ── */
   #legenda{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);width:min(820px,86vw);text-align:center;z-index:4;pointer-events:none}
   #estadoVoz{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:var(--cy);margin-bottom:12px;transition:color .3s}
-  #estadoVoz.trancado{color:var(--rd)}#estadoVoz.gravando{color:var(--am)}#estadoVoz.mudo{color:var(--mu)}
+  #estadoVoz.trancado{color:var(--rd)}#estadoVoz.gravando{color:var(--am)}#estadoVoz.mudo{color:var(--mu)}#estadoVoz.interrompido{color:var(--rd)}#estadoVoz.agir{color:var(--gn)}#estadoVoz.pensar{color:#ffd08a}
   #fala{font-size:20px;font-weight:300;color:var(--tx);line-height:1.5;text-shadow:0 2px 24px rgba(0,0,0,.8);transition:opacity .6s;min-height:30px}
   #fala.some{opacity:0}
+  #fala.stream::after{content:"▍";color:var(--cy);animation:pisca 1s steps(2) infinite;margin-left:2px}
   #voce{font-size:12.5px;color:var(--mu);margin-top:10px;letter-spacing:.02em;transition:opacity .6s}
   #voce.some{opacity:0}
   #voce::before{content:"você · ";color:var(--am);letter-spacing:.12em;font-size:10.5px;text-transform:uppercase}
   #voce.ign{opacity:.45;font-style:italic}#voce.ign::before{content:"ouvi (não era comigo) · ";color:var(--mu)}
   #voce.viva{color:var(--tx)}#voce.viva::before{content:"você (ao vivo) · ";color:var(--am)}#voce.viva::after{content:" ▍";animation:pisca 1s steps(2) infinite}
+  #voce.fechou{color:var(--tx)}
   @keyframes pisca{to{opacity:0}}
   #nivel{width:180px;height:2px;margin:14px auto 0;background:rgba(79,216,255,.12);border-radius:1px;overflow:hidden}
   #nivel i{display:block;height:100%;width:0;background:var(--cy);transition:width .08s linear}
   #nivel i.grav{background:var(--am)}
+  #ant{width:180px;height:2px;margin:3px auto 0;background:transparent;border-radius:1px;overflow:hidden;opacity:0;transition:opacity .4s}
+  #ant.on{opacity:1}
+  #ant i{display:block;height:100%;width:0;background:var(--vi);transition:width .3s}
+  #ant i.usado{background:var(--gn)}
 
   /* ── teclado (só quando pedido) ── */
   #teclado{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(3,7,13,.55);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .2s}
@@ -95,6 +141,7 @@
   #menteBox h3{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--cy2);margin:12px 0 6px}
   #menteBox input{width:100%;background:rgba(4,8,15,.8);border:1px solid rgba(79,216,255,.3);color:var(--tx);padding:9px 12px;border-radius:8px;font-size:14px;outline:none}
   .lista{font-size:12px;color:var(--tx);line-height:1.5}.lista div{padding:4px 0;border-bottom:1px dashed rgba(79,216,255,.08);cursor:pointer}.lista div:hover{color:var(--cy)}.lista .m{color:var(--mu);font-size:11px}
+  .m{color:var(--mu)}
   #aviso{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:6;font-size:11.5px;letter-spacing:.06em;color:var(--am);background:var(--pn);border:1px solid rgba(255,179,71,.35);padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none}
   #aviso.on{opacity:1}
   @media (max-width:1100px){.painel{display:none}}
@@ -103,6 +150,7 @@
 <body>
 <canvas id="cena"></canvas>
 <div class="vinheta"></div>
+<div id="tinta"></div>
 
 <header>
   <div class="brand"><h1 id="nome">JAIME</h1><small>assistente operacional</small></div>
@@ -110,10 +158,12 @@
     <span class="chip"><i class="dot" id="dot"></i><span id="acesso">trancado</span></span>
     <span class="chip" id="ctxChip" title="o que você está fazendo agora">você em<b id="ctx">—</b></span>
     <span class="chip" id="humorChip" title="humor do Jaime: energia · calor · gravidade · confiança">humor<b id="humor">—</b><i class="hb"><i id="h1"></i><i id="h2"></i><i id="h3"></i><i id="h4"></i></i></span>
+    <span class="chip" id="vontChip" title="vontades: Utilidade · Curiosidade · Maestria · Criação · Ordem · Vínculo">vontade<b id="vont">—</b><i class="hb hb6" id="vontBars"><i></i><i></i><i></i><i></i><i></i><i></i></i></span>
+    <span class="chip" id="rotChip" title="janela da rotina: atento (08–18h, falou há pouco) · ocioso · noite criativa (21–06h)">rotina<b id="rot">—</b></span>
+    <span class="chip" id="orcChip" title="orçamento do dia (demandas 60% · estudo 25% · criação 15%)">orçamento<b id="orc">—</b><i class="ob"><i id="orc-b"></i></i></span>
     <span class="chip" id="cerebroChip" title="notas do vault (Obsidian) — o cérebro real dele">cérebro<b id="notas">—</b></span>
-    <span class="chip" id="estudoChip" title="cérebro de estudo: problemas em aberto">estudando<b id="estudo">0</b></span>
-    <span class="chip">máquina<b id="maq">—</b></span>
-    <span class="chip">modelo<b id="modelo">—</b></span>
+  </div>
+  <div class="botoes">
     <button class="ico on" id="btMic" title="microfone (M)">mic</button>
     <button class="ico" id="btTeclado" title="teclado (T ou comece a digitar)">teclado</button>
     <button class="ico on" id="btPaineis" title="painéis (H)">painéis</button>
@@ -123,19 +173,35 @@
 <div id="aviso"></div>
 
 <aside class="painel esq">
-  <h2>Sistema</h2>
+  <h2>Sistemas</h2>
+  <div id="pend" class="pend" hidden><h4>esperando você</h4><div id="pendLista"></div></div>
+  <div class="sis">
+    <div class="sl"><span>ouvido</span><b id="sOuvido">—</b></div>
+    <div class="sl"><span>fila</span><b id="sFila">vazia</b></div>
+    <div class="sl" id="sVigiaRow" hidden><span>vigia</span><b id="sVigia" class="esp"></b></div>
+    <div class="sl"><span>equipe</span><b id="sEquipe">sem filhos</b></div>
+    <div class="sl"><span>estudo</span><b id="sEstudo">—</b></div>
+    <div class="sl"><span>rotina</span><b id="sRotina">—</b></div>
+  </div>
+  <h2 style="margin-top:4px">A seguir</h2>
+  <div class="texto" id="prox"></div>
+  <div id="querer"></div>
+  <h2 style="margin-top:4px">Máquina <span class="m" id="maq" style="letter-spacing:.06em;text-transform:none"></span></h2>
   <div class="gauge"><div class="lab"><span>CPU</span><b id="cpu">—</b></div><div class="bar"><i id="cpu-b"></i></div></div>
   <div class="gauge"><div class="lab"><span>Memória</span><b id="ram">—</b></div><div class="bar"><i id="ram-b"></i></div></div>
   <div class="gauge"><div class="lab"><span>Disco</span><b id="disco">—</b></div><div class="bar"><i id="disco-b"></i></div></div>
   <div class="kv"><span>rede ↓</span><b id="down">—</b><span>rede ↑</span><b id="up">—</b><span>processos</span><b id="procs">—</b><span>bateria</span><b id="bat">—</b></div>
-  <h2 style="margin-top:6px">Situação</h2>
+  <h2 style="margin-top:4px">Situação</h2>
   <div class="texto" id="sit">…</div>
-  <h2 style="margin-top:6px">Próximos passos</h2>
-  <div class="texto" id="prox"></div>
 </aside>
 
 <aside class="painel dir">
   <h2>Raciocínio</h2>
+  <div class="cx" id="cx">
+    <div class="cxl"><span>córtex</span><b id="cxModelo">—</b><span class="ta" id="cxTarefa"></span><i class="conf" title="confiança do Córtex na classificação"><i id="cxConf"></i></i></div>
+    <div class="cxm" id="cxMotivo">esperando o primeiro pedido</div>
+  </div>
+  <div class="turno" id="turno">turno: —</div>
   <div class="feed" id="rac"></div>
   <h2>Produção</h2>
   <div class="feed" id="prod"></div>
@@ -163,6 +229,7 @@
   <div id="fala"></div>
   <div id="voce" class="some"></div>
   <div id="nivel"><i id="nivel-i"></i></div>
+  <div id="ant" title="antecipação: quanto da sua frase ele já entendeu"><i id="ant-i"></i></div>
 </div>
 
 <div id="teclado">
@@ -179,9 +246,23 @@
 <script>
 const $=id=>document.getElementById(id);
 const hora=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const agora=()=>performance.now()/1000;
 
 // ── estado da interface ────────────────────────────────────────────────────
-const UI={liberado:false,voz:'iniciando',falando:false,pensando:false,nivel:0,gravando:false,micAtivo:true,energia:0.1};
+// fase 3 — HUD vivo: cada campo aqui é UM estado real do Jaime (docs/HUD-VIVO.md); a animação lê daqui, nunca inventa.
+const UI={liberado:false,voz:'iniciando',falando:false,pensando:false,nivel:0,nivelSuave:0,gravando:false,micAtivo:true,energia:0.1,
+  camada:'repouso',            // ouvir | pensar | agir | falar | interrompido | equipe | repouso | trancado
+  transcrevendo:false,         // transcrição viva em curso (duplex)
+  antecip:{completude:0,fechou:false,fechouT:-9,intencao:'',t:-9,usado:-9,interj:-9},
+  interrompidoT:-9,restantes:0,fimTurnoT:-9,equipeT:-9,
+  streaming:false,             // texto da resposta chegando token a token
+  carga:0,                     // intensidade do turno (thinking + ferramentas + fala), decai sozinha
+  ultimoEvento:0,              // último evento do turno (para "espera de rede")
+  pendTools:[],                // ferramentas chamadas e ainda sem resultado ('agir' | 'ler')
+  agindo:false,ferramenta:'',
+  turno:null,                  // {t0, tools, think, chars, primeira, modelo, fim}
+  curiosidade:0,voceTexto:''};
+function esperaRede(){return UI.pensando&&!UI.streaming&&(agora()-UI.ultimoEvento)>0.6}
 
 // ── cena 3D ────────────────────────────────────────────────────────────────
 const canvas=$('cena');
@@ -209,7 +290,11 @@ function texRotulo(txt,cor){const c=document.createElement('canvas');c.width=256
   g.font='500 26px Inter, Segoe UI, system-ui, sans-serif';g.textAlign='center';g.textBaseline='middle';
   g.shadowColor=cor;g.shadowBlur=12;g.fillStyle=cor;g.fillText(txt.toUpperCase(),128,32);
   const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;return t;}
-const GLOW_CY=texBrilho('rgba(79,216,255,1)'),GLOW_AM=texBrilho('rgba(255,179,71,1)'),GLOW_RD=texBrilho('rgba(255,95,95,1)'),GLOW_MU=texBrilho('rgba(80,110,130,1)');
+const GLOW_CY=texBrilho('rgba(79,216,255,1)'),GLOW_AM=texBrilho('rgba(255,179,71,1)'),GLOW_RD=texBrilho('rgba(255,95,95,1)'),GLOW_MU=texBrilho('rgba(80,110,130,1)'),
+      GLOW_GN=texBrilho('rgba(92,255,157,1)'),GLOW_VI=texBrilho('rgba(198,165,255,1)');
+// cor por camada (docs/HUD-VIVO.md): ouvir âmbar · pensar ouro · agir verde · falar ciano · interrompido vermelho · equipe violeta
+const COR={repouso:0x4fd8ff,ouvir:0xffb347,pensar:0xffd08a,agir:0x5cff9d,falar:0x4fd8ff,interrompido:0xff5f5f,equipe:0xc6a5ff,trancado:0xff7a7a};
+const GLOW={repouso:GLOW_CY,ouvir:GLOW_AM,pensar:GLOW_AM,agir:GLOW_GN,falar:GLOW_CY,interrompido:GLOW_RD,equipe:GLOW_VI,trancado:GLOW_RD};
 
 // ── o cérebro: nuvem de pontos em dois hemisférios com sulcos ─────────────
 const cerebro=new THREE.Group();scene.add(cerebro);
@@ -258,6 +343,15 @@ const anelMat=new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opaci
 const anel=new THREE.Mesh(new THREE.RingGeometry(1.92,1.96,128),anelMat);anel.rotation.x=Math.PI/2;scene.add(anel);
 const anel2=new THREE.Mesh(new THREE.RingGeometry(2.08,2.09,128,1,0,Math.PI*1.4),new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.35,side:THREE.DoubleSide}));
 anel2.rotation.x=Math.PI/2;scene.add(anel2);
+// fase 3 — HUD vivo: arco de antecipação (violeta) — preenche conforme a completude da frase do João
+const antGeo=new THREE.RingGeometry(2.22,2.26,128);antGeo.setDrawRange(0,0);
+const antMat=new THREE.MeshBasicMaterial({color:0xc6a5ff,transparent:true,opacity:0,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false});
+const anelAnt=new THREE.Mesh(antGeo,antMat);anelAnt.rotation.x=Math.PI/2;scene.add(anelAnt);
+// fase 3 — HUD vivo: ondas concêntricas (fala em streaming, fim de turno, interjeição) — pool fixo, sem alocar por evento
+const ondas=[];
+for(let i=0;i<5;i++){const m=new THREE.Mesh(new THREE.RingGeometry(1.9,1.93,96),new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));
+  m.rotation.x=Math.PI/2;m.visible=false;scene.add(m);ondas.push({m,t:-1});}
+function onda(cor){const o=ondas.find(o=>o.t<0);if(!o)return;o.t=0;o.m.material.color.setHex(cor);o.m.scale.setScalar(1);o.m.visible=true;}
 
 // ── conexões: nós orbitando o cérebro ────────────────────────────────────
 const NOS=[
@@ -277,14 +371,15 @@ NOS.forEach((n,i)=>{
   g.add(esfera,halo,rot);orbita.add(g);
   const lg=new THREE.BufferGeometry().setFromPoints([pos,new THREE.Vector3(0,0,0)]);
   const linha=new THREE.Line(lg,new THREE.LineBasicMaterial({color:0x2a3a48,transparent:true,opacity:0.25}));orbita.add(linha);
-  nos[n.id]={...n,g,esfera,halo,rot,linha,pos,ligado:false,pulso:0,pacotes:[],proximo:Math.random()*6};
+  nos[n.id]={...n,g,esfera,halo,rot,linha,pos,ligado:false,pulso:0,pacotes:[],proximo:Math.random()*6,cor:0x4fd8ff};
 });
 function ligarNo(id,ligado,detalhe){const n=nos[id];if(!n)return;n.ligado=ligado;n.detalhe=detalhe||'';
   n.esfera.material.color.set(ligado?0x4fd8ff:0x2a3a48);n.halo.material.map=ligado?GLOW_CY:GLOW_MU;n.halo.material.opacity=ligado?0.9:0.4;
   n.linha.material.color.set(ligado?0x4fd8ff:0x2a3a48);n.linha.material.opacity=ligado?0.35:0.12;
   n.rot.material.map=texRotulo(n.nome,ligado?'#cfe9f5':'#4d6a7c');n.rot.material.needsUpdate=true;}
 const pacoteGeo=new THREE.SphereGeometry(0.035,8,8);
-function pulsar(id,cor=0x4fd8ff){const n=nos[id];if(!n)return;n.pulso=1;
+function pulsar(id,cor=0x4fd8ff){const n=nos[id];if(!n)return;n.pulso=1;n.cor=cor;
+  if(n.pacotes.length>6)return;   // sem acumular pacotes numa rajada de ferramentas
   const m=new THREE.Mesh(pacoteGeo,new THREE.MeshBasicMaterial({color:cor}));orbita.add(m);n.pacotes.push({m,t:0,v:0.9+Math.random()*0.5,ida:Math.random()<.5});}
 function noDaFerramenta(f){f=(f||'').toLowerCase();
   if(f.startsWith('mcp__cerebro'))return 'vault';if(f.includes('github'))return 'github';if(f.includes('notion'))return 'notion';
@@ -329,6 +424,7 @@ async function carregarMente(){carregarVitrine();const m=await fetch('/hud/mente
   const v=m.vinculo||{},h=m.humor||{};$('pensamentos').innerHTML=`<div class="m">vínculo: ${v.dias} dias · ${v.conversas} conversas · familiaridade ${Math.round((v.familiaridade||0)*100)}% · humor ${esc(h.rotulo||'')}</div>`+pensamentosHtml();}
 // fase 3 — E: Vitrine + vontades (impulsos). Só o painel; o resto do HUD fica como está.
 const IMPULSO={utilidade:'Utilidade',curiosidade:'Curiosidade',maestria:'Maestria',criacao:'Criação',ordem:'Ordem',vinculo:'Vínculo'};
+const IMPULSO_ORDEM=['utilidade','curiosidade','maestria','criacao','ordem','vinculo'];
 function vontadesHtml(v){const n=(v&&v.niveis)||{};const ks=Object.keys(n).sort((a,b)=>n[b]-n[a]);if(!ks.length)return '<div class="m">—</div>';
   return `<div class="m" data-rel="01-Estado/Vontades.md">${ks.map(k=>`${IMPULSO[k]||k} <b>${Math.round(n[k]*100)}%</b>`).join(' · ')}${v.demanda_pendente?' · <b>demanda pendente</b>':''}</div>`;}
 async function carregarVitrine(){const m=await fetch('/hud/vitrine').then(r=>r.json()).catch(()=>null);if(!m)return;
@@ -340,7 +436,7 @@ async function carregarVitrine(){const m=await fetch('/hud/vitrine').then(r=>r.j
 async function votarVitrine(id,gostei){await fetch('/hud/vitrine/'+encodeURIComponent(id)+'/voto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gostei})}).catch(()=>null);carregarVitrine();}
 const pensamentosRecentes=[];
 function pensamentosHtml(){return pensamentosRecentes.slice(-8).map(p=>`<div ${p.rel?`data-rel="${esc(p.rel)}"`:''}><span class="m">${esc(p.t)}</span> ${esc(p.texto)}</div>`).join('')}
-function registrarPensamento(texto,rel){pensamentosRecentes.push({t:hora(),texto:texto.slice(0,160),rel});if(menteAberta()){$('pensamentos').insertAdjacentHTML('beforeend','');carregarMente()}}
+function registrarPensamento(texto,rel){pensamentosRecentes.push({t:hora(),texto:texto.slice(0,160),rel});if(pensamentosRecentes.length>40)pensamentosRecentes.shift();if(menteAberta())carregarMente()}
 async function abrirNota(rel){const n=await fetch('/hud/nota?rel='+encodeURIComponent(rel)).then(r=>r.json()).catch(()=>null);if(!n)return;
   const el=$('notaAberta');el.innerHTML='';const a=document.createElement('span');a.className='arq';a.textContent=rel;el.appendChild(a);el.appendChild(document.createTextNode((n.texto||'').slice(0,4000)));tocarNota(rel);if(!menteAberta())toggleMente();}
 $('busca').onkeydown=async e=>{if(e.key!=='Enter')return;const q=$('busca').value.trim();if(!q)return;
@@ -356,45 +452,87 @@ canvas.addEventListener('click',e=>{if(drag&&Math.abs(e.movementX)>2)return;cons
 function mostrarTrecho(arq,txt){const el=$('trecho');el.innerHTML='';const a=document.createElement('span');a.className='arq';a.textContent=arq;el.appendChild(a);el.appendChild(document.createTextNode((txt||'').slice(0,1500)));el.scrollTop=0;}
 carregarVault();setInterval(carregarVault,120000);
 
-// ── animação ──────────────────────────────────────────────────────────────
-const clock=new THREE.Clock();
-function animar(){
-  const dt=Math.min(clock.getDelta(),0.05),t=clock.elapsedTime;
-  const nivelAlvo=UI.micAtivo?UI.nivel:0;UI.nivelSuave=(UI.nivelSuave||0)+(nivelAlvo-(UI.nivelSuave||0))*Math.min(1,dt*12);
-  const voce=!UI.falando&&UI.liberado&&UI.micAtivo&&(UI.gravando||UI.nivelSuave>0.12);   // você está falando
-  const alvo=!UI.liberado?0.05:UI.falando?1:voce?0.6+UI.nivelSuave*0.4:UI.pensando?0.55:0.12;
+// ── animação (≤ 30 fps; DOM de alta frequência aplicado aqui, em lote) ────
+const corAtual=new THREE.Color(0x4fd8ff),corAlvo=new THREE.Color(),corInt=new THREE.Color(),BRANCO=new THREE.Color(0xffffff);
+let ultimoFrame=0;
+function animar(ts){
+  requestAnimationFrame(animar);
+  if(ts-ultimoFrame<33)return;                                  // teto de 30 fps
+  const dt=Math.min((ts-ultimoFrame)/1000,0.1);ultimoFrame=ts;const t=ts/1000,now=t;
+  UI.carga=Math.max(0,UI.carga-dt*0.15);
+  const nivelAlvo=UI.micAtivo?UI.nivel:0;UI.nivelSuave+=(nivelAlvo-UI.nivelSuave)*Math.min(1,dt*12);
+  const voce=!UI.falando&&UI.liberado&&UI.micAtivo&&(UI.gravando||UI.transcrevendo);   // você está falando (VAD abriu o turno), não ruído de sala
+  const espera=esperaRede();
+  // a camada ativa é UM estado real; a prioridade resolve sobreposições (interrompido > você > ele fala > age > pensa > equipe)
+  const camada=!UI.liberado?'trancado':(now-UI.interrompidoT<0.6)?'interrompido':voce?'ouvir':UI.falando?'falar':UI.agindo?'agir':UI.pensando?'pensar':(now-UI.equipeT<2)?'equipe':'repouso';
+  UI.camada=camada;
+  // intensidade = intensidade: carga do turno (thinking + ferramentas + fala) acende mais o cérebro
+  const alvo=camada==='trancado'?0.05:camada==='interrompido'?0.3:camada==='falar'?0.8+0.2*UI.carga:camada==='ouvir'?0.6+UI.nivelSuave*0.4
+            :camada==='agir'?0.65+0.25*UI.carga:camada==='pensar'?(espera?0.38:0.55)+0.3*UI.carga:camada==='equipe'?0.45:0.12+0.25*UI.carga;
   UI.energia+=(alvo-UI.energia)*Math.min(1,dt*4);
   const e=UI.energia;
   cerebro.rotation.y+=dt*0.12;cerebro.rotation.x=Math.sin(t*0.2)*0.06;
-  // ele falando: pulsa azul; você falando: pisca âmbar e cresce com o volume
-  const pisca=voce?(0.75+0.25*Math.abs(Math.sin(t*14))):1;
-  const pulso=(1+Math.sin(t*(UI.falando?9:2.2))*0.035*e)*(voce?1+UI.nivelSuave*0.55:1);cerebro.scale.setScalar(pulso);
-  superficie.material.size=0.028+0.012*e;superficie.material.opacity=0.55+0.4*e;
-  sinMat.opacity=0.08+0.35*e*(0.6+0.4*Math.sin(t*13+Math.sin(t*7)));
-  nucleo.material.opacity=0.35+0.5*e;nucleo.scale.setScalar(2.0+0.9*e);
+  // pulso: falando 9 Hz curto · espera de rede: respiração lenta (~2,4 s) · resto suave
+  const freq=camada==='falar'?9:espera?2.6:2.2,amp=espera?0.06:0.035;
+  const pulso=(1+Math.sin(t*freq)*amp*e)*(voce?1+UI.nivelSuave*0.55:1)*(now-UI.interrompidoT<0.4?0.93:1);
+  cerebro.scale.setScalar(pulso);
+  corAlvo.setHex(COR[camada]);corAtual.lerp(corAlvo,Math.min(1,dt*6));      // sem trocas bruscas de cor
+  corInt.copy(corAtual).lerp(BRANCO,0.45);
+  superficie.material.color.copy(corAtual);interior.material.color.copy(corInt);sinMat.color.copy(corAtual);
+  superficie.material.size=0.028+0.012*e+0.006*UI.carga;
+  superficie.material.opacity=(0.55+0.4*e)*(voce?(0.85+0.15*Math.abs(Math.sin(t*14))):1);
+  sinMat.opacity=Math.min(0.9,0.08+0.35*e*(0.6+0.4*Math.sin(t*13+Math.sin(t*7)))+0.3*UI.carga);
+  nucleo.material.opacity=0.35+0.5*e;nucleo.scale.setScalar(2.0+0.9*e);nucleo.material.map=GLOW[camada];
   malha.rotation.y-=dt*0.35;malha.rotation.z+=dt*0.1;malha.material.opacity=0.08+0.2*e;
-  const corBase=!UI.liberado?0xff5f5f:voce?0xffb347:UI.pensando?0xffd08a:0x4fd8ff;
-  superficie.material.color.setHex(!UI.liberado?0xff7a7a:voce?0xffc46b:0x4fd8ff);superficie.material.opacity*=pisca;
-  interior.material.color.setHex(voce?0xffd9a0:0x8fe8ff);sinMat.color.setHex(corBase);
-  nucleo.material.map=!UI.liberado?GLOW_RD:(voce||UI.pensando)?GLOW_AM:GLOW_CY;nucleo.material.opacity*=pisca;
-  // anéis de escuta
-  anel.scale.setScalar(1+UI.nivelSuave*0.35);anelMat.opacity=(UI.micAtivo?0.18:0.05)+UI.nivelSuave*0.6;anelMat.color.setHex(UI.gravando?0xffb347:0x4fd8ff);
-  anel2.rotation.z+=dt*0.5;anel2.material.color.setHex(UI.gravando?0xffb347:0x4fd8ff);
+  // anéis de escuta: nível do microfone (escala), âmbar enquanto você fala, vermelho no barge-in
+  anel.scale.setScalar(1+UI.nivelSuave*0.35);anelMat.opacity=(UI.micAtivo?0.18:0.05)+UI.nivelSuave*0.6;
+  anelMat.color.setHex(camada==='interrompido'?0xff5f5f:UI.gravando?0xffb347:0x4fd8ff);
+  anel2.rotation.z+=dt*(UI.gravando?1.5:espera?0.25:UI.falando?1:0.5);anel2.material.color.copy(anelMat.color);
+  // arco de antecipação: completude da frase; verde quando o rascunho antecipado tocou; branco no instante em que "fechou"
+  {const a=UI.antecip;const usado=now-a.usado<0.8;const vivo=UI.transcrevendo||(now-a.t<1.5)||usado;
+   antGeo.setDrawRange(0,Math.round((usado?1:a.completude)*128)*6);
+   const opAlvo=vivo?(usado?0.9*(1-(now-a.usado)/0.8):(a.fechou?0.85:0.55)):0;antMat.opacity+=(opAlvo-antMat.opacity)*Math.min(1,dt*8);
+   antMat.color.setHex(usado?0x5cff9d:(now-a.fechouT<0.3?0xffffff:0xc6a5ff));anelAnt.rotation.z+=dt*0.15;}
+  // ondas: uma a cada 450 ms enquanto ele fala
+  if(UI.falando&&t-(UI.ondaT||0)>0.45){UI.ondaT=t;onda(0x4fd8ff);}
+  for(const o of ondas){if(o.t<0)continue;o.t+=dt;const k=o.t/1.3;o.m.scale.setScalar(1+k*0.9);o.m.material.opacity=Math.max(0,(1-k)*0.5);if(k>=1){o.t=-1;o.m.visible=false;}}
   // nós
   orbita.rotation.y-=dt*0.05;
   for(const id in nos){const n=nos[id];n.pulso=Math.max(0,n.pulso-dt*1.2);
     const s=1+n.pulso*0.9;n.esfera.scale.setScalar(s);n.halo.scale.setScalar(0.7*(1+n.pulso*1.6));
-    if(n.pulso>0){n.esfera.material.color.setHex(0xffffff);n.linha.material.opacity=0.35+n.pulso*0.6;}else n.esfera.material.color.setHex(n.ligado?0x4fd8ff:0x2a3a48);
+    if(n.pulso>0){n.esfera.material.color.setHex(n.cor);n.linha.material.opacity=0.35+n.pulso*0.6;}else n.esfera.material.color.setHex(n.ligado?0x4fd8ff:0x2a3a48);
     if(n.ligado&&UI.liberado){n.proximo-=dt;if(n.proximo<=0){n.proximo=5+Math.random()*9;const m=new THREE.Mesh(pacoteGeo,new THREE.MeshBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.7}));orbita.add(m);n.pacotes.push({m,t:0,v:0.5,ida:Math.random()<.5});}}
-    n.pacotes=n.pacotes.filter(p=>{p.t+=dt*p.v;if(p.t>=1){orbita.remove(p.m);return false;}const k=p.ida?p.t:1-p.t;p.m.position.copy(n.pos).multiplyScalar(1-k);return true;});
+    n.pacotes=n.pacotes.filter(p=>{p.t+=dt*p.v;if(p.t>=1){orbita.remove(p.m);p.m.material.dispose();return false;}const k=p.ida?p.t:1-p.t;p.m.position.copy(n.pos).multiplyScalar(1-k);return true;});
   }
-  constelacao.rotation.y+=dt*0.02;
-  for(let i=feixes.length-1;i>=0;i--){const f=feixes[i];f.t+=dt;f.l.material.opacity=Math.max(0,0.9-f.t*1.2);if(f.t>0.8){scene.remove(f.l);feixes.splice(i,1)}}
+  constelacao.rotation.y+=dt*0.02*(UI.curiosidade>0.6?1.5:1)*(document.body.classList.contains('noite')?1.2:1);
+  for(let i=feixes.length-1;i>=0;i--){const f=feixes[i];f.t+=dt;f.l.material.opacity=Math.max(0,0.9-f.t*1.2);if(f.t>0.8){scene.remove(f.l);f.l.geometry.dispose();f.l.material.dispose();feixes.splice(i,1)}}
   for(const id in estrelas){const e=estrelas[id];if(e.pulso>0){e.pulso=Math.max(0,e.pulso-dt*0.6);e.m.scale.setScalar(1+e.pulso*2.5);e.m.material.opacity=0.55+e.pulso*0.45;if(e.pulso===0)e.m.material.color.setHex(e.cor);}}
+  flushDOM(t);
   if(orbit.auto)orbit.yaw+=dt*0.04;camPos();
-  renderer.render(scene,camera);requestAnimationFrame(animar);
+  renderer.render(scene,camera);
 }
-animar();
+requestAnimationFrame(animar);
+
+// ── DOM em lote: eventos de alta frequência só marcam "sujo"; o frame aplica ──
+const DOMQ={fala:false,voce:false,nivel:false};
+let ultimoRotulo='',ultimoFlushRot=0,ultimoFlushTurno=0;
+function flushDOM(t){
+  if(DOMQ.fala){DOMQ.fala=false;$('fala').textContent=bufFala.slice(-420);}
+  if(DOMQ.voce){DOMQ.voce=false;$('voce').textContent=UI.voceTexto;}
+  if(DOMQ.nivel){DOMQ.nivel=false;$('nivel-i').style.width=(UI.nivel*100)+'%';$('nivel-i').className=UI.gravando?'grav':'';}
+  if(t-ultimoFlushRot>0.2){ultimoFlushRot=t;
+    const [txt,cls]=rotuloVoz();if(txt!==ultimoRotulo){ultimoRotulo=txt;const el=$('estadoVoz');el.textContent=txt;el.className=cls;}
+    if(UI.pensando&&agora()-UI.ultimoEvento>120){UI.pensando=false;UI.pendTools.length=0;UI.agindo=false;}   // turno morto: solta o estado
+    const a=UI.antecip,on=UI.transcrevendo||(agora()-a.usado<0.8);$('ant').classList.toggle('on',on);
+    if(on){const i=$('ant-i');i.style.width=((agora()-a.usado<0.8?1:a.completude)*100)+'%';i.className=agora()-a.usado<0.8?'usado':'';}}
+  if(UI.turno&&!UI.turno.fim&&t-ultimoFlushTurno>0.5){ultimoFlushTurno=t;desenharTurno();}
+}
+const ms=v=>v==null?'—':Math.round(v*1000)+' ms';
+const k=n=>n>=1000?(n/1000).toFixed(1).replace('.',',')+'k':String(n);
+function desenharTurno(){const tu=UI.turno;if(!tu)return;const el=$('turno');const dur=((tu.fim||agora())-tu.t0);
+  el.innerHTML=`turno <b>${dur.toFixed(1).replace('.',',')} s</b> · <b>${tu.tools}</b> ferr. · <b>${k(tu.think)}</b> pens. · 1ª palavra <b>${tu.primeira!=null?tu.primeira+' ms':'—'}</b>${tu.erros?` · <span class="err">${tu.erros} erro${tu.erros===1?'':'s'}</span>`:''}`;
+  el.title=`${tu.tools} ferramenta(s) · ${tu.think} caracteres de pensamento · ${tu.chars} caracteres falados`;
+  el.classList.toggle('vivo',!tu.fim);}
 
 // ── sons: sintetizados no browser (Web Audio), discretos; tecla S silencia ──
 const SOM={ctx:null,mudo:false};
@@ -413,6 +551,7 @@ const SONS={
   notificacao:()=>{tom(988,0.1,'sine',0.05);tom(1319,0.16,'sine',0.05,0.11)},
   erro:()=>tom(160,0.35,'sawtooth',0.04),
   vigia:()=>{tom(330,0.15,'square',0.03);tom(262,0.25,'square',0.03,0.16)},
+  interrompido:()=>tom(220,0.06,'triangle',0.02),
 };
 let pensandoTimer=null;
 function somPensando(on){clearInterval(pensandoTimer);pensandoTimer=null;if(on)pensandoTimer=setInterval(()=>{if(UI.pensando)SONS.pensando();else{clearInterval(pensandoTimer);pensandoTimer=null}},2000);}
@@ -420,20 +559,95 @@ function toggleSom(){SOM.mudo=!SOM.mudo;try{localStorage.setItem('jaime.mudo',SO
 document.addEventListener('pointerdown',()=>ac(),{once:true});
 
 // ── legenda / voz ─────────────────────────────────────────────────────────
-const ROTULO={iniciando:'iniciando',carregando:'carregando voz',ouvindo:'ouvindo · diga "Jaime, está aí?"',ativo:'ativo — fale à vontade · "encerrado" para dispensar',transcrevendo:'transcrevendo',pensando:'pensando',falando:'falando',mudo:'microfone desligado',erro:'voz indisponível',trancado:'trancado · diga a palavra-passe'};
-function setVoz(estado){UI.voz=estado;const el=$('estadoVoz');const chave=!UI.liberado?'trancado':estado;
-  el.textContent=ROTULO[chave]||chave;el.className=!UI.liberado?'trancado':estado==='gravando'?'gravando':(estado==='mudo'||estado==='erro')?'mudo':'';
-  UI.pensando=(estado==='pensando'||estado==='transcrevendo');}
-let somemFala=null,somemVoce=null,bufFala='';
-function mostrarFala(txt,acumula){bufFala=acumula?bufFala+txt:txt;$('fala').textContent=bufFala.slice(-420);$('fala').classList.remove('some');
-  clearTimeout(somemFala);somemFala=setTimeout(()=>$('fala').classList.add('some'),12000);}
-function mostrarVoce(txt,ignorado){const q=UI.falante&&UI.falante!=='desconhecido'?UI.falante+' · ':(UI.falante==='desconhecido'?'? · ':'');$('voce').textContent=q+txt;$('voce').classList.toggle('ign',!!ignorado);$('voce').classList.remove('some');clearTimeout(somemVoce);somemVoce=setTimeout(()=>$('voce').classList.add('some'),ignorado?4000:9000);}
-function setAcesso(on){UI.liberado=on;$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado';setVoz(UI.voz);
+const ROTULO={ouvindo:'ouvindo · diga "Jaime, está aí?"',ativo:'ativo — fale à vontade · "encerrado" para dispensar'};
+// fase 3 — HUD vivo: a legenda é calculada do estado (a cada 200 ms), não de cada evento; diz o que ele está fazendo AGORA
+function rotuloVoz(){
+  const now=agora();
+  if(!UI.liberado)return ['trancado · diga a palavra-passe','trancado'];
+  if(now-UI.interrompidoT<2.5){const n=UI.restantes||0;return [`interrompido · ${n} frase${n===1?'':'s'} guardada${n===1?'':'s'}`,'interrompido'];}
+  if(UI.voz==='erro')return ['voz indisponível','mudo'];
+  if(UI.voz==='mudo'||!UI.micAtivo)return ['microfone desligado','mudo'];
+  if(UI.voz==='carregando')return ['carregando voz','mudo'];
+  if(UI.falando)return ['falando'+(UI.streaming?' · ainda gerando':''),''];
+  if(UI.gravando||UI.transcrevendo){let s=UI.transcrevendo?'ouvindo você · transcrevendo ao vivo':'ouvindo você';
+    const a=UI.antecip;if(a.completude>0&&now-a.t<3)s+=` · antecipando ${Math.round(a.completude*100)}%`+(a.fechou?' · frase fechou':'');return [s,'gravando'];}
+  if(UI.agindo)return ['executando · '+(UI.ferramenta||'ferramenta'),'agir'];
+  if(UI.pensando){const m=UI.turno&&UI.turno.modelo;return ['pensando'+(m?' · '+m:'')+(esperaRede()?' · esperando o modelo':''),'pensar'];}
+  if(UI.voz==='transcrevendo')return ['transcrevendo','gravando'];
+  if(now-UI.fimTurnoT<0.8)return ['entendi · pensando','pensar'];
+  return [UI.janelaAtiva?ROTULO.ativo:ROTULO.ouvindo,''];
+}
+function setVoz(estado){UI.voz=estado;
+  if(estado==='pensando'||estado==='transcrevendo'){UI.pensando=true;UI.ultimoEvento=agora();}
+  if(estado==='ouvindo'&&!UI.streaming&&!UI.pendTools.length)UI.pensando=false;}
+let somemFala=null,somemVoce=null,bufFala='',anuncio='';
+const _n=s=>String(s||'').replace(/[^\wà-úÀ-Ú]+/g,' ').trim().toLowerCase().slice(0,24);
+function mostrarFala(txt,acumula){
+  if(acumula&&anuncio&&bufFala===anuncio&&_n(txt)&&(_n(anuncio).startsWith(_n(txt))||_n(txt).startsWith(_n(anuncio)))){bufFala='';}   // o delta é a frase já anunciada pelo TTS
+  bufFala=acumula?bufFala+txt:txt;if(!acumula)anuncio=txt;else anuncio='';DOMQ.fala=true;$('fala').classList.remove('some');
+  clearTimeout(somemFala);somemFala=setTimeout(()=>{$('fala').classList.add('some');$('fala').classList.remove('stream')},12000);}
+function mostrarVoce(txt,ignorado){const q=UI.falante&&UI.falante!=='desconhecido'?UI.falante+' · ':(UI.falante==='desconhecido'?'? · ':'');UI.voceTexto=q+txt;DOMQ.voce=true;
+  const el=$('voce');el.classList.toggle('ign',!!ignorado);el.classList.remove('some');clearTimeout(somemVoce);somemVoce=setTimeout(()=>el.classList.add('some'),ignorado?4000:9000);}
+function setAcesso(on){UI.liberado=on;$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado';
   if(!on&&tecladoAberto()){$('tecSenha').hidden=false;$('tecTexto').hidden=true;$('tecSenha').focus();}}
 function aviso(txt,ms=6000){const a=$('aviso');a.textContent=txt;a.classList.add('on');clearTimeout(a._t);a._t=setTimeout(()=>a.classList.remove('on'),ms);}
 function feed(el,html){const d=document.createElement('div');d.innerHTML=`<span class="t">${hora()}</span>${html}`;el.prepend(d);while(el.children.length>60)el.lastChild.remove();}
 function pct(id,v,hot=85){$(id).textContent=v.toFixed(0)+'%';const b=$(id+'-b');b.style.width=v+'%';b.className=v>hot?'hot':'';}
 const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// ── fase 3 — HUD vivo: turno (tamanho, ferramentas, latência) e córtex ────
+function novoTurno(t0){UI.turno={t0:t0||agora(),tools:0,think:0,chars:0,primeira:null,modelo:(UI.turno&&UI.turno.modelo)||'',fim:0,erros:0};UI.pendTools.length=0;UI.agindo=false;UI.carga=0;desenharTurno();}
+function fimTurno(){if(UI.turno&&!UI.turno.fim){UI.turno.fim=agora();desenharTurno();}UI.pendTools.length=0;UI.agindo=false;UI.ferramenta='';}
+// os eventos do turno chegam com `t` do servidor: a latência "1ª palavra" usa esse relógio, não o de chegada
+let tConversa=0;
+function mostrarCortex(e){const modelo=(e.modelo||'').replace('claude-','')||'—';const cx=$('cx');cx.classList.toggle('juiz',e.modelo==='juiz');
+  $('cxModelo').textContent=modelo;$('cxTarefa').textContent=(e.tarefa||'')+(e.exploracao?' · exploração':'');
+  $('cxConf').style.width=Math.round((e.confianca||0)*100)+'%';$('cxMotivo').textContent=e.motivo||'';$('cxMotivo').title=e.motivo||'';
+  if(UI.turno)UI.turno.modelo=modelo;}
+function ferramentaChamada(nome,agir){UI.pendTools.push(agir?'agir':'ler');if(agir){UI.agindo=true;UI.ferramenta=nome;}
+  if(UI.turno){UI.turno.tools++;}UI.carga=Math.min(1,UI.carga+0.12);UI.ultimoEvento=agora();}
+function ferramentaVoltou(erro){UI.pendTools.shift();UI.agindo=UI.pendTools.includes('agir');if(!UI.agindo)UI.ferramenta='';
+  if(UI.turno&&erro)UI.turno.erros++;if(erro)UI.carga=Math.max(0,UI.carga-0.2);UI.ultimoEvento=agora();}
+
+// ── fase 3 — HUD vivo: painel Sistemas (fila, Vigia, filhos, estudo, rotina) + ambiente (vontades, humor, orçamento) ──
+const IC_FILA={nova:'·',em_andamento:'▶',interrompida:'⏸',retomada:'↩',concluida:'✔',descartada:'✘'};
+function renderFila(itens,aguardando){const el=$('sFila');itens=itens||[];if(!itens.length){el.textContent='vazia';el.className='';return;}
+  el.innerHTML=itens.slice(-4).map(x=>`<span class="fi ${esc(x.estado)}${aguardando===x.id?' esp':''}" title="${esc(x.estado)}${x.pendentes?' · '+x.pendentes+' frase(s) por dizer':''}">${IC_FILA[x.estado]||'·'} ${esc(x.resumo)}${aguardando===x.id?' · continuo? (sim/deixa)':''}</span>`).join('');
+  el.className=aguardando?'esp':'';}
+let equipeAnterior={};
+function renderEquipe(filhos,novo){const el=$('sEquipe');filhos=filhos||[];if(!filhos.length){el.textContent='sem filhos';return;}
+  el.innerHTML=filhos.map(f=>`<span class="filho ${f.estado==='vivo'?'vivo':'parado'}${novo===f.nome?' novo':''}" title="${esc(f.tipo)} · ${esc(f.preset)} · ${f.tarefas||0} tarefa(s)${f.ultimo?' · '+esc(f.ultimo):''}">${f.estado==='vivo'?'●':'○'} ${esc(f.nome)}</span>`).join('');}
+function renderEstudo(s){const el=$('sEstudo');if(!s){return;}
+  el.textContent=`${s.abertos} em aberto`+(s.ocupado?' · estudando agora':s.pode?' · pode estudar':(s.motivo?' · '+s.motivo:''));el.className=s.ocupado?'on':'';el.title=(s.titulos||[]).join(' · ');}
+const JANELA={atento:'atento',ocioso:'ocioso',noite:'noite criativa'};
+function renderRotina(r){if(!r)return;const jan=r.janela||'ocioso';$('rot').textContent=JANELA[jan]||jan;$('rotChip').className='chip '+jan;
+  $('sRotina').textContent=(JANELA[jan]||jan)+(r.min_sem_fala!=null?` · fala há ${r.min_sem_fala} min`:' · sem fala hoje');document.body.classList.toggle('noite',jan==='noite');}
+function renderOrcamento(o){const chip=$('orcChip');if(!o){$('orc').textContent='—';return;}
+  if(!o.ativo){$('orc').textContent='US$ '+(o.total||0).toFixed(2)+' hoje';$('orc-b').style.width='0%';chip.className='chip';chip.title='sem teto diário · gasto de hoje';return;}
+  const p=o.teto?Math.min(100,o.total/o.teto*100):0;$('orc').textContent=`${o.total.toFixed(2)}/${o.teto.toFixed(0)}`;$('orc-b').style.width=p+'%';
+  chip.className='chip'+(p>=100?' esgotado':p>80?' alto':'');chip.title=o.resumo||'';}
+function renderVontades(v){if(!v||!v.niveis)return;const n=v.niveis;const top=IMPULSO_ORDEM.filter(k=>k in n).sort((a,b)=>n[b]-n[a])[0];
+  $('vont').textContent=top?IMPULSO[top]:'—';$('vontChip').title='vontades: '+IMPULSO_ORDEM.map(k=>`${IMPULSO[k]} ${Math.round((n[k]||0)*100)}%`).join(' · ')+(v.demanda_pendente?' · demanda pendente':'');
+  [...$('vontBars').children].forEach((b,i)=>b.style.setProperty('--v',Math.round((n[IMPULSO_ORDEM[i]]||0)*100)+'%'));UI.curiosidade=n.curiosidade||0;
+  if(v.escolha&&v.escolha.pensamento){$('querer').textContent=v.escolha.pensamento;$('querer').title=v.escolha.pensamento;}}
+const TINTA={grave:'rgb(255,80,80)',caloroso:'rgb(255,179,71)',leve:'rgb(120,220,255)',cauteloso:'rgb(150,160,210)'};
+function renderHumor(h){if(!h)return;$('humor').textContent=h.rotulo||'—';[['h1',h.energia],['h2',h.calor],['h3',h.gravidade],['h4',h.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));
+  const c=TINTA[h.rotulo]||'';const el=$('tinta');el.style.backgroundColor=c||'transparent';el.style.opacity=c?'.07':'0';}
+function renderPendentes(lista){lista=lista||[];const box=$('pend');if(!lista.length){box.hidden=true;return;}box.hidden=false;
+  $('pendLista').innerHTML=lista.map(p=>`<div>${esc(p.texto)}<small>${esc(p.resposta)}</small></div>`).join('');}
+function renderSistemas(s){
+  renderPendentes(s.pendentes);
+  const o=s.ouvido||{};const partes=[o.modo||'—'];if(o.stt)partes.push(o.stt);if(o.barge_in)partes.push('barge-in '+o.barge_in);if(o.antecipador)partes.push('antecipador');if(o.latencia_mediana_ms!=null)partes.push('mediana '+o.latencia_mediana_ms+' ms');
+  const so=$('sOuvido');so.textContent=o.erro?('erro: '+o.erro):partes.join(' · ');so.className=o.erro?'err':(o.ativo?'on':'');
+  renderFila(s.fila&&s.fila.itens,s.fila&&s.fila.aguardando);
+  const v=s.vigia||{};$('sVigiaRow').hidden=!(v.lote&&v.lote.length)&&!v.armado;
+  $('sVigia').textContent=v.lote&&v.lote.length?`${v.lote.length} ação(ões) esperando seu "sim": `+v.lote.map(a=>a.descricao).join('; '):(v.armado?'armado · próxima ação passa':'');
+  renderEquipe(s.equipe);renderEstudo(s.estudo);renderRotina(s.rotina);renderOrcamento(s.orcamento);renderVontades(s.vontades);if(s.humor)renderHumor(s.humor);
+  if(s.proximos)$('prox').textContent=s.proximos;}
+let sisT=null;
+function carregarSistemasLogo(){clearTimeout(sisT);sisT=setTimeout(carregarSistemas,350);}
+async function carregarSistemas(){const s=await fetch('/hud/sistemas').then(r=>r.ok?r.json():null).catch(()=>null);if(s)renderSistemas(s);}
+carregarSistemas();setInterval(carregarSistemas,10000);
 
 // ── teclado sob demanda ───────────────────────────────────────────────────
 const tecladoAberto=()=>$('teclado').classList.contains('aberto');
@@ -470,69 +684,89 @@ async function toggleMic(){UI.micAtivo=!UI.micAtivo;$('btMic').classList.toggle(
 $('btPaineis').onclick=togglePaineis;$('btMic').onclick=toggleMic;$('btLock').onclick=()=>fetch('/hud/trancar',{method:'POST'});
 
 // ── eventos do Jaime (SSE) ────────────────────────────────────────────────
-let bootTocado=false;
+let bootTocado=false,es=null;
+const EVENTOS_DO_TURNO=new Set(['conversa','cortex','juiz','raciocinio','producao','resultado','fala','fala_fim','antecipacao','transcricao_viva']);
 function ligarStream(){
-  const es=new EventSource('/hud/stream');
+  if(es){es.close();es=null;}                                   // um único EventSource por página
+  es=new EventSource('/hud/stream');
   es.onopen=()=>{if(!bootTocado){bootTocado=true;setTimeout(()=>SONS.boot(),300)}};
   es.onmessage=ev=>{const e=JSON.parse(ev.data);
+    if(EVENTOS_DO_TURNO.has(e.tipo))UI.ultimoEvento=agora();
     switch(e.tipo){
       case 'sistema': if(e.erro)break;pct('cpu',e.cpu);pct('ram',e.ram);pct('disco',e.disco,90);
         $('down').textContent=e.down_kbs+' KB/s';$('up').textContent=e.up_kbs+' KB/s';$('procs').textContent=e.procs;$('bat').textContent=e.bateria!=null?e.bateria+'%':'—';break;
-      case 'estado': $('sit').textContent=e.situacao||'…';if(e.maquina)$('maq').textContent=e.maquina.host;if(e.liberado!=null)setAcesso(e.liberado);break;
+      case 'estado': $('sit').textContent=e.situacao||'…';if(e.maquina)$('maq').textContent=e.maquina.host;if(e.liberado!=null)setAcesso(e.liberado);carregarSistemasLogo();break;
       case 'apresentacao': mostrarFala(e.texto,false);break;
-      case 'conversa': mostrarVoce(e.texto);bufFala='';UI.pensando=true;if(UI.liberado)setVoz('pensando');somPensando(true);break;
-      case 'fala': if(UI.pensando){SONS.fala()}UI.pensando=false;somPensando(false);mostrarFala(e.texto,true);break;
-      case 'fala_fim': UI.pensando=false;break;
-      case 'voz': UI.falando=!!e.falando;if(e.ativacao==='sempre')ROTULO.ouvindo='ouvindo';if(e.ativo===true&&!UI.janelaAtiva){SONS.ativacao()}if(e.ativo===false&&UI.janelaAtiva){SONS.dispensa()}if(e.ativo===true)UI.janelaAtiva=true;if(e.ativo===false)UI.janelaAtiva=false;if(e.estado==='erro')SONS.erro();if(e.estado)setVoz(e.estado);if(e.estado==='falando'&&e.texto)mostrarFala(e.texto,false);
-        if(e.estado==='erro'){aviso('voz: '+(e.erro||'erro'),12000);$('btMic').classList.add('alerta');}if(e.estado==='falando')pulsar('voz');break;
-      case 'escuta': if(e.gravando&&!UI.gravando)SONS.ouvindo();UI.nivel=Math.max(e.nivel||0,(e.voz||0)*0.8);UI.gravando=!!e.gravando;UI.janelaAtiva=!!e.janela_ativa;
-        $('nivel-i').style.width=(UI.nivel*100)+'%';$('nivel-i').className=UI.gravando?'grav':'';
-        if(UI.liberado&&!UI.falando&&!UI.pensando)setVoz(UI.gravando?'gravando':(UI.micAtivo?(UI.janelaAtiva?'ativo':'ouvindo'):'mudo'));break;
+      case 'conversa': mostrarVoce(e.texto);bufFala='';DOMQ.fala=true;tConversa=e.t||0;novoTurno();UI.pensando=true;UI.streaming=false;if(UI.liberado)setVoz('pensando');somPensando(true);carregarSistemasLogo();break;
+      case 'fala': if(UI.pensando){SONS.fala()}UI.pensando=false;somPensando(false);
+        if(UI.turno&&!UI.turno.fim){if(UI.turno.primeira==null&&tConversa&&e.t)UI.turno.primeira=Math.max(0,Math.round((e.t-tConversa)*1000));UI.turno.chars+=(e.texto||'').length;}
+        UI.streaming=true;$('fala').classList.add('stream');UI.carga=Math.min(1,UI.carga+0.02);mostrarFala(e.texto,true);break;
+      case 'fala_fim': UI.pensando=false;UI.streaming=false;$('fala').classList.remove('stream');somPensando(false);fimTurno();carregarSistemasLogo();break;
+      case 'voz': UI.falando=!!e.falando;if(e.ativacao==='sempre')ROTULO.ouvindo='ouvindo';if(e.modo)UI.modo=e.modo;
+        if(e.ativo===true&&!UI.janelaAtiva){SONS.ativacao()}if(e.ativo===false&&UI.janelaAtiva){SONS.dispensa()}if(e.ativo===true)UI.janelaAtiva=true;if(e.ativo===false)UI.janelaAtiva=false;
+        if(e.estado==='erro')SONS.erro();if(e.estado)setVoz(e.estado);
+        if(e.estado==='interrompido'||e.interrompida){UI.interrompidoT=agora();UI.restantes=e.restantes||0;UI.streaming=false;$('fala').classList.remove('stream');onda(0xff5f5f);SONS.interrompido();
+          feed($('rac'),`<span class="f err">interrompido</span><span class="a">você falou por cima · ${e.restantes||0} frase(s) guardadas na fila</span>`);carregarSistemasLogo();}
+        if(e.estado==='falando'&&e.texto&&!UI.streaming&&!bufFala)mostrarFala(e.texto,false);
+        if(e.estado==='erro'){aviso('voz: '+(e.erro||'erro'),12000);$('btMic').classList.add('alerta');}if(e.estado==='falando')pulsar('voz');
+        if(e.modo||e.stt)carregarSistemasLogo();break;
+      case 'escuta': if(e.gravando&&!UI.gravando)SONS.ouvindo();UI.nivel=Math.max(e.nivel||0,(e.voz||0)*0.8);UI.gravando=!!e.gravando;UI.janelaAtiva=!!e.janela_ativa;DOMQ.nivel=true;
+        if(UI.liberado&&!UI.falando&&!UI.pensando&&UI.voz!=='erro')UI.voz=UI.gravando?'gravando':(UI.micAtivo?'ouvindo':'mudo');break;
       case 'contexto': $('ctx').textContent=(e.app||'—')+(e.janela?' · '+e.janela.slice(0,38):'');$('ctxChip').title=e.janela||'';break;
-      case 'cortex': $('modelo').textContent=(e.modelo||'').replace('claude-','');feed($('rac'),`<span class="f">córtex</span><span class="a">${esc(e.tarefa)} → ${esc((e.modelo||'').replace('claude-',''))}${e.exploracao?' (exploração)':''} · ${esc(e.motivo)}</span>`);break;
-      case 'juiz': feed($('rac'),`<span class="f">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);break;
+      case 'cortex': mostrarCortex(e);feed($('rac'),`<span class="f${e.modelo==='juiz'?' ju':''}">córtex</span><span class="a">${esc(e.tarefa)} → ${esc((e.modelo||'').replace('claude-',''))}${e.exploracao?' (exploração)':''} · ${esc(e.motivo)}</span>`);break;
+      case 'juiz': feed($('rac'),`<span class="f ju">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);$('cxMotivo').textContent='juiz escolheu '+(e.escolha||'')+' · '+(e.justificativa||'');break;
       case 'agenda': if(e.disparo)feed($('prod'),`<span class="f">rotina</span><span class="a">${esc(e.disparo)} · ${esc(e.quando)}</span>`);else if(e.erro)aviso('agenda: '+e.erro);else if(e.rotinas)feed($('rac'),`<span class="f">agenda</span><span class="a">${e.rotinas.length} rotina(s), ${e.lembretes} lembrete(s)</span>`);break;
       case 'lembrete': aviso('⏰ '+e.texto,15000);feed($('prod'),`<span class="f">lembrete</span><span class="a">${esc(e.quando)} · ${esc(e.texto)}</span>`);break;
-      case 'estudo': if(e.abertos!=null)$('estudo').textContent=e.abertos;if(e.msg)feed($('rac'),`<span class="f">estudo</span><span class="a">${esc(e.msg)}</span>`);break;
+      case 'estudo': if(e.abertos!=null){const s=$('sEstudo');s.textContent=e.abertos+' em aberto'+(e.msg?' · '+e.msg.slice(0,60):'');}if(e.msg)feed($('rac'),`<span class="f">estudo</span><span class="a">${esc(e.msg)}</span>`);carregarSistemasLogo();break;
       case 'tela': $('telaImg').src='/hud/tela?t='+e.t;$('telaBox').hidden=false;clearTimeout(window._telaT);window._telaT=setTimeout(()=>$('telaBox').hidden=true,60000);break;
-      case 'autonomo': if(e.titulo)feed($('prod'),`<span class="f">autônomo ${esc(e.etapa)}/${esc(e.total)}</span><span class="a">${esc(e.titulo)} · ${esc(e.estado)}</span>`);else if(e.msg)feed($('rac'),`<span class="f">autônomo</span><span class="a">${esc(e.msg)}</span>`);if(e.estado==='pausada')aviso('objetivo pausado pelo Vigia — diga "confirmo"',20000);break;
+      case 'autonomo': if(e.titulo)feed($('prod'),`<span class="f">autônomo ${esc(e.etapa)}/${esc(e.total)}</span><span class="a">${esc(e.titulo)} · ${esc(e.estado)}</span>`);else if(e.msg)feed($('rac'),`<span class="f">autônomo</span><span class="a">${esc(e.msg)}</span>`);if(e.estado==='pausada')aviso('objetivo pausado pelo Vigia — diga "confirmo"',20000);carregarSistemasLogo();break;
       case 'conexoes_canal': if(e.texto)mostrarVoce(`${e.canal}: ${e.de} — ${e.texto}`,true);if(e.erro)aviso(e.canal+': '+e.erro);break;
       case 'visao': feed($('prod'),`<span class="f">visão ${esc(e.passo)}/${esc(e.max)}</span><span class="a">${esc(e.acao||e.estado)} · ${esc(e.objetivo)}${e.motivo?' · '+esc(e.motivo):''}</span>`);if(e.estado==='ativa')aviso('visão contínua ativa — diga "para" para encerrar',8000);break;
-      case 'evolucao': feed($('rac'),`<span class="f">evolução</span><span class="a">${esc(e.id||'')} ${esc(e.titulo||'')} · ${esc(e.estado||e.msg||'')}</span>`);if(e.estado==='pronta')aviso('melhoria pronta: '+e.titulo+' — diga "confirmo" para o merge',20000);break;
+      case 'evolucao': feed($('rac'),`<span class="f">evolução</span><span class="a">${esc(e.id||'')} ${esc(e.titulo||'')} · ${esc(e.estado||e.msg||'')}</span>`);if(e.estado==='pronta')aviso('melhoria pronta: '+e.titulo+' — diga "confirmo" para o merge',20000);carregarSistemasLogo();break;
       case 'notificacao': SONS.notificacao();feed($('prod'),`<span class="f">🔔 ${esc(e.app)}</span><span class="a">${esc(e.titulo)} ${esc(e.texto||'')}</span>`);aviso('🔔 '+e.app+': '+e.titulo,8000);break;
       case 'notificacoes': if(e.erro)aviso('notificações: '+e.erro,15000);break;
       case 'gravador': feed($('prod'),`<span class="f">gravador</span><span class="a">${esc(e.estado)} · ${esc(e.nome||'')}${e.passos!=null?' · '+e.passos+' passos':''}</span>`);if(e.estado==='gravando')aviso('● gravando processo — não digite senhas · "para de gravar" encerra',12000);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
-      case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
+      case 'humor': renderHumor(e);break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
-      case 'vontade': if(e.escolha)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.escolha.pensamento||'')}</span>`);if(e.erro)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.erro)}</span>`);if(menteAberta()&&(e.niveis||e.escolha))carregarVitrine();break;
+      case 'vontade': if(e.niveis)renderVontades({niveis:e.niveis,escolha:e.escolha,demanda_pendente:e.demanda_pendente});
+        if(e.escolha)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.escolha.pensamento||'')}</span>`);if(e.erro)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.erro)}</span>`);if(menteAberta()&&(e.niveis||e.escolha))carregarVitrine();break;
       case 'vitrine': if(e.acao==='entregue'){feed($('prod'),`<span class="f">vitrine</span><span class="a">criei ${esc(e.formato||'')}: ${esc(e.titulo||'')}</span>`);aviso('nova criação na Vitrine: '+(e.titulo||''),10000);}else if(e.acao==='criando')feed($('rac'),`<span class="f">vitrine</span><span class="a">criando ${esc(e.formato||'')}…</span>`);else if(e.acao==='falhou')feed($('rac'),`<span class="f">vitrine</span><span class="a">${esc(e.formato||'')} não saiu: ${esc(e.erro||'')}</span>`);if(menteAberta())carregarVitrine();break;
-      case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
+      case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);carregarSistemasLogo();break;
       case 'falante': UI.falante=e.nome;$('voce').dataset.quem=e.nome;break;
-      case 'ouvido': $('voce').classList.remove('viva');if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
-      case 'transcricao_viva': if(e.final){$('voce').classList.remove('viva');}else{mostrarVoce(e.texto);$('voce').classList.add('viva');}break;
-      case 'antecipacao': if(e.usado)feed($('rac'),`<span class="f">antecipado</span><span class="a">${esc(e.rascunho||'')}</span>`);else if(e.completude!=null)feed($('rac'),`<span class="f">antecipador</span><span class="a">${esc(e.intencao||'')} · ${Math.round((e.completude||0)*100)}%${e.fechou?' · fechou':''}${e.rascunho?' · «'+esc(e.rascunho)+'»':''} · ${esc(e.origem||'')}</span>`);break;
-      case 'fila': {const it=(e.itens||[]);const inter=it.filter(x=>x.estado==='interrompida'||x.estado==='retomada');if(inter.length||e.aguardando){feed($('prod'),`<span class="f">fila</span><span class="a">${it.slice(-4).map(x=>`${x.estado==='interrompida'?'⏸':x.estado==='concluida'?'✔':x.estado==='retomada'?'↩':'▶'} ${esc(x.resumo)}`).join(' · ')}${e.aguardando?' · aguardando "sim"':''}</span>`);}break;}
-      case 'equipe': if(e.relatorio)feed($('prod'),`<span class="f">filho ${esc(e.relatorio.nome)}</span><span class="a">${esc(e.relatorio.texto.slice(0,200))}</span>`);else if(e.erro)feed($('rac'),`<span class="f">equipe</span><span class="a">${esc(e.erro)}</span>`);else if(e.filhos)feed($('rac'),`<span class="f">equipe</span><span class="a">${e.filhos.length?e.filhos.map(f=>`${f.estado==='vivo'?'●':'○'} ${esc(f.nome)} (${esc(f.tipo)}, ${esc(f.preset)})`).join(' · '):'sem filhos'}</span>`);break;
-      case 'latencia': feed($('rac'),`<span class="f">latência</span><span class="a">fala→texto ${e.fala_texto??'—'} s · texto→1ª frase ${e.texto_frase??'—'} s · fala→1ª frase ${e.fala_frase??'—'} s${e.antecipado?' · antecipado':''}</span>`);break;
-      case 'raciocinio': registrarPensamento(e.ferramenta?(e.ferramenta+' '+(e.alvo||'')):(e.texto||''),e.ferramenta==='memória'?(e.alvo||'').split('; ')[0]:'');feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
+      case 'ouvido': $('voce').classList.remove('viva');UI.transcrevendo=false;if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
+      case 'transcricao_viva': if(e.final){UI.transcrevendo=false;UI.fimTurnoT=agora();$('voce').classList.remove('viva');$('voce').classList.add('fechou');onda(0xffb347);if(e.texto)mostrarVoce(e.texto);}
+        else{UI.transcrevendo=true;$('voce').classList.remove('fechou');mostrarVoce(e.texto);$('voce').classList.add('viva');}break;
+      case 'antecipacao': if(e.usado){UI.antecip.usado=agora();feed($('rac'),`<span class="f ju">antecipado</span><span class="a">rascunho já tocou: ${esc(e.rascunho||'')}</span>`);}
+        else if(e.interjeicao){UI.antecip.interj=agora();onda(0xc6a5ff);feed($('rac'),`<span class="f ju">interjeição</span><span class="a">${esc(e.interjeicao)}</span>`);}
+        else if(e.completude!=null){const a=UI.antecip;if(e.fechou&&!a.fechou)a.fechouT=agora();a.completude=e.completude||0;a.fechou=!!e.fechou;a.intencao=e.intencao||'';a.t=agora();
+          feed($('rac'),`<span class="f ju">antecipador</span><span class="a">${esc(e.intencao||'')} · ${Math.round((e.completude||0)*100)}%${e.fechou?' · fechou':''}${e.rascunho?' · «'+esc(e.rascunho)+'»':''} · ${esc(e.origem||'')}${e.latencia!=null?' · '+ms(e.latencia):''}</span>`);}break;
+      case 'fila': renderFila(e.itens,e.aguardando);{const it=(e.itens||[]);const inter=it.filter(x=>x.estado==='interrompida'||x.estado==='retomada');
+        if(inter.length||e.aguardando){feed($('prod'),`<span class="f">fila</span><span class="a">${it.slice(-4).map(x=>`${IC_FILA[x.estado]||'·'} ${esc(x.resumo)}`).join(' · ')}${e.aguardando?' · esperando "sim"':''}</span>`);}}carregarSistemasLogo();break;
+      case 'equipe': UI.equipeT=agora();if(e.relatorio){feed($('prod'),`<span class="f ju">filho ${esc(e.relatorio.nome)}</span><span class="a">${esc(e.relatorio.texto.slice(0,200))}</span>`);carregarSistemasLogo();}
+        else if(e.erro)feed($('rac'),`<span class="f">equipe</span><span class="a">${esc(e.erro)}</span>`);else if(e.filhos){renderEquipe(e.filhos);feed($('rac'),`<span class="f ju">equipe</span><span class="a">${e.filhos.length?e.filhos.map(f=>`${f.estado==='vivo'?'●':'○'} ${esc(f.nome)} (${esc(f.tipo)}, ${esc(f.preset)})`).join(' · '):'sem filhos'}</span>`);}break;
+      case 'latencia': feed($('rac'),`<span class="f">latência</span><span class="a">fala→texto ${ms(e.fala_texto)} · texto→1ª frase ${ms(e.texto_frase)} · fala→1ª frase ${ms(e.fala_frase)}${e.antecipado?' · antecipado':''}</span>`);break;
+      case 'raciocinio': registrarPensamento(e.ferramenta?(e.ferramenta+' '+(e.alvo||'')):(e.texto||''),e.ferramenta==='memória'?(e.alvo||'').split('; ')[0]:'');
+        if(e.ferramenta){feed($('rac'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);if(e.ferramenta!=='memória'&&e.ferramenta!=='reflexão')ferramentaChamada(e.ferramenta,false);}
+        else{feed($('rac'),`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);const n=(e.texto||'').length;if(UI.turno&&!UI.turno.fim)UI.turno.think+=n;UI.carga=Math.min(1,UI.carga+n/1200);UI.pensando=true;}
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
-      case 'producao': linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n);}
+      case 'producao': linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f ag">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);ferramentaChamada(e.ferramenta,true);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0x5cff9d);}
         if(e.trecho)mostrarTrecho(e.ferramenta+' · '+(e.alvo||''),e.trecho);if(e.nota)tocarNota(e.nota);else if((e.alvo||'').includes('/vault/'))tocarNota((e.alvo||'').split('/vault/')[1]);break;
-      case 'resultado': if(e.erro&&/VIGIA/.test(e.texto||''))SONS.vigia();feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);linhaTempo(e.erro?'✘':'✔');break;
+      case 'resultado': {const vigia=/VIGIA/.test(e.texto||'');if(e.erro&&vigia)SONS.vigia();ferramentaVoltou(!!e.erro);
+        feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);linhaTempo(e.erro?'✘':'✔');if(vigia||/lote/.test(e.texto||''))carregarSistemasLogo();}break;
       case 'acesso': setAcesso(e.liberado);if(!e.liberado&&tecladoAberto()){$('tecSenha').classList.add('shake');setTimeout(()=>$('tecSenha').classList.remove('shake'),400);}
         if(e.liberado&&tecladoAberto())fecharTeclado();break;
       case 'teclado': if(e.aberto&&!tecladoAberto())abrirTeclado(e.motivo?((UI.nome||'Jaime')+' pede: '+e.motivo):null);break;
       case 'conexoes': if(e.nos)for(const id in e.nos)ligarNo(id,!!e.nos[id].ligado,e.nos[id].detalhe);if(e.erro)aviso('conexões: '+e.erro);break;
     }};
-  es.onerror=()=>{$('estadoVoz').textContent='reconectando…';es.close();setTimeout(ligarStream,2000);};
+  es.onerror=()=>{$('estadoVoz').textContent='reconectando…';ultimoRotulo='reconectando…';es.close();es=null;setTimeout(ligarStream,2000);};
 }
 ligarStream();
 
 // ── estado inicial ────────────────────────────────────────────────────────
 function aplicarNome(n){if(!n)return;UI.nome=n;$('nome').textContent=n.toUpperCase();document.title=n.toUpperCase();ROTULO.ouvindo='ouvindo · diga "'+n+'" para falar comigo';}
 function carregarEstado(){fetch('/hud/estado').then(r=>r.json()).then(s=>{aplicarNome(s.nome);
-  $('maq').textContent=s.maquina.host;$('modelo').textContent=s.modelo;
+  $('maq').textContent=s.maquina.host;if(s.modelo&&$('cxModelo').textContent==='—')$('cxModelo').textContent=(s.modelo||'').replace('claude-','');
   $('sit').textContent=s.situacao||'…';$('prox').textContent=s.proximos||'';setAcesso(s.liberado);
   if(s.voz){UI.micAtivo=!!s.voz.ativa&&!!s.voz.disponivel;$('btMic').classList.toggle('on',UI.micAtivo);if(s.voz.disponivel===false&&s.voz.motivo&&s.voz.motivo!=='iniciando'){$('btMic').classList.add('alerta');}}
   if(s.conexoes&&s.conexoes.nos)for(const id in s.conexoes.nos)ligarNo(id,!!s.conexoes.nos[id].ligado,s.conexoes.nos[id].detalhe);
