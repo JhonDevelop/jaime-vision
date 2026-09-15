@@ -26,6 +26,8 @@ class Vigia:
     def __init__(self):
         self._armado_ate = 0.0
         self.ultima_bloqueada: str | None = None
+        # sessão de visão contínua iniciada explicitamente pelo João: ações de tela ficam liberadas enquanto durar
+        self.sessao_livre = lambda: False
 
     def armar(self):
         self._armado_ate = time.time() + ARMED_SECONDS
@@ -60,6 +62,8 @@ class Vigia:
                 return {} if self._consome() else self._negar(f"isso é o seu próprio código ({alvo.split('/')[-1]}); mudança precisa de 'confirmo' e de reiniciar o servidor")
         elif nome == "mcp__maos__clicar" and CLIQUE_IRREVERSIVEL.search(str(args.get("alvo", ""))):
             return {} if self._consome() else self._negar(f"clique irreversível no browser: {str(args.get('alvo'))[:60]}")
+        elif nome.startswith("mcp__tela__tela_") and nome != "mcp__tela__tela_capturar" and self.sessao_livre():
+            return {}
         elif TOOLS_DE_ENVIO.match(nome):
             return {} if self._consome() else self._negar(f"ação externa: {nome}")
         return {}

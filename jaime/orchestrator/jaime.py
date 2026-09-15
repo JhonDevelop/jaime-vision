@@ -45,6 +45,10 @@ from ..conexoes.meta import Meta
 from ..conexoes.tools_meta import build_meta_server
 from ..autonomo import Autonomo
 from ..tools_autonomo import build_autonomo_server
+from ..casa.homeassistant import Casa
+from ..casa.tools import build_casa_server
+from ..maos.visao import Visao, quer_parar
+from ..maos.tools_visao import build_visao_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -104,6 +108,10 @@ class Jaime:
         self.meta = Meta(settings.meta_token, settings.meta_app_secret, settings.meta_verify_token, settings.meta_whatsapp_phone_id,
                          settings.meta_instagram_id, self, dono_whatsapp=settings.owner_phone)
         self.autonomo = Autonomo(self, settings.autonomo_horas, settings.autonomo_custo_usd, settings.autonomo_ferramentas)
+        # fase 3: casa (Home Assistant), câmera e visão contínua (jogos/apps); o Vigia libera a tela só com sessão ativa
+        self.casa = Casa(settings.ha_url, settings.ha_token)
+        self.visao = Visao(self, settings.visao_max_passos, settings.visao_intervalo_s)
+        self.vigia.sessao_livre = lambda: self.visao.ativa
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -123,7 +131,9 @@ class Jaime:
                          "midia": build_midia_server(Imagens(self.s.openai_key, self.vault), self.s.deepgram_key),
                          "tela": build_tela_server(),
                          "meta": build_meta_server(self.meta),
-                         "autonomo": build_autonomo_server(self.autonomo)},
+                         "autonomo": build_autonomo_server(self.autonomo),
+                         "casa": build_casa_server(self.casa, self.s.camera),
+                         "visao": build_visao_server(self.visao)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -257,6 +267,10 @@ class Jaime:
         if quer_teclado(texto):
             bus.emitir("teclado", aberto=True, motivo="você pediu")
             return "Pode escrever."
+        if quer_parar(texto):
+            # kill switch: visão contínua e objetivo autônomo param na hora, sem modelo
+            parou = [n for n, ok in (("visão", self.visao.parar()), ("objetivo", self.autonomo.interromper())) if ok]
+            return f"Parei: {', '.join(parou)}." if parou else "Nada rodando para parar."
         # identidade: "me chama de X" propõe; "confirmo" com proposta pendente executa; "sim" no boot confirma o nome
         if (novo := quer_renomear(texto)):
             return self.propor_renomear(novo)

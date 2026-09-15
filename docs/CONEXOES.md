@@ -48,6 +48,12 @@ Só APIs oficiais. O webhook é o próprio servidor do Jaime (`/webhook/meta`), 
 **Revogar**: apague o token no Business Manager ou remova o app. A Evolution API (WhatsApp pessoal) ficou **opcional**:
 risco real de bloqueio da conta.
 
+## Home Assistant (casa) e câmera
+1. No HA: perfil → **Tokens de acesso de longa duração** → criar → `HA_TOKEN` no `.env`; `HA_URL=http://homeassistant.local:8123`.
+2. HomeKit: integração *HomeKit Controller* no HA traz os acessórios como entidades (`light.*`, `switch.*`).
+3. Câmera: `JAIME_CAMERA=0` usa a FaceTime do Mac (macOS pede permissão de Câmera para o Terminal); `camera.entrada` usa uma
+   câmera do HA. Fechaduras e portões (`lock.*`, `cover.*`) passam pelo Vigia.
+
 ## GitHub e Notion
 Já autenticados como MCPs do Claude (`claude mcp list`). Revogar: nas configurações de cada serviço (tokens/integrações).
 

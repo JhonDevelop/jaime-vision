@@ -9,8 +9,8 @@ Fase 2 completa no código: Córtex, dois provedores + juiz, cérebro emocional,
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 08:53 em MacBookPro
-- tema: Não, não, fica tranquilo, na verdade eu escrevo a correção que foi o Breu, você só vai me escutar.
+- quando: 15/09/2026 08:59 em MacBookPro
+- tema: João perguntou qual voz gasta menos crédito. Consultar custos/consumo por voz nos modos pipeline e r
 
 ## Em andamento
 - operar de verdade: primeiro objetivo autônomo real, primeiras rotinas às 07:00

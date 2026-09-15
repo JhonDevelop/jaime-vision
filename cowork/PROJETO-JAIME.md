@@ -55,6 +55,8 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F36 | Meta: WhatsApp Cloud API + Instagram Messaging com webhook próprio; terceiros viram rascunho, envio com confirmo | funcional | código pronto (15/09) — app no Meta for Developers é do João |
 | F37 | Modo autônomo: objetivo → etapas com aceite → checkpoints, pausa no Vigia, relatório | estratégica | feito (15/09) |
 | F38 | Fase 3.1 — conversa em tempo real (GPT-Realtime-2) com as ferramentas do Jaime; mic gated por VAD local | estratégica | feito (15/09) |
+| F39 | Fase 3.4 — casa (Home Assistant/HomeKit) e câmera como olho | estratégica | código pronto (15/09) — HA_URL/HA_TOKEN do João |
+| F40 | Fase 3.5 — visão contínua (jogos/apps por visão) com limites e kill switch "para" | estratégica | feito (15/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.

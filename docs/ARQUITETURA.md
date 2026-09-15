@@ -173,3 +173,15 @@ servidor segmenta; a transcrição passa pelo mesmo gate "é comigo?" (nome / ja
 Trancado, teclado e renomear continuam no `_porta` do Jaime e o Realtime apenas repete a resposta. Ferramentas do
 Realtime: `jaime(texto)` (Agent SDK com as mãos), `hora`, `clima`, `lembrete`. Microfone mudo enquanto ele fala (+300 ms).
 Ver docs/FASE-3.md.
+
+
+## Fase 3, etapas 4–5 — casa, câmera e visão contínua
+- `jaime/casa/homeassistant.py`: REST do Home Assistant (token de longa duração; HomeKit entra pela integração do HA).
+  `achar(nome)` casa "luz do escritório" com `light.escritorio`. MCP `casa`: `casa_estado`, `casa_ligar`, `casa_desligar`,
+  `casa_servico`, `camera_ver`.
+- `jaime/casa/camera.py`: quadro da webcam do Mac (ffmpeg/avfoundation, dispositivo 0 = FaceTime) ou `camera_proxy` do HA →
+  PNG que o modelo lê com Read e descreve.
+- `jaime/maos/visao.py`: sessão de visão contínua (jogos simples, apps sem API): captura → o modelo decide UMA ação em JSON
+  olhando a imagem → pyautogui executa → repete, com máximo de passos e intervalo mínimo. Iniciada só por pedido explícito
+  (`jogar`); enquanto ativa, o Vigia libera as ações de tela; **"para"/"chega"** encerram na hora (kill switch em `_porta`,
+  sem modelo) — o mesmo "para" interrompe um objetivo autônomo.
