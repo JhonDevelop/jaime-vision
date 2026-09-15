@@ -256,6 +256,10 @@ class Ouvido:
         """Manda a frase para a fila do TTS e cala o microfone; quem espera é `_aguardar_fala`."""
         if not self._tts:
             return
+        humor = getattr(self.jaime, "humor", None)
+        if humor is not None:
+            from ..emocao.prosodia import prosodia
+            self._tts.ajustes = prosodia(humor, "voice")["eleven"]
         self.mudo = True
         self._tts.enfileirar(texto)
 

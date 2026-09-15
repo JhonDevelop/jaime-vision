@@ -5,18 +5,18 @@
 1 — operando localmente; fase 2 (Jarvis) em andamento, etapa 1 fechada
 
 ## Situação agora
-Fase 2: etapas 1–3 fechadas. Córtex escolhe o modelo por tarefa; OpenAI (gpt-5.5) entra como segundo provedor para texto/pesquisa/redação e o Fable 5.1 arbitra decisões — a conta OpenAI ainda está sem crédito, então por ora tudo cai na Anthropic.
+Fase 2: etapas 1–4 fechadas. Tenho cérebro emocional: não pergunto duas vezes (10-Eu/Perguntas-Feitas.md), sei que dia é hoje para o João (10-Eu/Datas.md) e meu humor em 4 eixos dirige a prosódia da voz. Falta o João preencher Datas.md (aniversário) e a OpenAI ter crédito.
 
 ## Última conversa
 - canal: cli
-- quando: 15/09/2026 07:59 em MacBookPro
-- tema: pesquisa rápida, em uma frase: o que é a Evolution API?
+- quando: 15/09/2026 08:08 em MacBookPro
+- tema: tenho um problema urgente: o build do BUB quebrou. em uma frase, o que faço primeiro?
 
 ## Em andamento
-- fase 2, etapa 4: cérebro emocional (10-Eu/Datas, Jeito, Perguntas-Feitas; humor e prosódia)
+- fase 2, etapa 5: scheduler próprio, relógio, clima, feriados, lembretes (jaime/agenda/)
 
 ## Próximos passos
-1) Crédito na OpenAI para ligar o juiz ao vivo. 2) Etapa 4 — cérebro emocional. 3) Acessibilidade para o Terminal (títulos de janela). 4) Starter da ElevenLabs.
+1) Perguntar o aniversário do João (via perguntar_ao_joao) e registrar em Datas.md. 2) Etapa 5. 3) Crédito na OpenAI. 4) Acessibilidade para o Terminal.
 
 ## Aprendizados recentes
 Microfone ligado não é o mesmo que estar entendendo. Quando duas ou três falas seguidas chegam sem sentido, o problema é a transcrição, não o João — o certo é dizer isso na hora e chamar pedir_teclado, em vez de responder a um palpite. Também não vale "confirmar" uma ação que eu não bloqueei: quando ele disse "confirmo, pode executar a ação que o Vigia bloqueou" não havia nada bloqueado, e eu disse isso em vez de inventar uma ação para executar.

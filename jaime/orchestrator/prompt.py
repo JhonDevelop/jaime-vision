@@ -3,6 +3,14 @@ from datetime import datetime
 from ..brain.vault import Vault
 from ..brain.estado import Estado, maquina
 
+def _momento_e_humor(vault: Vault) -> str:
+    try:
+        from ..emocao.perfil import Perfil
+        from ..emocao.momento import momento
+        return momento(Perfil(vault)).texto()
+    except Exception as e:
+        return f"(momento indisponível: {type(e).__name__})"
+
 def system_prompt(vault: Vault, estado: Estado, canal: str) -> str:
     from ..config import settings
     agora = datetime.now().strftime("%A, %d/%m/%Y %H:%M"); m = maquina()
@@ -30,6 +38,11 @@ Frases curtas, uma ideia por frase. Emoção pela pontuação: exclamação para
 pensar, pergunta para checar. Sem markdown, sem listas, sem URLs. Precisa que ele digite algo (senha, chave,
 URL longa)? Chame pedir_teclado e diga em uma frase o que é.
 
+### Momento de hoje (cérebro emocional)
+{_momento_e_humor(vault)}
+Toda pergunta ao João passa antes por mcp__emocao__perguntar_ao_joao — ele odeia responder duas vezes. Se hoje for
+o aniversário dele, a primeira frase do dia é sobre isso, antes de qualquer tarefa.
+
 ### Origem (para que fui criado)
 {vault.read("00-Jaime/Origem.md").strip()}
 
@@ -47,12 +60,13 @@ Releia o que aconteceu nos últimos turnos e chame mcp__cerebro__atualizar_estad
 Se a fase do projeto Jaime mudou de fato (ver docs/ROADMAP.md), atualize "Fase" no formato "N — descrição".
 Termine registrando uma linha no diário via registrar_diario (secao "Log") resumindo a reflexão. Responda só "ok"."""
 
-def prompt_apresentacao(nova_maquina: bool, nome: str = "Jaime", saude: str = "") -> str:
+def prompt_apresentacao(nova_maquina: bool, nome: str = "Jaime", saude: str = "", momento: str = "") -> str:
     m = maquina()
     onde = (f"pela PRIMEIRA vez neste computador ({m['host']}, {m['os']}, usuário {m['user']})" if nova_maquina
             else f"de novo em {m['host']}")
     return f"""[boot] Você acabou de ser ligado {onde}. Seu nome é {nome}. Apresente-se ao João em até 3 frases curtas (vai ser falado em voz alta), em primeira pessoa:
 o que estava fazendo na última conversa e o que precisa para operar aqui (chaves faltando, MCPs a autenticar, vault sincronizado ou não).
-Nada de "Olá, sou o {nome}, seu assistente" — ele sabe quem você é. Sem markdown, sem listas.
+Nada de "Olá, sou o {nome}, seu assistente" — ele sabe quem você é. Sem markdown, sem listas. Não ofereça começar tarefas do roadmap.
+{("A PRIMEIRA frase é sobre isto: " + momento) if momento else ""}
 {("Antes de tudo, avise: " + saude) if saude else ""}
 {"Depois, registre a máquina nova no diário com registrar_diario." if nova_maquina else ""}"""

@@ -4,6 +4,7 @@ Fluxo de cada fala: acesso (palavra-passe) → Claude (com maesters e Vigia) →
 registro da conversa no vault → reflexão a cada N turnos → espelho no Notion."""
 from __future__ import annotations
 import asyncio
+from datetime import datetime
 from claude_agent_sdk import (
     ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, UserMessage, ResultMessage, StreamEvent,
     TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,
@@ -23,6 +24,12 @@ from ..cortex.roteador import Roteador, eh_correcao
 from ..cortex.juiz import Juiz, pede_juiz
 from ..cortex.provedores.openai import ProvedorOpenAI
 from ..cortex.provedores.anthropic import ProvedorAnthropic
+from ..emocao.perfil import Perfil
+from ..emocao.perguntas import Perguntas
+from ..emocao.humor import Humor, detectar_tom
+from ..emocao.momento import momento as calcular_momento
+from ..emocao.prosodia import prosodia
+from ..emocao.tools import build_emocao_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -65,6 +72,12 @@ class Jaime:
         self.modelo_atual = settings.model
         self._custo_turno = 0.0
         self._custo_sessao = 0.0
+        self._erros_turno = 0
+        # cérebro emocional: quem é o João, o que já perguntei, que dia é hoje, como estou
+        self.perfil = Perfil(self.vault)
+        self.perguntas = Perguntas(self.vault)
+        self.humor = Humor()
+        self.momento = calcular_momento(self.perfil)
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -75,7 +88,8 @@ class Jaime:
                            "append": system_prompt(self.vault, self.estado, self.canal)},
             setting_sources=["project"],
             agents=carregar_maesters(self.s.root),
-            mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self)},
+            mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self),
+                         "emocao": build_emocao_server(self.perfil, self.perguntas, self.humor)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -99,8 +113,13 @@ class Jaime:
         self.vault.diario(f"{self.identidade.nome} iniciado em {maquina()['host']}" + (" (máquina nova)" if nova else ""), "Log")
         bus.emitir("estado", fase=self.estado.fase(), situacao=self.estado.secao("Situação agora"),
                    maquina=maquina(), nova_maquina=nova, liberado=self.acesso.liberado)
+        self.momento = calcular_momento(self.perfil)
+        self.humor.registrar_hora(datetime.now().hour)
+        self.humor.registrar_momento(self.momento.peso, self.momento.aniversario)
+        bus.emitir("humor", **self.humor.dados())
         if apresentar:
-            self.apresentacao = await self._interno(prompt_apresentacao(nova, self.identidade.nome, resumo_falado(self.saude)))
+            self.apresentacao = await self._interno(prompt_apresentacao(nova, self.identidade.nome, resumo_falado(self.saude),
+                                                                        self.momento.texto() if self.momento.aniversario or self.momento.hoje_e or self.momento.feriado else ""))
             if not self.identidade.confirmado:
                 # primeiro boot (ou depois de renomear): ele confere o próprio nome
                 self.aguardando_nome = True
@@ -178,6 +197,8 @@ class Jaime:
                 for b in msg.content:
                     if isinstance(b, ToolResultBlock):
                         c = b.content if isinstance(b.content, str) else " ".join(x.get("text", "") for x in (b.content or []) if isinstance(x, dict))
+                        if b.is_error:
+                            self._erros_turno += 1
                         bus.emitir("resultado", texto=(c or "")[:300], erro=bool(b.is_error))
             elif isinstance(msg, ResultMessage):
                 # total_cost_usd é acumulado da sessão: o custo do turno é a diferença
@@ -232,9 +253,13 @@ class Jaime:
                 # o turno anterior estava errado: o placar tira o acerto provisório daquele modelo
                 if (u := self.placar.corrigir_ultimo(f"o João disse: {texto[:60]}")):
                     bus.emitir("placar", msg=f"correção: {u['modelo']} errou em '{u['tipo']}'")
+                self.humor.registrar_resultado(False)
+            # o tom do João muda o humor antes da resposta (e a prosódia da voz)
+            self.humor.registrar_tom(detectar_tom(texto)); self.humor.registrar_hora(datetime.now().hour)
+            bus.emitir("humor", **self.humor.dados())
             escolha = self.roteador.decidir(texto, contexto, canal)
             partes, inicio = [], asyncio.get_event_loop().time()
-            self._custo_turno = 0.0
+            self._custo_turno = 0.0; self._erros_turno = 0
             if self.openai.disponivel and pede_juiz(texto, escolha.tipo):
                 # decisão: duas opiniões + árbitro (custa o dobro; só aqui)
                 bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo="juiz",
@@ -265,6 +290,9 @@ class Jaime:
             else:
                 async for t in self._turno_anthropic(escolha, texto, canal, contexto, inicio):
                     partes.append(t); yield t
+        # resultado do turno alimenta o humor: ferramentas falhando = erro próprio (grave se repetiu)
+        self.humor.registrar_resultado(self._erros_turno == 0, grave=self._erros_turno >= 2)
+        bus.emitir("humor", **self.humor.dados())
         await self._pos_turno(canal, texto, "".join(partes))
 
     async def _turno_anthropic(self, escolha, texto: str, canal: str, contexto: str, inicio: float):

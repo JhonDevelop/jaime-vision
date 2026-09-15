@@ -79,3 +79,16 @@ provedores respondem em paralelo e o Fable 5.1 (`JAIME_MODEL_DECISAO`) escolhe A
 de justificativa que vai para o diário (seção Decisões) e para o painel Raciocínio do HUD. Custa o dobro; se um
 provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda fora do cliente persistente
 (sem as mãos), com o mesmo system prompt do Jaime como contexto.
+
+
+## Cérebro emocional (fase 2, etapa 4) — `jaime/emocao/`
+- `perfil.py`: `10-Eu/Perfil.md`, `Datas.md` (`- DD/MM — x` repete; `- AAAA-MM-DD — x @projeto` é prazo), `Jeito.md`.
+- `perguntas.py`: `10-Eu/Perguntas-Feitas.md`. `decidir(pergunta)` → usar / confirmar (>90 dias) / perguntar. A ferramenta
+  `mcp__emocao__perguntar_ao_joao` é obrigatória antes de qualquer pergunta (regra 7 do CLAUDE.md).
+- `momento.py`: aniversário, feriado (tabela fixa até a etapa 5), prazos em 7 dias, semana pesada → entra no system prompt
+  e na apresentação (aniversário = primeira frase do dia).
+- `humor.py`: energia, calor, gravidade, confiança. Entradas: tom do João (`detectar_tom`), resultado do turno (ferramentas
+  falhando = erro próprio), hora, momento. Coerência: nunca leve com o João em problema; nunca grave em conquista; gravidade
+  nunca passa de 0,85 (sem drama). É expressão, não manipulação.
+- `prosodia.py`: humor + canal → `{"instructions", "tags" (Eleven v3), "eleven": {stability, style}}`. O ouvido aplica
+  `eleven` no TTS antes de cada frase; `instructions` serve ao gpt-4o-mini-tts (etapa 9). O HUD mostra o humor no header.

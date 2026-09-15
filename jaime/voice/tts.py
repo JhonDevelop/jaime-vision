@@ -46,6 +46,7 @@ class TTS:
         self._stream = None          # stream de saída, aberto enquanto durar a resposta
         self._taxa = PCM_SR          # taxa nativa do aparelho, descoberta ao abrir
         self._anterior = ""          # última frase sintetizada (previous_text da ElevenLabs)
+        self.ajustes: dict | None = None   # {"stability", "style"} vindos da prosódia (humor); None = .env
         if s.elevenlabs_key:
             from elevenlabs.client import ElevenLabs
             self._client = ElevenLabs(api_key=s.elevenlabs_key)
@@ -125,9 +126,10 @@ class TTS:
         from elevenlabs import VoiceSettings
         # Emoção: estabilidade baixa e "style" alto deixam a voz seguir a pontuação — exclamação sobe,
         # reticências hesitam, pergunta entoa. O prompt do Jaime escreve pensando nisso quando fala.
-        ajustes = VoiceSettings(stability=float(os.environ.get("JAIME_VOZ_ESTABILIDADE", "0.5")),
+        a = self.ajustes or {}
+        ajustes = VoiceSettings(stability=float(a.get("stability", os.environ.get("JAIME_VOZ_ESTABILIDADE", "0.5"))),
                                 similarity_boost=0.8,
-                                style=float(os.environ.get("JAIME_VOZ_ESTILO", "0.3")),
+                                style=float(a.get("style", os.environ.get("JAIME_VOZ_ESTILO", "0.3"))),
                                 use_speaker_boost=True)
         fluxo = self._client.text_to_speech.stream(
             text=texto, voice_id=self.s.elevenlabs_voice or VOZ_PADRAO,

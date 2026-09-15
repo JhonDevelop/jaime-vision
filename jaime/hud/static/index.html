@@ -20,6 +20,9 @@
   .chips{display:flex;gap:8px;align-items:center}
   .chip{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);padding:5px 10px;border:1px solid var(--bd);border-radius:20px;background:var(--pn);backdrop-filter:blur(8px)}
   .chip b{color:var(--tx);font-weight:500;margin-left:6px}
+  .hb{display:inline-flex;gap:2px;margin-left:8px;vertical-align:middle}.hb i{display:inline-block;width:4px;height:10px;background:rgba(79,216,255,.15);border-radius:1px;position:relative;overflow:hidden}
+  .hb i::after{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--v,0%);background:var(--cy)}
+  .hb i:nth-child(2)::after{background:var(--am)}.hb i:nth-child(3)::after{background:var(--rd)}.hb i:nth-child(4)::after{background:var(--gn)}
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rd);box-shadow:0 0 8px var(--rd);margin-right:6px;vertical-align:middle}
   .dot.on{background:var(--gn);box-shadow:0 0 8px var(--gn)}
   button.ico{cursor:pointer;border:1px solid var(--bd);background:var(--pn);color:var(--mu);border-radius:20px;padding:5px 12px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;backdrop-filter:blur(8px);transition:.2s}
@@ -93,6 +96,7 @@
   <div class="chips">
     <span class="chip"><i class="dot" id="dot"></i><span id="acesso">trancado</span></span>
     <span class="chip" id="ctxChip" title="o que você está fazendo agora">você em<b id="ctx">—</b></span>
+    <span class="chip" id="humorChip" title="humor do Jaime: energia · calor · gravidade · confiança">humor<b id="humor">—</b><i class="hb"><i id="h1"></i><i id="h2"></i><i id="h3"></i><i id="h4"></i></i></span>
     <span class="chip">máquina<b id="maq">—</b></span>
     <span class="chip">modelo<b id="modelo">—</b></span>
     <button class="ico on" id="btMic" title="microfone (M)">mic</button>
@@ -361,6 +365,7 @@ function ligarStream(){
       case 'cortex': $('modelo').textContent=(e.modelo||'').replace('claude-','');feed($('rac'),`<span class="f">córtex</span><span class="a">${esc(e.tarefa)} → ${esc((e.modelo||'').replace('claude-',''))}${e.exploracao?' (exploração)':''} · ${esc(e.motivo)}</span>`);break;
       case 'juiz': feed($('rac'),`<span class="f">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
+      case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
       case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
