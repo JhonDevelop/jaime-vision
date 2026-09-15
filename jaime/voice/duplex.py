@@ -32,6 +32,8 @@ SILENCIO_ABERTO_MS = 1200     # antecipador diz que o João ainda vai continuar 
 BARGE_IN_PROB = 0.85          # VAD mais exigente enquanto o Jaime fala
 BARGE_IN_MS = 200             # voz contínua necessária para cortar
 BARGE_IN_ECO_X = 2.5          # RMS do João precisa ser 2,5× o eco medido (sem AEC)
+ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
+PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
 MULETAS_RX = re.compile(r"\b(é|eh|tipo|então|entao|assim|hum+|ãh+|né|sabe|enfim|aí|ai)\b", re.I)
 
@@ -130,6 +132,9 @@ class OuvidoDuplex(Ouvido):
         self._eco_rms = 0.0
         self._eco_amostras = 0
         self.turnos = 0
+        self._cache_task: asyncio.Task | None = None    # pré-síntese em curso (rascunho local ou do modelo)
+        self._cache_rascunho = ""
+        self._pre_sinteses = 0
 
     # ── carga ────────────────────────────────────────────
     def _carregar(self):
@@ -323,14 +328,33 @@ class OuvidoDuplex(Ouvido):
             self.det.frase_fechou = a.frase_fechou
         bus.emitir("antecipacao", intencao=a.intencao, completude=a.completude, fechou=a.frase_fechou,
                    rascunho=a.rascunho, origem=a.origem, latencia=round(a.latencia_s, 2))
+        if a.origem == "heuristica" and a.especulavel:
+            self._pre_sintetizar(a)                      # rascunho local: sintetiza já, enquanto o João ainda fala
         self._interjeitar(a)
+
+    def _pre_sintetizar(self, a: Antecipacao) -> None:
+        """Sintetiza a 1ª frase em segundo plano; no máximo PRE_SINTESES_POR_TURNO vezes por turno."""
+        if not self._tts or not a.rascunho:
+            return
+        if self.cache_audio and self.cache_audio[0] == a.rascunho:
+            return
+        if self._cache_task and not self._cache_task.done() and self._cache_rascunho == a.rascunho:
+            return
+        if a.origem == "heuristica" and self._pre_sinteses >= PRE_SINTESES_POR_TURNO:
+            return
+        self._pre_sinteses += 1; self._cache_rascunho = a.rascunho
+        self._cache_task = self.loop.create_task(self._sintetizar_cache(a.rascunho))
+
+    async def _sintetizar_cache(self, rascunho: str) -> None:
+        pcm = await asyncio.to_thread(self._tts.pre_sintetizar, rascunho)
+        u = self.antecipador.ultima if self.antecipador else None
+        if u and u.rascunho == rascunho:                 # o texto não mudou de rumo enquanto sintetizava
+            self.cache_audio = (rascunho, pcm)
 
     async def _modelo_chegou(self, a: Antecipacao) -> None:
         self._aplicar(a)
-        if a.especulavel and self._tts and (not self.cache_audio or self.cache_audio[0] != a.rascunho):
-            pcm = await asyncio.to_thread(self._tts.pre_sintetizar, a.rascunho)
-            if self.antecipador.ultima is a or (self.antecipador.ultima and self.antecipador.ultima.rascunho == a.rascunho):
-                self.cache_audio = (a.rascunho, pcm)
+        if a.especulavel:
+            self._pre_sintetizar(a)
 
     async def _turno(self, texto: str, pcm: bytes, t_fim_fala: float, t_texto: float):
         async with self._lock_turno:
@@ -340,6 +364,15 @@ class OuvidoDuplex(Ouvido):
                     return
                 self.turnos += 1
                 antecip = self.antecipador.confere(texto) if self.antecipador else None
+                self._pre_sinteses = 0
+                if antecip and self.cache_audio is None and self._cache_task and not self._cache_task.done():
+                    # a 1ª frase ainda está sendo sintetizada: esperar um pouco sai mais rápido que modelo + TTS do zero
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self._cache_task), ESPERAR_CACHE_S)
+                    except (asyncio.TimeoutError, Exception):
+                        pass
+                if self.cache_audio and (antecip is None or self.cache_audio[0] != antecip.rascunho):
+                    self.cache_audio = None              # cache de outra intenção (ou de outro turno) não pode tocar
                 self._eco_rms = 0.0; self._eco_amostras = 0; self._barge_ms = 0; self.interrompido = False
                 await self._tratar_texto(texto, pcm, antecipacao=antecip, t_fim_fala=t_fim_fala, t_texto=t_texto)
             except Exception as e:
