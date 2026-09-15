@@ -102,7 +102,7 @@ async def hud_stream():
 async def hud_estado():
     return {"liberado": jaime.acesso.liberado, "fase": jaime.estado.fase(), "maquina": maquina(),
             "situacao": jaime.estado.secao("Situação agora"), "proximos": jaime.estado.secao("Próximos passos"),
-            "apresentacao": jaime.apresentacao, "notion": jaime.notion.ativo, "modelo": settings.model,
+            "apresentacao": jaime.apresentacao, "notion": jaime.notion.ativo, "modelo": jaime.modelo_atual,
             "voz": _voz_estado(), "conexoes": conexoes.estado(), "nome": jaime.identidade.nome,
             "contexto": {"app": observador.atual[0], "janela": observador.atual[1]}}
 

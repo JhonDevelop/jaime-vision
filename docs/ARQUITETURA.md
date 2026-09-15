@@ -45,3 +45,18 @@ fica conectado; `asyncio.Lock` serializa pedidos de canais diferentes.
 3. **Notas** — projetos, perfil, conhecimento; o Arquivista consolida o diário nelas.
 
 Quando o vault crescer (milhares de notas), trocar `Vault.buscar` por um índice (sqlite FTS5 ou embeddings) sem mudar a interface das ferramentas.
+
+
+## Córtex (fase 2, etapa 2) — quem pensa em cada tarefa
+`jaime/cortex/roteador.py` classifica cada fala (código · pesquisa · redação · decisão · imagem · voz · rotina) por
+pistas de texto, sem chamar modelo, e escolhe o modelo pela política do placar: maior taxa de acerto (suavizada)
+para aquele tipo, com `JAIME_CORTEX_EXPLORACAO` (10%) de chance de testar outro candidato. Candidatos vêm do `.env`
+(`JAIME_MODEL_DECISAO` Fable 5.1, `JAIME_MODEL_CODIGO` Opus 5, `JAIME_MODEL_PADRAO` Sonnet, `JAIME_MODEL_ROTINA` Haiku).
+
+`jaime/cortex/placar.py` guarda acertos/erros/latência/custo por (modelo, tipo) em `vault/.placar.json` (bruto,
+gitignored) e `vault/01-Estado/Placar.md` (legível). Cada turno entra como acerto provisório; se o turno seguinte
+for uma correção do João ("errado", "não era isso", "refaz", "de novo"), `corrigir_ultimo()` vira o acerto em erro.
+
+**Troca de modelo sem perder a conversa:** o `ClaudeSDKClient` do SDK 0.2.152 tem `set_model(model)`; o
+orquestrador chama antes de cada turno quando o roteador muda a escolha. Recriar o cliente perderia o contexto.
+`python -m jaime cortex explicar "<tarefa>"` mostra tipo, modelo e porquê.

@@ -18,6 +18,8 @@ from ..vigia.acesso import Acesso, quer_trancar
 from ..voice.escuta import quer_teclado, usar_nome
 from ..identidade import Identidade, quer_renomear, eh_sim
 from ..brain.saude import verificar, gerar_indices, relatorio, resumo_falado
+from ..cortex.placar import Placar
+from ..cortex.roteador import Roteador, eh_correcao
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -47,6 +49,14 @@ class Jaime:
         self.proposta_renomear: str = ""      # nome proposto, à espera do "confirmo"
         self.aguardando_nome: bool = False    # boot: "Meu nome é X — confirma?"
         self.saude: list = []
+        # Córtex: o modelo é escolhido por tarefa; o placar aprende com acertos e correções
+        self.placar = Placar(settings.vault)
+        self.roteador = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
+                                  "padrao": settings.model_padrao, "rotina": settings.model_rotina},
+                                 self.placar, settings.cortex_exploracao)
+        self.modelo_atual = settings.model
+        self._custo_turno = 0.0
+        self._custo_sessao = 0.0
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -162,6 +172,9 @@ class Jaime:
                         c = b.content if isinstance(b.content, str) else " ".join(x.get("text", "") for x in (b.content or []) if isinstance(x, dict))
                         bus.emitir("resultado", texto=(c or "")[:300], erro=bool(b.is_error))
             elif isinstance(msg, ResultMessage):
+                # total_cost_usd é acumulado da sessão: o custo do turno é a diferença
+                total = float(msg.total_cost_usd or 0)
+                self._custo_turno = max(0.0, total - self._custo_sessao); self._custo_sessao = total
                 bus.emitir("fala_fim"); return
 
     async def _interno(self, texto: str) -> str:
@@ -204,11 +217,34 @@ class Jaime:
             self.canal = canal
             if eh_confirmacao(texto):
                 self.vigia.armar(); texto = "confirmo — pode executar a ação que o Vigia bloqueou."
-            partes = []
+            elif eh_correcao(texto):
+                # o turno anterior estava errado: o placar tira o acerto provisório daquele modelo
+                if (u := self.placar.corrigir_ultimo(f"o João disse: {texto[:60]}")):
+                    bus.emitir("placar", msg=f"correção: {u['modelo']} errou em '{u['tipo']}'")
+            escolha = self.roteador.decidir(texto, contexto, canal)
+            await self._usar_modelo(escolha.modelo)
+            bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
+                       motivo=escolha.motivo, exploracao=escolha.exploracao)
+            partes, inicio = [], asyncio.get_event_loop().time()
+            self._custo_turno = 0.0
             prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
             async for t in self._stream(f"{prefixo} {texto}"):
                 partes.append(t); yield t
+            # acerto provisório: vira erro se o próximo turno for uma correção
+            self.placar.registrar(escolha.modelo, escolha.tipo, "acerto",
+                                  asyncio.get_event_loop().time() - inicio, self._custo_turno, texto[:80])
         await self._pos_turno(canal, texto, "".join(partes))
+
+    async def _usar_modelo(self, modelo: str) -> None:
+        """Troca o modelo do cliente persistente sem perder a conversa (ClaudeSDKClient.set_model).
+        Descoberto no SDK 0.2.152: existe `set_model(model)`; recriar o cliente perderia o contexto."""
+        if modelo == self.modelo_atual or not self._client:
+            return
+        try:
+            await self._client.set_model(modelo)
+            self.modelo_atual = modelo
+        except Exception as e:
+            bus.emitir("cortex", tarefa="", modelo=self.modelo_atual, motivo=f"não consegui trocar para {modelo}: {type(e).__name__}", exploracao=False)
 
     async def ask(self, texto: str, canal: str = "cli", contexto: str = "") -> str:
         return "".join([t async for t in self.ask_stream(texto, canal, contexto)]).strip() or "(sem resposta)"

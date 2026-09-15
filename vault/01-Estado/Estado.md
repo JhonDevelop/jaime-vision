@@ -5,16 +5,15 @@
 1 — operando localmente; fase 2 (Jarvis) em andamento, etapa 1 fechada
 
 ## Situação agora
-Voz direta funcionando (Silero VAD, Deepgram, ElevenLabs em streaming), HUD 3D, observador da máquina. Fase 2 começou: n8n removido, saúde do cérebro no boot, nome editável com confirmação.
+Fase 2 em andamento. Etapa 2 fechada: o Córtex escolhe o modelo por tarefa (Fable 5.1 para decisão, Opus 5 para código, Sonnet no geral, Haiku para rotina) e o placar em 01-Estado/Placar.md aprende com acertos e correções do João.
 
 ## Última conversa
-- canal: voice
-- quando: 15/09/2026 07:40 em MacBookPro
-- tema: confirmo — pode executar a ação que o Vigia bloqueou.
+- canal: cli
+- quando: 15/09/2026 07:47 em MacBookPro
+- tema: não era isso. em uma frase: que horas são?
 
 ## Em andamento
-- fase 2, etapa 2: Córtex (roteador de modelos) + placar
-- confirmar o nome no próximo boot ("Meu nome é Jaime — confirma?")
+- fase 2, etapa 3: OpenAI como segundo provedor + juiz (docs/FASE-2-JARVIS.md §2.1)
 
 ## Próximos passos
 1) Córtex + placar (docs/FASE-2-JARVIS.md §2.1). 2) NOTION_TOKEN. 3) Permissão de Acessibilidade para o Terminal (títulos de janela). 4) Plano Starter da ElevenLabs para a voz brasileira.

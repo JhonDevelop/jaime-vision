@@ -15,6 +15,12 @@ def _env(name: str, default: str = "") -> str:
 class Settings:
     root: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent)
     model: str = _env("JAIME_MODEL", "claude-opus-5")
+    # Córtex: quem pensa em cada tipo de tarefa (jaime/cortex/roteador.py)
+    model_decisao: str = _env("JAIME_MODEL_DECISAO", "claude-fable-5-1")
+    model_codigo: str = _env("JAIME_MODEL_CODIGO", "claude-opus-5")
+    model_padrao: str = _env("JAIME_MODEL_PADRAO", "claude-sonnet-5")
+    model_rotina: str = _env("JAIME_MODEL_ROTINA", "claude-haiku-4-5-20251001")
+    cortex_exploracao: float = float(_env("JAIME_CORTEX_EXPLORACAO", "0.10"))
     vault: Path = field(default_factory=lambda: Path(_env("JAIME_VAULT", "./vault")).expanduser().resolve())
     workspace: Path = field(default_factory=lambda: Path(_env("JAIME_WORKSPACE", "~/projetos")).expanduser())
     # voz

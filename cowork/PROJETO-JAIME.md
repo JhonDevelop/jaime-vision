@@ -43,6 +43,7 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F24 | Identidade editável: nome no frontmatter, "me chama de X" + confirmo, confirmação no boot | funcional | feito (15/09) |
 | F25 | Voz direta: Silero VAD, Deepgram, ativação por nome, fala em streaming, emoção | funcional | feito (14/09) |
 | F26 | Observador: contexto da tela em cada fala; oferta de ajuda quando trava | funcional | feito (14/09) |
+| F27 | Córtex: roteador de modelos por tipo de tarefa + placar de acertos/erros/custo | funcional | feito (15/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -57,5 +58,5 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 
 ## Fase atual
 **1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
-em andamento: etapa 1 (limpeza, saúde do cérebro, identidade) fechada em 15/09; próxima é a etapa 2 (Córtex + placar).
+em andamento: etapas 1 (limpeza, saúde, identidade) e 2 (Córtex + placar) fechadas em 15/09; próxima é a etapa 3 (OpenAI como segundo provedor + juiz).
 n8n saiu do projeto — automações viram código nosso.

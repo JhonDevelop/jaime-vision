@@ -69,12 +69,25 @@ def _cerebro(acao: str) -> int:
     print("índices:", ", ".join(gerar_indices(settings.vault)))
     return 1 if any(p.nivel == "erro" for p in probs) else 0
 
+def _cortex(acao: str, texto: str) -> int:
+    """`jaime cortex explicar "<tarefa>"`: tipo, modelo escolhido e porquê, com o placar atual."""
+    from .cortex.placar import Placar
+    from .cortex.roteador import Roteador
+    if acao != "explicar" or not texto:
+        print('uso: python -m jaime cortex explicar "<tarefa>"'); return 2
+    r = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
+                  "padrao": settings.model_padrao, "rotina": settings.model_rotina},
+                 Placar(settings.vault), exploracao=0.0)
+    print(r.explicar(texto)); return 0
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex"])
     ap.add_argument("acao", nargs="?", default="check")
+    ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
     if m == "cerebro": return _cerebro(args.acao)
+    if m == "cortex": return _cortex(args.acao, " ".join(args.texto))
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
     elif m == "hud": _serve(abrir_hud=True)

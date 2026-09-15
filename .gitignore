@@ -24,3 +24,6 @@ dist/
 # Obsidian: estado de janelas é por máquina
 vault/.obsidian/workspace*.json
 vault/.obsidian/cache
+
+# córtex: placar bruto (o Placar.md é a versão legível)
+vault/.placar.json

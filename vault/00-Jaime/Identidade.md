@@ -2,7 +2,7 @@
 nome: Jaime
 apelidos: []
 wake_word: jaime
-confirmado: false
+confirmado: true
 ---
 # Identidade
 
