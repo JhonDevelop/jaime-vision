@@ -20,6 +20,10 @@
   diário/problemas, escreve `docs/MENTE.md`, implementa e avisa); "J.A.I.M.E · HUD" (Claude Code, `../jaime-hud`, `feat/hud-obra` —
   animações com significado; 1º commit: mapa estado→animação + `/hud/sistemas`); "J.A.I.M.E · Codex" (Codex CLI 0.154 no plano
   Plus, `../jaime-codex`, `feat/codex-obra` — eco.py entregue e mergeado); Bússola e Fagulha (D e E, ociosos); nota `fase3-progresso`.
+- **"J.A.I.M.E · vigília"** (Claude Code, `../jaime-vigilia`, `feat/vigilia`): pensamento contínuo de VALIDAÇÃO — mede
+  (`voz latencia`, diário, /hud/stream), marca as 9 etapas PASSA/FALHA/SEM DADO em `docs/VALIDACAO-FASE3.md` e manda cada
+  falha à Mente; vigia porta 8787 e crash reports. Ciclo: Vigília mede → Mente corrige (delega mão de obra ao Codex) →
+  Cérebro Principal mergeia e reinicia → Vigília mede de novo. Codex: missão 2 = reconexão automática do STT em streaming.
 - **Autoconsciência** (`jaime/brain/eu.py`): entra em todo prompt ("Quem eu sou"), responde só quando perguntado
   ("quem é você", "você é humano?"), registra "Despertei" no diário ao ligar. CLAUDE.md §"Quem você é"; Identidade.md §Natureza.
 - `main` = tudo acima (194 testes). **Push pendente** (`git push origin main` no terminal do João). Branches dos nós já mergeadas:
