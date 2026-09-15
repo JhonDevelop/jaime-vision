@@ -5,8 +5,7 @@
 ## Estado
 - **Jaime roda como serviço** `com.jaime` (LaunchAgent; `bash jaime/ops/servico.sh status|parar|ligar`). Uma instância só —
   `jaime serve/hud` recusa subir se a porta 8787 já tem um Jaime. Log: `~/Jaime/jaime.log`.
-- `main` = `origin/main` (pushado pelo João). Branch de trabalho da última rodada: `feat/fase3-falantes` (merge pendente
-  desta sessão — ver "Última rodada").
+- `main` já inclui `feat/fase3-falantes` (mergeado em 15/09). Falta só `git push origin main` (2 commits).
 - Testes: `pytest -q` → 115 verdes.
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera credenciais.
@@ -42,7 +41,7 @@ Rode `python -m jaime permissoes` para reconferir (abre os painéis do que falta
 5. Opcionais: Home Assistant token, app Meta, Blender, VPS para Evolution (WhatsApp pessoal — parado por decisão do João).
 
 ## Próximos passos de código (ordem sugerida)
-1. Mergear `feat/fase3-falantes` em `main` e push.
+1. `git push origin main`.
 2. Etapa 2 da fase 3: primeiro objetivo autônomo real supervisionado (o João dá o objetivo).
 3. Saúde: rotina "resumo de saúde" + `10-Eu/Saude.md` quando o atalho começar a enviar.
 4. Mensagens do iPhone (chat.db) quando houver Acesso Total ao Disco.
