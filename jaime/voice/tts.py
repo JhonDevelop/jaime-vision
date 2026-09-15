@@ -48,6 +48,12 @@ class TTS:
         self._taxa = PCM_SR          # taxa nativa do aparelho, descoberta ao abrir
         self._anterior = ""          # última frase sintetizada (previous_text da ElevenLabs)
         self.ajustes: dict | None = None   # {"stability", "style"} vindos da prosódia (humor); None = .env
+        self.instrucoes: str = ""          # instrução de estilo (prosódia) para o gpt-4o-mini-tts
+        self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
+        self._openai = None
+        if s.openai_key:
+            from openai import OpenAI
+            self._openai = OpenAI(api_key=s.openai_key)
         if s.elevenlabs_key:
             from elevenlabs.client import ElevenLabs
             self._client = ElevenLabs(api_key=s.elevenlabs_key)
@@ -63,7 +69,8 @@ class TTS:
     def enfileirar(self, texto: str) -> None:
         """Manda falar sem esperar. Use durante a resposta em fluxo: cada frase entra assim que fica
         pronta e o sintetizador já vai preparando a seguinte."""
-        texto = limpar_para_fala(texto)
+        from .persona import aplicar as persona
+        texto = persona(limpar_para_fala(texto))
         if not texto:
             return
         with self._cond:
@@ -96,14 +103,19 @@ class TTS:
             # 3 falhas seguidas desligam a ElevenLabs por 10 min (cota, rede); depois tenta de novo sozinho
             if self._falhas >= 3 and time.time() - self._ultima_falha > 600:
                 self._falhas = 0
-            if self._client and self._falhas < 3:
+            usar_eleven = self._client and self._falhas < 3 and self.motor in ("auto", "elevenlabs")
+            if usar_eleven:
                 try:
                     pcm = self._elevenlabs(texto)
                     self._falhas = 0
                 except Exception as e:
-                    # depois de 3 falhas seguidas para de tentar nesta sessão (não gasta latência à toa)
                     self._falhas += 1; self._ultima_falha = time.time()
-                    print(f"⚠ ElevenLabs falhou ({type(e).__name__}: {str(e)[:80]}); usando a voz local")
+                    print(f"⚠ ElevenLabs falhou ({type(e).__name__}: {str(e)[:80]}); tentando OpenAI/voz local")
+            if pcm is None and self._openai and self.motor in ("auto", "openai"):
+                try:
+                    pcm = self._openai_tts(texto)
+                except Exception as e:
+                    print(f"⚠ OpenAI TTS falhou ({type(e).__name__}: {str(e)[:80]}); usando a voz local")
             self._prontos.put((texto, pcm))
 
     def _reprodutor(self) -> None:
@@ -144,6 +156,17 @@ class TTS:
         )
         self._anterior = texto
         return b"".join(c for c in fluxo if c)
+
+    def _openai_tts(self, texto: str) -> bytes:
+        """gpt-4o-mini-tts: voz masculina (JAIME_OPENAI_VOZ, padrão onyx) + instrução de estilo vinda da prosódia.
+        PCM 24 kHz, a mesma taxa da ElevenLabs — cai no mesmo reprodutor."""
+        base = os.environ.get("JAIME_VOZ_ESTILO_BASE",
+                              "Voz masculina grave e calma, dicção precisa, sotaque brasileiro neutro, tom seco e educado, "
+                              "leve textura de assistente de inteligência artificial — um mordomo britânico falando português.")
+        with self._openai.audio.speech.with_streaming_response.create(
+                model=os.environ.get("JAIME_OPENAI_TTS_MODELO", "gpt-4o-mini-tts"), voice=os.environ.get("JAIME_OPENAI_VOZ", "onyx"),
+                input=texto, instructions=(base + " " + self.instrucoes).strip(), response_format="pcm") as resp:
+            return b"".join(resp.iter_bytes())
 
     def _tocar(self, pcm: bytes) -> None:
         try:

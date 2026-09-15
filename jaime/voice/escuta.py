@@ -259,7 +259,9 @@ class Ouvido:
         humor = getattr(self.jaime, "humor", None)
         if humor is not None:
             from ..emocao.prosodia import prosodia
-            self._tts.ajustes = prosodia(humor, "voice")["eleven"]
+            p = prosodia(humor, "voice")
+            self._tts.ajustes = p["eleven"]          # ElevenLabs: estabilidade/estilo
+            self._tts.instrucoes = p["instructions"]  # OpenAI: instrução de estilo
         self.mudo = True
         self._tts.enfileirar(texto)
 

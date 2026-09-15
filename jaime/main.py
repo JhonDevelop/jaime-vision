@@ -119,9 +119,39 @@ def _conectar(servico: str) -> int:
     Registro(Vault(settings.vault)).registrar("Google Drive", "somente leitura", f"OAuth {date.today():%d/%m/%Y} ({email})", "idem")
     print(f"✔ Google conectado como {email}. Token em {settings.google_token}"); return 0
 
+VOZES_TESTE = ("onyx", "ash", "echo", "verse", "ballad")
+
+def _voz(acao: str) -> int:
+    """`jaime voz testar`: a mesma frase em 5 vozes masculinas do gpt-4o-mini-tts; você escolhe e fica no .env."""
+    if acao != "testar":
+        print("uso: python -m jaime voz testar"); return 2
+    if not settings.openai_key:
+        print("OPENAI_API_KEY ausente."); return 1
+    import numpy as np, sounddevice as sd, re
+    from openai import OpenAI
+    c = OpenAI(api_key=settings.openai_key)
+    frase = "Bom dia, João. O build da BUB terminou sem erros e a agenda está livre até as duas. Deseja que eu prossiga?"
+    instr = ("Voz masculina grave e calma, dicção precisa, sotaque brasileiro neutro, tom seco e educado, "
+             "leve textura de assistente de inteligência artificial — um mordomo britânico falando português.")
+    for i, voz in enumerate(VOZES_TESTE, 1):
+        print(f"{i}. {voz}…", end=" ", flush=True)
+        with c.audio.speech.with_streaming_response.create(model="gpt-4o-mini-tts", voice=voz, input=frase, instructions=instr, response_format="pcm") as r:
+            pcm = b"".join(r.iter_bytes())
+        sd.play(np.frombuffer(pcm, dtype=np.int16), 24000); sd.wait(); print("ok")
+    esc = input(f"Qual fica? [1-{len(VOZES_TESTE)}, Enter = manter] ").strip()
+    if esc.isdigit() and 1 <= int(esc) <= len(VOZES_TESTE):
+        voz = VOZES_TESTE[int(esc) - 1]
+        env = settings.root / ".env"; t = env.read_text(encoding="utf-8")
+        t = re.sub(r"^JAIME_OPENAI_VOZ=.*$", f"JAIME_OPENAI_VOZ={voz}", t, flags=re.M) if "JAIME_OPENAI_VOZ=" in t else t + f"\nJAIME_OPENAI_VOZ={voz}\n"
+        env.write_text(t, encoding="utf-8")
+        from .brain.vault import Vault
+        Vault(settings.vault).diario(f"Voz escolhida: gpt-4o-mini-tts/{voz}", "Decisões")
+        print(f"✔ JAIME_OPENAI_VOZ={voz} — reinicie o servidor.")
+    return 0
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz"])
     ap.add_argument("acao", nargs="?", default="check")
     ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
@@ -129,6 +159,7 @@ def main(argv=None):
     if m == "cortex": return _cortex(args.acao, " ".join(args.texto))
     if m == "skills": return _skills(args.acao)
     if m == "conectar": return _conectar(args.acao)
+    if m == "voz": return _voz(args.acao)
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
     elif m == "hud": _serve(abrir_hud=True)
