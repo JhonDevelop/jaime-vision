@@ -206,6 +206,9 @@ class Jaime:
             self.aguardando_nome = False; self.identidade.confirmar()
             bus.emitir("identidade", nome=self.identidade.nome, msg="nome confirmado")
             return f"{self.identidade.nome} confirmado. O que fazemos, João?"
+        if eh_sim(texto) and not self.proposta_renomear and self.acesso.liberado:
+            # "sim" solto, sem pergunta pendente: um "sim" já custou 216 s de modelo implementando roadmap sozinho
+            return "Sim ao quê, João?"
         if not self.acesso.liberado:
             if self.acesso.tentar(texto):
                 bus.emitir("acesso", liberado=True)
