@@ -29,7 +29,7 @@ MAX_FALA_S = 20
 VAD_INICIO = 0.5            # probabilidade para começar a gravar
 VAD_FIM = 0.35              # abaixo disto conta como silêncio (histerese)
 JANELA_VAD = 8              # frames de contexto para o Silero (256 ms)
-MULETA_S = 1.6              # silêncio máximo antes de ele dizer algo enquanto pensa
+MULETA_S = 3.0              # só em tarefas com ferramenta: silêncio máximo antes de "deixa eu ver…"
 MULETAS = ["Deixa eu ver…", "Só um segundo.", "Hmm… deixa eu olhar isso.", "Peraí, já te digo."]
 
 LIXO_WHISPER = re.compile(r"(legendas? pela comunidade|amara\.org|obrigad[oa] por assistir|tchau tchau|^\W*$|^\.+$)", re.I)
@@ -254,18 +254,22 @@ class Ouvido:
                     while True:
                         ev = await fila_eventos.get()
                         if ev.get("tipo") in ("producao", "raciocinio") and ev.get("ferramenta") and not primeira.is_set():
+                            usou_ferramenta.set()
                             narrador.evento(ev["ferramenta"], ev.get("alvo", ""))
                 except asyncio.CancelledError:
                     pass
             tarefa_narrar = asyncio.create_task(narrar())
-            # se a primeira frase não sair em 1,6 s, ele preenche o silêncio ("deixa eu ver…") em vez de sumir
-            primeira = asyncio.Event()
+            # "deixa eu ver…" só quando ele está de fato TRABALHANDO (usou ferramenta) e a resposta ainda não veio
+            # depois de MULETA_S — conversa curta responde direto, sem muleta
+            primeira = asyncio.Event(); usou_ferramenta = asyncio.Event()
             async def muleta():
                 try:
-                    await asyncio.wait_for(primeira.wait(), MULETA_S)
+                    await asyncio.wait_for(usou_ferramenta.wait(), MULETA_S)
                 except asyncio.TimeoutError:
-                    if not primeira.is_set():
-                        self._enfileirar(random.choice(MULETAS))
+                    return
+                await asyncio.sleep(max(0.0, MULETA_S - 1.0))
+                if not primeira.is_set():
+                    self._enfileirar(random.choice(MULETAS))
             asyncio.create_task(muleta())
             # Cada frase entra na fila do TTS assim que fica pronta, sem bloquear: o sintetizador
             # prepara a próxima enquanto a atual toca, e a resposta sai emendada em vez de picotada.

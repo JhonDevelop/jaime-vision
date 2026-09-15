@@ -464,7 +464,10 @@ class Jaime:
         return frase
 
     async def _mundo(self, texto: str) -> str | None:
-        """Perguntas de hora/data/clima e pedidos de lembrete são respondidos aqui, em milissegundos."""
+        """Perguntas de hora/data/clima, cumprimentos e pedidos de lembrete são respondidos aqui, em milissegundos."""
+        from ..voice.rapidas import responder as rapida
+        if (r := rapida(texto, self)):
+            return r
         if (r := relogio.responder(texto)):
             return r
         if clima.pergunta_de_clima(texto):

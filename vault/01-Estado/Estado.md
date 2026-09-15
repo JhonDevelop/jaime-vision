@@ -9,8 +9,8 @@ Fase 3: etapas 1, 4, 5, 6 e 7 no código — converso em tempo real (Realtime), 
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 09:53 em MacBookPro
-- tema: Não, não, por enquanto não precisa reiniciar não, pode deixar que eu vou fazer isso depois por conta
+- quando: 15/09/2026 09:58 em MacBookPro
+- tema: bom dia.
 
 ## Em andamento
 - esperar o João: objetivo real para a etapa 2; credenciais (Google, Telegram, Meta, HA)
