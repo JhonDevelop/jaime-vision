@@ -110,3 +110,11 @@ def test_diario_diz_por_que_a_antecipacao_foi_ou_nao_usada():
         await _rodar_turno(o)
         assert "antecipação: sem rascunho (heuristica, completude" in _linha_latencia(j)
     asyncio.run(rodar())
+
+# ── M-11: fim de turno não pode cortar o João no meio ────────────────────────────────
+def test_tres_palavras_soltas_nao_fecham_o_turno():
+    for t in ("Estudar é muito bom Jaime, parabéns mas eu preciso", "você sabe sobre o meu", "jaime me manda", "eu quero que você"):
+        h = heuristico(t); assert not h["frase_fechou"], t
+    assert heuristico("Jaime, abre o Finder.")["frase_fechou"]            # pontuação final: fechou
+    assert heuristico("jaime abre o finder")["frase_fechou"]              # pedido reconhecido: fechou
+    assert not heuristico("jaime tudo bem com você hoje")["frase_fechou"]  # solto, sem pontuação: espera o incerto (700 ms)

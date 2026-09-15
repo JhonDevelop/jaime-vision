@@ -17,8 +17,11 @@ ESPECULAR_A_PARTIR = 0.8    # completude mínima para pré-sintetizar o rascunho
 TIMEOUT_S = 4.0             # o modelo roda em segundo plano; acima disto desiste
 
 # fala que termina assim está claramente no meio: "…e também", "abre o Finder e", "eu queria que"
-INACABADA_RX = re.compile(r"\b(e|ou|mas|que|também|tambem|aí|ai|então|entao|tipo|com|para|pra|de|do|da|no|na|em|se|porque|"
-                          r"depois|antes|quando|onde|como|o|a|os|as|um|uma|meu|minha|esse|essa|isso|aquele|aquela|é|eh)\s*[,…]?\s*$", re.I)
+INACABADA_RX = re.compile(r"\b(e|ou|mas|que|também|tambem|aí|ai|então|entao|tipo|com|para|pra|pro|de|do|da|dos|das|no|na|nos|nas|em|se|porque|"
+                          r"depois|antes|quando|onde|como|o|a|os|as|um|uma|meu|minha|meus|minhas|seu|sua|esse|essa|isso|aquele|aquela|é|eh|"
+                          # verbos e preposições que pedem complemento: "eu preciso", "você sabe sobre o", "me manda" (cortes de 15/09 14:20–14:22)
+                          r"preciso|precisa|quero|queria|gostaria|vou|vai|pode|podia|poderia|consegue|conseguiria|sabe|sobre|tem|tenho|"
+                          r"faz|fazer|ver|abrir|abre|manda|mandar|me|te|nos|lhe|você|voce|deixa|só|so|mais|muito|bem|tá|ta)\s*[,…]?\s*$", re.I)
 HESITACAO_RX = re.compile(r"\b(é+|hum+|ãh+|ah+|tipo|então|assim|né)\b[,…\s]*$", re.I)
 
 SISTEMA = ("Você é o antecipador do Jaime, assistente pessoal do João. Recebe a transcrição PARCIAL do que o João está "
@@ -92,8 +95,10 @@ def heuristico(texto: str) -> dict:
     completude = min(1.0, 0.25 + 0.12 * len(palavras)) if not inacabada else min(0.5, 0.08 * len(palavras))
     if pontuada:
         completude = max(completude, 0.85)
-    fechou = (not inacabada) and (pontuada or len(palavras) >= 3)
-    acao, rascunho = rascunho_local(t) if fechou else ("", "")
+    # "fechou" (fim de turno em 450 ms) só com pontuação final ou pedido reconhecido; 3+ palavras soltas NÃO bastam —
+    # "…parabéns mas eu preciso" fechava em 450 ms e cortava o João (15/09 14:20). Sem parecer, o detector espera 700 ms.
+    acao, rascunho = rascunho_local(t) if not inacabada else ("", "")
+    fechou = (not inacabada) and (pontuada or bool(rascunho))
     if rascunho:
         completude = max(completude, ESPECULAR_A_PARTIR)         # pedido reconhecido: dá para especular a 1ª frase
     return {"intencao": " ".join(palavras[:5]), "completude": round(completude, 2), "ambigua": len(palavras) < 3 and not rascunho,
