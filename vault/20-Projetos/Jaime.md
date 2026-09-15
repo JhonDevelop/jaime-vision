@@ -23,6 +23,7 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - 2026-09-15 — Mídia: gpt-image-2.5, Blender headless (quando instalado), ffmpeg estático e Deepgram para legendas; a tela é vista por captura e as interações passam pelo Vigia.
 - 2026-09-15 — Meta só por APIs oficiais (WhatsApp Cloud + Instagram Messaging), webhook próprio assinado; terceiros viram rascunho e o envio espera "confirmo". Evolution API opcional.
 - 2026-09-15 — Modo autônomo: objetivo decomposto em etapas com aceite, checkpoints, pausa no Vigia, limites de horas/custo, relatório no diário.
+- 2026-09-15 — Fase 3 definida (docs/FASE-3.md). Etapa 1: modo conversa com GPT-Realtime-2 (fala-para-fala), microfone transmitido só com voz detectada localmente; o Agent SDK entra como ferramenta `jaime`. Pipeline continua o padrão econômico.
 - 2026-09-15 — `jaime cerebro check` roda no boot; INDEX.md de Conhecimento e Projetos são gerados por código e entram no contexto inicial.
 - 2026-09-14 — Notion como espelho (página raiz + Diário, Tarefas, Conversas); vault continua sendo a fonte primária.
 - 2026-09-14 — Só local por padrão; palavra-passe com hash; reflexão a cada 6 turnos reescreve o Estado.
@@ -42,7 +43,9 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - [x] fase 2, etapa 10 — mídia e tela (15/09)
 - [x] fase 2, etapa 11 — Meta (15/09; app é do João)
 - [x] fase 2, etapa 12 — modo autônomo (15/09)
-- [ ] fase 3 — a definir com o João (jogos de verdade, voz em tempo real, casa)
+- [x] fase 3, etapa 1 — conversa em tempo real (15/09)
+- [ ] fase 3, etapa 2 — primeiro objetivo autônomo real supervisionado
+- [ ] fase 3, etapa 3 — conexões ativadas (credenciais do João)
 - [ ] NOTION_TOKEN para religar o espelho
 - [ ] `.claude/agents/` — os maesters ainda não existem como arquivos
 

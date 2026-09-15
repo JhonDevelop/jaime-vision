@@ -164,3 +164,12 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
   execução etapa a etapa com checkpoint no diário e no HUD, pausa quando o Vigia bloqueia (o "confirmo" retoma sem gastar um
   turno), limites de horas/custo/ferramentas do `.env`, relatório final em 40-Diario com próximos passos. MCP `autonomo`:
   `objetivo`, `situacao`. Planejador e executor injetáveis (testes offline).
+
+
+## Fase 3, etapa 1 — conversa em tempo real (`jaime/voice/tempo_real.py`)
+`JAIME_VOZ_MODO=conversa` troca o pipeline (Deepgram → Opus → TTS) pelo OpenAI Realtime (`gpt-realtime-2`) fala-para-fala.
+O microfone só é transmitido quando o Silero local detecta voz (pré-roll + cauda) — parado não custa nada. O VAD do
+servidor segmenta; a transcrição passa pelo mesmo gate "é comigo?" (nome / janela ativa); só então `response.create`.
+Trancado, teclado e renomear continuam no `_porta` do Jaime e o Realtime apenas repete a resposta. Ferramentas do
+Realtime: `jaime(texto)` (Agent SDK com as mãos), `hora`, `clima`, `lembrete`. Microfone mudo enquanto ele fala (+300 ms).
+Ver docs/FASE-3.md.

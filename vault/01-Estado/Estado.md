@@ -8,9 +8,9 @@
 Fase 2 completa no código: Córtex, dois provedores + juiz, cérebro emocional, agenda própria, cérebro de estudo, mãos (browser, projetos, arquivos, mídia, tela), conexões (Google, Telegram, Meta) e modo autônomo. Voz onyx da OpenAI. O que falta é do João: credenciais (Google, Telegram, Meta), Blender, permissões do macOS, cota ElevenLabs.
 
 ## Última conversa
-- canal: hud
-- quando: 15/09/2026 08:44 em MacBookPro
-- tema: eu ja apaguei a linha
+- canal: voice
+- quando: 15/09/2026 08:53 em MacBookPro
+- tema: Não, não, fica tranquilo, na verdade eu escrevo a correção que foi o Breu, você só vai me escutar.
 
 ## Em andamento
 - operar de verdade: primeiro objetivo autônomo real, primeiras rotinas às 07:00

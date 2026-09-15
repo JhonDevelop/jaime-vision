@@ -38,6 +38,9 @@ class Settings:
     elevenlabs_key: str = _env("ELEVENLABS_API_KEY")
     elevenlabs_voice: str = _env("ELEVENLABS_VOICE_ID", "")
     voz: str = _env("JAIME_VOZ", "on")                        # on = microfone ligado junto com o HUD; off = só texto
+    voz_modo: str = _env("JAIME_VOZ_MODO", "pipeline")        # pipeline (Deepgram+Opus+TTS) | conversa (Realtime fala-para-fala)
+    realtime_model: str = _env("JAIME_REALTIME_MODEL", "gpt-realtime-2")
+    realtime_voz: str = _env("JAIME_REALTIME_VOZ", "cedar")
     whisper_modelo: str = _env("JAIME_WHISPER_MODELO", "base")   # small é mais preciso, mas 3,6 s por frase em CPU Intel; base ~1 s
     ativacao: str = _env("JAIME_ATIVACAO", "nome")            # nome = só responde a "Jaime, …"; sempre = responde a tudo
     nome: str = _env("JAIME_NOME", "jaime")

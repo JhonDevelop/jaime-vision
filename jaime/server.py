@@ -31,7 +31,15 @@ async def lifespan(app: FastAPI):
     monitor = asyncio.create_task(loop_monitor())
     sonda = asyncio.create_task(conexoes.sondar())
     await jaime.start(apresentar=True)
-    if settings.voz != "off":
+    if settings.voz != "off" and settings.voz_modo == "conversa" and settings.openai_key:
+        # fase 3: fala-para-fala pelo Realtime; o Ouvido (pipeline) fica de fora
+        from .voice.tempo_real import Conversa
+        ouvido = Conversa(jaime, settings, asyncio.get_running_loop(), observador)
+        observador.ouvido = ouvido
+        ouvido.start()
+        if jaime.apresentacao:
+            asyncio.get_running_loop().call_later(3, ouvido.falar, jaime.apresentacao)
+    elif settings.voz != "off":
         # o microfone vive no servidor: abrir o HUD já é estar ouvindo
         ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
         ouvido.observador = observador; observador.ouvido = ouvido
