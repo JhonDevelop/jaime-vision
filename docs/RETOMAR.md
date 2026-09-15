@@ -11,16 +11,25 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
-## Como o Jaime roda agora (15/09, 14:10)
-- **O serviço roda dentro do Maestri**, no nó "J.A.I.M.E · serviço" (preset Shell, `python -u -m jaime serve | tee -a ~/Jaime/jaime.log`,
-  pasta jaime-vision). O LaunchAgent `com.jaime` foi **parado** (`servico.sh parar`) para não disputar a porta; se o Maestri fechar,
-  o Jaime cai — para voltar ao modo serviço: `bash jaime/ops/servico.sh ligar`. Não rode os dois.
+## Como o Jaime roda agora (15/09, 14:30)
+- **Serviço**: LaunchAgent `com.jaime` (reinicia sozinho; `bash jaime/ops/servico.sh status|parar|ligar`). Tentamos rodá-lo
+  como nó Shell do Maestri, mas um segfault (barge-in × PortAudio, 14:06) derrubou o nó sem auto-restart; a Mente religou o
+  LaunchAgent e corrigiu a causa. O nó "J.A.I.M.E · serviço" no canvas agora só mostra o log ao vivo (`tail -f ~/Jaime/jaime.log`).
 - O serviço age no canvas pelo Maestro "Cerebro Principal J.A.I.M.E" (descoberta automática em `jaime/equipe/maestri.py`).
-- **"J.A.I.M.E · mente"** (Claude Code, papel "Mente do J.A.I.M.E", worktree `../jaime-mente`, branch `feat/mente`): lê log, diário
-  e problemas, escreve `docs/MENTE.md` (problema → hipótese → solução → validação), implementa melhorias com testes e avisa o
-  Cérebro Principal; pode recrutar Codex. Só o Cérebro Principal (esta sessão) faz merge e reinicia o serviço.
-- Nós conectados: Bússola, Fagulha (ociosos), nota `fase3-progresso`, papel "Codex do Jaime" pronto para recrutas Codex.
-- `main` = fase 3 completa (merge 621a0f1); **push pendente** (`git push origin main` no terminal do João).
+- **Nós no Maestri** (workspace "Jaime-assist"): "J.A.I.M.E · mente" (Claude Code, `../jaime-mente`, `feat/mente` — observa log/
+  diário/problemas, escreve `docs/MENTE.md`, implementa e avisa); "J.A.I.M.E · HUD" (Claude Code, `../jaime-hud`, `feat/hud-obra` —
+  animações com significado; 1º commit: mapa estado→animação + `/hud/sistemas`); "J.A.I.M.E · Codex" (Codex CLI 0.154 no plano
+  Plus, `../jaime-codex`, `feat/codex-obra` — eco.py entregue e mergeado); Bússola e Fagulha (D e E, ociosos); nota `fase3-progresso`.
+- **"J.A.I.M.E · vigília"** (Claude Code, `../jaime-vigilia`, `feat/vigilia`): pensamento contínuo de VALIDAÇÃO — mede
+  (`voz latencia`, diário, /hud/stream), marca as 9 etapas PASSA/FALHA/SEM DADO em `docs/VALIDACAO-FASE3.md` e manda cada
+  falha à Mente; vigia porta 8787 e crash reports. Ciclo: Vigília mede → Mente corrige (delega mão de obra ao Codex) →
+  Cérebro Principal mergeia e reinicia → Vigília mede de novo. Codex: missão 2 = reconexão automática do STT em streaming.
+- **Autoconsciência** (`jaime/brain/eu.py`): entra em todo prompt ("Quem eu sou"), responde só quando perguntado
+  ("quem é você", "você é humano?"), registra "Despertei" no diário ao ligar. CLAUDE.md §"Quem você é"; Identidade.md §Natureza.
+- `main` = tudo acima (194 testes). **Push pendente** (`git push origin main` no terminal do João). Branches dos nós já mergeadas:
+  feat/fase3-duplex, feat/mente, feat/codex-obra (a Mente e o Codex continuam nas branches deles; próximos merges pelo Cérebro Principal).
+- `.env`: `JAIME_VOZ_MODO=duplex`, `JAIME_BARGE_IN=on` (religado após o fix). Missão "ler chat.db do iPhone" barrada pelo classificador
+  do Claude Code (dados pessoais) — passe direto ao Codex se quiser.
 
 ## Fase 3 — tempo real (branch `feat/fase3-duplex`, 15/09 tarde) — A, B, C, D, E prontos
 - Tese e prompts em `docs/FASE-3-TEMPO-REAL.md`; Maestri em `docs/MAESTRI.md`; prompt do Codex em `docs/PROMPT-CODEX.md`.

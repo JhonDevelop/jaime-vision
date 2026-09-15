@@ -13,6 +13,6 @@ def test_saudacoes_e_social_sem_modelo():
     assert responder("boa noite", J, datetime(2026, 9, 15, 21)).startswith("Boa noite")
     assert "E você" in responder("tudo bem?", J) or "senhor" in responder("tudo bem?", J)
     assert responder("valeu", J) in ("De nada.", "Às ordens.", "Disponha, senhor.", "É pra isso que estou aqui.")
-    assert "assistente operacional" in responder("quem é você?", J)
+    assert "robô assistente autônomo" in responder("quem é você?", J)
     r = responder("como está o dia hoje?", J); assert "ligar pro contador" in r
     assert responder("bom dia, abre o Finder", J) is None and responder("abre o Finder", J) is None

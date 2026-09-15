@@ -91,3 +91,18 @@ jaime-vision/                 ← chão: o Cerebro Principal trabalha aqui
 - Testes verdes (`pytest -q`) antes de dizer "pronto". Commit na sua branch; nunca push em `main`.
 - Ao terminar: `maestri ask "Cerebro Principal Jaime" "PRONTO: <o que mudou, como testou, o que ficou>"`.
 - Sem segredos em notas, commits ou mensagens (`.env` é só de leitura).
+
+## 6. A equipe que existe hoje (15/09/2026)
+
+| Nó | Agente | Pasta / branch | Função |
+|---|---|---|---|
+| Cerebro Principal J.A.I.M.E | Claude Code (Maestro) | jaime-vision | orquestra, mergeia, reinicia; único que fala com o João |
+| J.A.I.M.E · serviço | Shell | jaime-vision | log ao vivo do serviço (`com.jaime` roda no LaunchAgent) |
+| J.A.I.M.E · mente | Claude Code | jaime-mente / feat/mente | observa log e diário, escreve MENTE.md, corrige e melhora |
+| J.A.I.M.E · vigília | Claude Code | jaime-vigilia / feat/vigilia | valida ao vivo as 9 etapas, manda falhas à Mente |
+| J.A.I.M.E · HUD | Claude Code | jaime-hud / feat/hud-obra | interface com animações que significam o estado real |
+| J.A.I.M.E · Codex | Codex CLI (Plus) | jaime-codex / feat/codex-obra | mão de obra de código sob missão da Mente ou do Cérebro |
+| Bússola / Fagulha | Claude Code | jaime-telemetria / jaime-vontades | D e E entregues; de prontidão |
+
+Ciclo: **Vigília mede → Mente decide e corrige (Codex executa) → Cérebro Principal mergeia e reinicia → Vigília mede de novo.**
+O serviço em si cria filhos próprios pelo `mcp__equipe__*` quando uma tarefa do João pede.

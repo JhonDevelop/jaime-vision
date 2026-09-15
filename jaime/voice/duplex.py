@@ -24,6 +24,7 @@ from ..hud.events import bus
 from .escuta import (Ouvido, SR, FRAME, FRAME_MS, PRE_ROLL_MS, VAD_INICIO, VAD_FIM, MIN_FALA_MS, MAX_FALA_S, LIXO_WHISPER)
 from .antecipador import Antecipador, Antecipacao, modelo_openai
 from . import stt_stream
+from .eco import SupressorDeEco
 
 SILENCIO_FECHOU_MS = 450      # antecipador diz que a frase fechou
 SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
@@ -127,6 +128,7 @@ class OuvidoDuplex(Ouvido):
         self._t_fim_fala = 0.0
         self._t_texto = 0.0
         self._barge_ms = 0
+        self._supressor_eco = SupressorDeEco()
         self._eco_rms = 0.0
         self._eco_amostras = 0
         self.turnos = 0
@@ -137,6 +139,10 @@ class OuvidoDuplex(Ouvido):
     # ── carga ────────────────────────────────────────────
     def _carregar(self):
         super()._carregar()
+        # O TTS entrega a referência no instante em que cada bloco vai tocar.
+        # A atribuição mantém compatibilidade com dublês de teste e TTS antigos.
+        if self._tts is not None:
+            self._tts.ao_tocar = self._supressor_eco.ao_tocar
         if self.fluxo is None:
             local = (lambda pcm, sr: self._stt._whisper_sync(pcm)) if getattr(self._stt, "_whisper", None) else None
             self.fluxo = stt_stream.escolher(self.s, transcritor_local=local)
@@ -227,7 +233,8 @@ class OuvidoDuplex(Ouvido):
             self._eco_rms = (self._eco_rms * self._eco_amostras + rms) / (self._eco_amostras + 1); self._eco_amostras += 1
             return False
         acima_do_eco = self.barge_in == "fone" or rms >= BARGE_IN_ECO_X * max(self._eco_rms, 80.0)
-        if prob >= BARGE_IN_PROB and acima_do_eco:
+        eh_eco, _ = self._supressor_eco.eh_eco(frame)
+        if prob >= BARGE_IN_PROB and acima_do_eco and not eh_eco:
             self._barge_ms += FRAME_MS
         else:
             self._barge_ms = max(0, self._barge_ms - FRAME_MS)

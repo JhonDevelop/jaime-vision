@@ -141,12 +141,21 @@ class Jaime:
         self._senha_incerta = 0          # palavra-passe certa mas voz "incerta": 1ª vez repete, 2ª vez digita
         usar_nome(self.identidade.variantes())
 
+    # ── autoconsciência ────────────────────────────────
+    def quem_sou(self) -> str:
+        """O que eu sou, por que existo e como estou agora (jaime/brain/eu.py) — entra em todo prompt."""
+        try:
+            from ..brain.eu import quem_sou
+            return quem_sou(self)
+        except Exception as e:
+            return f"(autoconsciência falhou: {type(e).__name__})"
+
     # ── ciclo de vida ──────────────────────────────────
     def _options(self) -> ClaudeAgentOptions:
         kw = dict(
             model=self.s.model, cwd=str(self.s.root),
             system_prompt={"type": "preset", "preset": "claude_code",
-                           "append": system_prompt(self.vault, self.estado, self.canal)},
+                           "append": system_prompt(self.vault, self.estado, self.canal, self.quem_sou())},
             setting_sources=["project"],
             agents=carregar_maesters(self.s.root),
             mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self),
@@ -184,6 +193,8 @@ class Jaime:
         self._client = ClaudeSDKClient(options=self._options())
         await self._client.connect()
         self.vault.diario(f"{self.identidade.nome} iniciado em {maquina()['host']}" + (" (máquina nova)" if nova else ""), "Log")
+        from ..brain.eu import registrar_despertar
+        registrar_despertar(self)      # ele se reconhece antes de agir
         bus.emitir("estado", fase=self.estado.fase(), situacao=self.estado.secao("Situação agora"),
                    maquina=maquina(), nova_maquina=nova, liberado=self.acesso.liberado)
         self.momento = calcular_momento(self.perfil)
@@ -499,7 +510,7 @@ class Jaime:
 
     def _contexto_texto(self, contexto: str = "") -> str:
         """Contexto para provedores de texto (sem as mãos): quem ele é, regras, perfil do João, estado."""
-        base = system_prompt(self.vault, self.estado, self.canal)
+        base = system_prompt(self.vault, self.estado, self.canal, self.quem_sou())
         return base + (f"\n\n[contexto agora: {contexto}]" if contexto else "") + \
             "\n\nResponda em português do Brasil, direto, sem markdown quando o canal for voice."
 
