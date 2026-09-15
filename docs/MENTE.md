@@ -70,12 +70,23 @@
   isso, resposta especulativa (M-04) e muleta mais cedo quando há ferramenta (o outlier de 14 s ficou mudo).
 - Validar: `python -m jaime voz latencia` mediana < 700 ms; diário sem `texto→1ª frase` > 5 s.
 
-#### M-04 · Antecipador nunca acerta (0/10; nenhum `usado=True`)
-- Hipótese: `Antecipador.confere(texto)` compara intenção antecipada com a final por critério estrito demais, ou o modelo
-  em segundo plano (gpt-4o-mini, > 2 s) chega depois do fim do turno e o cache nunca existe no momento de tocar.
-- Proposta: medir no diário `antecipacao` (latência do modelo vs. fim de turno) por 1 dia; se o modelo sempre chega
-  tarde, gerar rascunho heurístico local para as intenções mais comuns (abrir app, hora, clima, "está aí") e
-  pré-sintetizar só esses. Validar: `antecipados ≥ 5/10` no `voz latencia`; `usado=True` no diário em falas curtas.
+#### M-04 · Antecipador nunca acerta (0/10; nenhum `usado=True`) — **CORRIGIDO em feat/mente (rascunho local)**
+- Medido (15:20, chave do serviço, 2 frases × 2 modelos): gpt-4o-mini 3,9 s e 5,4 s; gpt-4.1-nano 5,3 s e 3,7 s.
+  Ou seja: o parecer chega depois do turno inteiro (fala 1,5–3 s + 450 ms) e metade das vezes depois do timeout de 4 s.
+  Em `voz latencia` o `esperar=True` espera o modelo, mas o rascunho vinha vazio (completude 0,5 para "quem me mandou
+  mensagem") — logo 0/10. Nenhum modelo em nuvem serve para a 1ª frase; o comentário do próprio arquivo já dizia isso.
+- Solução: `rascunho_local()` no antecipador (abrir app/site, mensagens, mandar mensagem para X, clima, criar tarefa,
+  resumo do dia, dólar, lembrete); `duplex._pre_sintetizar` dispara a síntese no instante em que o rascunho aparece
+  (teto 2 por turno); `_turno` espera até 1,2 s por síntese em curso (mais rápido que modelo + TTS do zero) e apaga cache
+  de outra intenção (bug: sobrava para o turno seguinte). O modelo continua refinando em segundo plano, como antes.
+- Fora: "que horas são" (a hora muda entre a síntese e a fala) e "está aí" (caminho "chamou" não usa cache) → M-08.
+- Validar: `python -m jaime voz latencia` → antecipados ≥ 7/10 e mediana fala→1ª frase < 700 ms nas frases cobertas;
+  no diário, `antecipacao usado=True` em "abre o Finder". Custo: 1 chamada de TTS extra por pedido reconhecido.
+
+#### M-08 · Frases fixas sintetizadas uma vez (proposta)
+- "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
+  hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
+  consultado em `enfileirar`/`tocar_pronto`, faz essas responderem em ~150 ms. Candidato a delegar ao Codex.
 
 #### M-05 · Notion 404 em toda sincronização — **CORRIGIDO** (1ª, 3ª e depois 1×/h com contagem)
 - Não é código: página não compartilhada com a integração. Proposta: depois de 3 falhas iguais seguidas, silenciar
@@ -90,12 +101,13 @@
 |---|---|---|---|
 | 1 | M-01 barge-in segfault | serviço morto | pronto, aguardando merge |
 | 2 | M-02 tranca/senha por voz | irritação diária | pronto, aguardando merge |
-| 3 | M-04 antecipador | meta 700 ms | a medir |
+| 3 | M-04 antecipador | meta 700 ms | pronto, aguardando merge |
 | 4 | M-03 TTS 1º byte | meta 700 ms | depende de chave |
 | 5 | M-05 Notion ruído no log | observabilidade | pronto |
 | 6 | M-06 FutureWarning | cosmético | pronto |
 | 7 | M-07 telemetria vazia | estudo dirigido | observar |
-| 8 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
+| 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | proposta (Codex) |
+| 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
 ### Observações para o Cérebro Principal
 - **Feito**: o log agora tem uma linha `🔈 jaime ›` por resposta (🔒 quando trancado). Antes só aparecia o que o João disse.
@@ -105,3 +117,4 @@
 - 14:10 — leitura inicial; serviço caído detectado; Cérebro avisado; M-01 corrigido e commitado (10ff5ea).
 - 14:45 — M-02 implementado (3 zonas + EMA + amostras; silêncio trancado; senha digitada sem voz) e M-06; 187 testes; Cérebro avisado.
 - 15:05 — serviço voltou às 14:10 (Cérebro, JAIME_BARGE_IN=off). No log pós-reinício o João repete a senha 3× e pede a interface 3× sem ser atendido — é o M-02; merge urgente. Commitados: `🔈 jaime ›` no log e M-05 (Notion).
+- 15:35 — Cérebro mergeou os 5 commits na main (194 testes, serviço no ar com barge-in ligado). `git merge main` feito. M-04 medido e corrigido com rascunho local (commits WIP + testes); 200 testes.
