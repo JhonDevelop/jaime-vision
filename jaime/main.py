@@ -126,9 +126,16 @@ def _conectar(servico: str) -> int:
 VOZES_TESTE = ("onyx", "ash", "echo", "verse", "ballad")
 
 def _voz(acao: str) -> int:
-    """`jaime voz testar`: a mesma frase em 5 vozes masculinas do gpt-4o-mini-tts; você escolhe e fica no .env."""
+    """`jaime voz testar`: a mesma frase em 5 vozes masculinas do gpt-4o-mini-tts; você escolhe e fica no .env.
+    `jaime voz latencia`: 10 turnos sintéticos (say → STT streaming → antecipador → TTS) e as medianas no diário."""
+    if acao == "latencia":
+        from .voice.latencia import medir, registrar_no_diario
+        from .brain.vault import Vault
+        resumo = asyncio.run(medir(settings))
+        registrar_no_diario(Vault(settings.vault), resumo)
+        return 0 if resumo.get("meta_ok") else 1
     if acao != "testar":
-        print("uso: python -m jaime voz testar"); return 2
+        print("uso: python -m jaime voz testar | latencia"); return 2
     if not settings.openai_key:
         print("OPENAI_API_KEY ausente."); return 1
     import numpy as np, sounddevice as sd, re

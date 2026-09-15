@@ -66,6 +66,8 @@
   #voce.some{opacity:0}
   #voce::before{content:"você · ";color:var(--am);letter-spacing:.12em;font-size:10.5px;text-transform:uppercase}
   #voce.ign{opacity:.45;font-style:italic}#voce.ign::before{content:"ouvi (não era comigo) · ";color:var(--mu)}
+  #voce.viva{color:var(--tx)}#voce.viva::before{content:"você (ao vivo) · ";color:var(--am)}#voce.viva::after{content:" ▍";animation:pisca 1s steps(2) infinite}
+  @keyframes pisca{to{opacity:0}}
   #nivel{width:180px;height:2px;margin:14px auto 0;background:rgba(79,216,255,.12);border-radius:1px;overflow:hidden}
   #nivel i{display:block;height:100%;width:0;background:var(--cy);transition:width .08s linear}
   #nivel i.grav{background:var(--am)}
@@ -150,6 +152,9 @@
   <h3>Pessoas</h3><div id="pessoas" class="lista"></div>
   <h3>Pensando agora</h3><div id="pensamentos" class="lista"></div>
   <h3>Problemas em estudo</h3><div id="problemas" class="lista"></div>
+  <h3>Vitrine <small style="color:var(--mu);letter-spacing:.05em;text-transform:none">criações da noite · vote 👍 👎</small></h3>
+  <div id="vontades" class="lista"><div class="m">—</div></div>
+  <div id="vitrine" class="lista"><div class="m">nada criado ainda</div></div>
   <h3>Guardado para lembrar</h3><div id="lembrar" class="lista"></div>
   <h3>Nota aberta</h3><pre id="notaAberta" class="codigo">—</pre>
 </aside>
@@ -315,13 +320,24 @@ function feixe(alvo){const g=new THREE.BufferGeometry().setFromPoints([new THREE
   const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.9}));scene.add(l);feixes.push({l,t:0});}
 function menteAberta(){return !$('menteBox').hidden}
 function toggleMente(){$('menteBox').hidden=!$('menteBox').hidden;if(!$('menteBox').hidden){carregarMente();setTimeout(()=>$('busca').focus(),30)}}
-async function carregarMente(){const m=await fetch('/hud/mente').then(r=>r.json()).catch(()=>null);if(!m||m.erro)return;
+async function carregarMente(){carregarVitrine();const m=await fetch('/hud/mente').then(r=>r.json()).catch(()=>null);if(!m||m.erro)return;
   $('pessoas').innerHTML=(m.pessoas||[]).map(p=>`<div data-n="${esc(p.nome)}"><b>${esc(p.nome)}</b> <span class="m">— ${esc(p.papel)}</span></div>`).join('')||'<div class="m">nenhuma pessoa em 10-Eu/Pessoas.md</div>';
   $('pessoas').querySelectorAll('div[data-n]').forEach(d=>d.onclick=()=>abrirNota('10-Eu/Pessoas.md'));
   $('problemas').innerHTML=(m.problemas||[]).map(p=>`<div data-rel="90-Estudo/Problemas.md">${esc(p.id)} · ${esc(p.titulo)} <span class="m">(${p.tentativas} tentativas)</span></div>`).join('')||'<div class="m">nenhum</div>';
   $('lembrar').innerHTML=(m.lembrar||[]).map(l=>`<div data-rel="30-Tarefas/Para-lembrar.md">${esc(l)}</div>`).join('')||'<div class="m">nada guardado</div>';
   $('menteBox').querySelectorAll('div[data-rel]').forEach(d=>d.onclick=()=>abrirNota(d.dataset.rel));
   const v=m.vinculo||{},h=m.humor||{};$('pensamentos').innerHTML=`<div class="m">vínculo: ${v.dias} dias · ${v.conversas} conversas · familiaridade ${Math.round((v.familiaridade||0)*100)}% · humor ${esc(h.rotulo||'')}</div>`+pensamentosHtml();}
+// fase 3 — E: Vitrine + vontades (impulsos). Só o painel; o resto do HUD fica como está.
+const IMPULSO={utilidade:'Utilidade',curiosidade:'Curiosidade',maestria:'Maestria',criacao:'Criação',ordem:'Ordem',vinculo:'Vínculo'};
+function vontadesHtml(v){const n=(v&&v.niveis)||{};const ks=Object.keys(n).sort((a,b)=>n[b]-n[a]);if(!ks.length)return '<div class="m">—</div>';
+  return `<div class="m" data-rel="01-Estado/Vontades.md">${ks.map(k=>`${IMPULSO[k]||k} <b>${Math.round(n[k]*100)}%</b>`).join(' · ')}${v.demanda_pendente?' · <b>demanda pendente</b>':''}</div>`;}
+async function carregarVitrine(){const m=await fetch('/hud/vitrine').then(r=>r.json()).catch(()=>null);if(!m)return;
+  $('vontades').innerHTML=vontadesHtml(m.vontades)+(m.escolha?`<div class="m">${esc(m.escolha.pensamento||'')}</div>`:'');
+  $('vitrine').innerHTML=(m.itens||[]).map(i=>`<div data-id="${esc(i.id)}"><span class="m">${esc(i.quando)} · ${esc(i.tipo)}</span> ${esc(i.titulo)} <span class="m">${esc(i.descricao||'')}</span>
+    <span class="voto" data-id="${esc(i.id)}" data-g="1" title="gostei" style="cursor:pointer;margin-left:6px;opacity:${i.voto==='gostei'?1:.45}">👍</span><span class="voto" data-id="${esc(i.id)}" data-g="0" title="não gostei" style="cursor:pointer;margin-left:4px;opacity:${i.voto==='nao_gostei'?1:.45}">👎</span></div>`).join('')||'<div class="m">nada criado ainda</div>';
+  $('vitrine').querySelectorAll('.voto').forEach(b=>b.onclick=ev=>{ev.stopPropagation();votarVitrine(b.dataset.id,b.dataset.g==='1')});
+  $('vontades').querySelectorAll('div[data-rel]').forEach(d=>d.onclick=()=>abrirNota(d.dataset.rel));}
+async function votarVitrine(id,gostei){await fetch('/hud/vitrine/'+encodeURIComponent(id)+'/voto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gostei})}).catch(()=>null);carregarVitrine();}
 const pensamentosRecentes=[];
 function pensamentosHtml(){return pensamentosRecentes.slice(-8).map(p=>`<div ${p.rel?`data-rel="${esc(p.rel)}"`:''}><span class="m">${esc(p.t)}</span> ${esc(p.texto)}</div>`).join('')}
 function registrarPensamento(texto,rel){pensamentosRecentes.push({t:hora(),texto:texto.slice(0,160),rel});if(menteAberta()){$('pensamentos').insertAdjacentHTML('beforeend','');carregarMente()}}
@@ -489,9 +505,16 @@ function ligarStream(){
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
+      case 'vontade': if(e.escolha)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.escolha.pensamento||'')}</span>`);if(e.erro)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.erro)}</span>`);if(menteAberta()&&(e.niveis||e.escolha))carregarVitrine();break;
+      case 'vitrine': if(e.acao==='entregue'){feed($('prod'),`<span class="f">vitrine</span><span class="a">criei ${esc(e.formato||'')}: ${esc(e.titulo||'')}</span>`);aviso('nova criação na Vitrine: '+(e.titulo||''),10000);}else if(e.acao==='criando')feed($('rac'),`<span class="f">vitrine</span><span class="a">criando ${esc(e.formato||'')}…</span>`);else if(e.acao==='falhou')feed($('rac'),`<span class="f">vitrine</span><span class="a">${esc(e.formato||'')} não saiu: ${esc(e.erro||'')}</span>`);if(menteAberta())carregarVitrine();break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
       case 'falante': UI.falante=e.nome;$('voce').dataset.quem=e.nome;break;
-      case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
+      case 'ouvido': $('voce').classList.remove('viva');if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
+      case 'transcricao_viva': if(e.final){$('voce').classList.remove('viva');}else{mostrarVoce(e.texto);$('voce').classList.add('viva');}break;
+      case 'antecipacao': if(e.usado)feed($('rac'),`<span class="f">antecipado</span><span class="a">${esc(e.rascunho||'')}</span>`);else if(e.completude!=null)feed($('rac'),`<span class="f">antecipador</span><span class="a">${esc(e.intencao||'')} · ${Math.round((e.completude||0)*100)}%${e.fechou?' · fechou':''}${e.rascunho?' · «'+esc(e.rascunho)+'»':''} · ${esc(e.origem||'')}</span>`);break;
+      case 'fila': {const it=(e.itens||[]);const inter=it.filter(x=>x.estado==='interrompida'||x.estado==='retomada');if(inter.length||e.aguardando){feed($('prod'),`<span class="f">fila</span><span class="a">${it.slice(-4).map(x=>`${x.estado==='interrompida'?'⏸':x.estado==='concluida'?'✔':x.estado==='retomada'?'↩':'▶'} ${esc(x.resumo)}`).join(' · ')}${e.aguardando?' · aguardando "sim"':''}</span>`);}break;}
+      case 'equipe': if(e.relatorio)feed($('prod'),`<span class="f">filho ${esc(e.relatorio.nome)}</span><span class="a">${esc(e.relatorio.texto.slice(0,200))}</span>`);else if(e.erro)feed($('rac'),`<span class="f">equipe</span><span class="a">${esc(e.erro)}</span>`);else if(e.filhos)feed($('rac'),`<span class="f">equipe</span><span class="a">${e.filhos.length?e.filhos.map(f=>`${f.estado==='vivo'?'●':'○'} ${esc(f.nome)} (${esc(f.tipo)}, ${esc(f.preset)})`).join(' · '):'sem filhos'}</span>`);break;
+      case 'latencia': feed($('rac'),`<span class="f">latência</span><span class="a">fala→texto ${e.fala_texto??'—'} s · texto→1ª frase ${e.texto_frase??'—'} s · fala→1ª frase ${e.fala_frase??'—'} s${e.antecipado?' · antecipado':''}</span>`);break;
       case 'raciocinio': registrarPensamento(e.ferramenta?(e.ferramenta+' '+(e.alvo||'')):(e.texto||''),e.ferramenta==='memória'?(e.alvo||'').split('; ')[0]:'');feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
       case 'producao': linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n);}

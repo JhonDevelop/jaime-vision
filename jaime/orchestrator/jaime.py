@@ -14,7 +14,8 @@ from ..brain.vault import Vault
 from ..brain.estado import Estado, maquina
 from ..brain.tools import build_cerebro_server
 from ..brain.notion_sync import NotionSync
-from ..vigia.hooks import Vigia, eh_confirmacao
+from ..vigia.hooks import Vigia, eh_confirmacao, eh_aprovacao_lote
+from ..vigia.confianca import Confianca
 from ..vigia.acesso import Acesso, quer_trancar
 from ..voice.escuta import quer_teclado, usar_nome
 from ..identidade import Identidade, quer_renomear, eh_sim
@@ -35,6 +36,7 @@ from ..agenda.tools import build_mundo_server
 from ..agenda import relogio, clima, lembretes as lem
 from ..estudo.loop import Estudo
 from ..estudo.tools import build_estudo_server
+from ..equipe.tools import build_equipe_server
 from ..maos.tools import build_maos_server
 from ..conexoes.registro import Registro
 from ..conexoes.google import GoogleConta
@@ -73,7 +75,8 @@ class Jaime:
         self.s = settings
         self.vault = Vault(settings.vault)
         self.estado = Estado(self.vault)
-        self.vigia = Vigia()
+        self.confianca = Confianca(self.vault)      # fase 3: classes de ação já liberadas pelo João
+        self.vigia = Vigia(self.confianca)
         self.acesso = Acesso(settings.passphrase_hash, settings.acesso_timeout_min)
         self.notion = NotionSync(settings, self.vault, self.estado)
         self.identidade = Identidade(settings.vault, settings.root)
@@ -109,6 +112,9 @@ class Jaime:
         self.agenda = Agenda(self)
         # cérebro de estudo: problemas em aberto → ciclos em /tmp/jaime-lab
         self.estudo = Estudo(self.vault, self.estado, self.placar, settings.root, settings.model_padrao)
+        # fase 3: filhos — terminais que ele cria no Maestri (Claude Code, Codex…) para trabalhar em paralelo
+        from ..equipe.filhos import Equipe
+        self.equipe = Equipe(self, settings.root, vigia=self.vigia)
         self._erros_vistos: dict[str, int] = {}
         # conexões: registro do que ele acessa + Google pelo OAuth próprio (token local)
         self.conexoes = Registro(self.vault)
@@ -154,7 +160,8 @@ class Jaime:
                          "autonomo": build_autonomo_server(self.autonomo),
                          "casa": build_casa_server(self.casa, self.s.camera),
                          "visao": build_visao_server(self.visao),
-                         "evolucao": build_evolucao_server(self.evolucao, self.indice)},
+                         "evolucao": build_evolucao_server(self.evolucao, self.indice),
+                         "equipe": build_equipe_server(self.equipe)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -335,7 +342,7 @@ class Jaime:
             self.aguardando_nome = False; self.identidade.confirmar()
             bus.emitir("identidade", nome=self.identidade.nome, msg="nome confirmado")
             return f"{self.identidade.nome} confirmado. O que fazemos, João?"
-        if eh_sim(texto) and not self.proposta_renomear and self.acesso.liberado:
+        if eh_sim(texto) and not self.proposta_renomear and self.acesso.liberado and not self.vigia.lote and not self.confianca.pendente:
             # "sim" solto, sem pergunta pendente: um "sim" já custou 216 s de modelo implementando roadmap sozinho
             return "Sim ao quê, João?"
         if not self.acesso.liberado:
@@ -357,7 +364,18 @@ class Jaime:
             bus.emitir("fala", texto=curta); bus.emitir("fala_fim"); yield curta; return
         async with self._lock:
             self.canal = canal
-            if eh_confirmacao(texto):
+            self.vigia.lote_executado = False
+            if (r := self.confianca.responder(texto)) and not self.vigia.lote:
+                # resposta à proposta "posso passar a fazer X sem perguntar?"
+                self.vault.diario(f"Confiança: {r}", "Decisões")
+                bus.emitir("fala", texto=r); bus.emitir("fala_fim"); yield r; return
+            if self.vigia.lote and eh_aprovacao_lote(texto):
+                # confirmação em lote (fase 3): "sim" libera exatamente as ações anotadas neste turno
+                acoes = self.vigia.liberar_lote()
+                self.vault.diario("Lote liberado pelo João: " + "; ".join(a.descricao for a in acoes), "Decisões")
+                texto = ("sim — execute agora, na ordem e sem perguntar de novo, exatamente as ações que o Vigia anotou: "
+                         + "; ".join(a.descricao for a in acoes) + ". Se alguma falhar, pare e relate o que aconteceu.")
+            elif eh_confirmacao(texto):
                 self.vigia.armar(); texto = "confirmo — pode executar a ação que o Vigia bloqueou."
                 if self.autonomo.confirmar():
                     # a missão autônoma pausada retoma sozinha; não precisa de um turno do modelo
@@ -368,6 +386,11 @@ class Jaime:
                 if (u := self.placar.corrigir_ultimo(f"o João disse: {texto[:60]}")):
                     bus.emitir("placar", msg=f"correção: {u['modelo']} errou em '{u['tipo']}'")
                 self.humor.registrar_resultado(False)
+                self.confianca.corrigir(self.vigia.ultimo_lote_classes)
+                self.vigia.descartar_lote()
+            else:
+                if (n := self.vigia.descartar_lote()):
+                    bus.emitir("resultado", texto=f"lote de {n} ação(ões) descartado: o João não confirmou", erro=False)
             # o tom do João muda o humor antes da resposta (e a prosódia da voz)
             self.humor.registrar_tom(detectar_tom(texto)); self.humor.registrar_hora(datetime.now().hour)
             bus.emitir("humor", **self.humor.dados())
@@ -407,8 +430,16 @@ class Jaime:
         # resultado do turno alimenta o humor: ferramentas falhando = erro próprio (grave se repetiu)
         self.humor.registrar_resultado(self._erros_turno == 0, grave=self._erros_turno >= 2)
         bus.emitir("humor", **self.humor.dados())
-        # gatilhos do cérebro de estudo: o João pediu pesquisa, ou a resposta admitiu não saber
         resposta = "".join(partes)
+        # Vigia por lote: se o modelo esqueceu de perguntar, a pergunta única vai no fim da resposta
+        if self.vigia.lote and (pergunta := self.vigia.pedir_lote()) and "você deseja que eu" not in resposta.lower():
+            bus.emitir("fala", texto=" " + pergunta); partes.append(" " + pergunta); yield " " + pergunta
+            resposta = "".join(partes)
+        elif self.vigia.lote_executado and self._erros_turno == 0 and (prop := self.confianca.aprovar(self.vigia.ultimo_lote_classes)):
+            self.vault.diario(f"Proposta de confiança: {prop}", "Pendente")
+            bus.emitir("fala", texto=" " + prop); partes.append(" " + prop); yield " " + prop
+            resposta = "".join(partes)
+        # gatilhos do cérebro de estudo: o João pediu pesquisa, ou a resposta admitiu não saber
         if (mp := re.search(r"\b(pesquisa isso|estuda isso|descobre isso|n[aã]o sei como|vê como faz)\b[:,\s]*(?:depois[:,\s]*)?(.*)", texto, re.I)):
             titulo = re.split(r"[.;]\s|\bpor agora\b", mp.group(2), 1)[0].strip() or texto
             self.estudo.abrir(titulo[:100], f"pedido: {texto[:200]}", "joao_pediu")

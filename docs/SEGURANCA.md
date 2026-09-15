@@ -8,10 +8,15 @@ Jaime tem acesso real ao computador. Três camadas evitam que isso vire um probl
 - Tentativas de senha não vão para o log de conversas.
 
 ## 1. Vigia (hooks em runtime) — `jaime/vigia/hooks.py`
-Bloqueia até receber "confirmo" (uma confirmação libera **uma** ação, por 120 s):
+Segura só o **irreversível** até receber "confirmo" (uma confirmação libera **uma** ação, por 5 min):
 - Bash: `rm -rf`, `sudo`, `mkfs`, `git push --force`, push em `main`, `reset --hard`, `curl | sh`, `DROP TABLE`, `shutdown`…
-- Ferramentas de envio: `mcp__*__send*`, `reply`, `forward`, `create_pull_request`, `merge_pull_request`, `delete`.
-- Escrita em `.env` e `vault/00-Jaime/` é sempre negada.
+- Ferramentas de envio: `mcp__*__send*`, `reply`, `forward`, `create_pull_request`, `merge_pull_request`, `delete`, `apagar`, `enviar`.
+- Browser: clique em enviar/comprar/pagar/assinar/publicar/excluir.
+- Escrita em `.env` e em `jaime/vigia/` (ele não se desarma sozinho).
+- `vault/00-Jaime/` é sempre negada — só o João edita.
+
+**Livre (desde 15/09/2026):** ver a tela, clicar, digitar, teclar, mover/renomear arquivos, `killall`, editar o
+próprio código em `jaime/` (o git desfaz; a mudança só vale após reiniciar o serviço).
 
 ## 2. Permissões estáticas — `.claude/settings.json`
 Lista do que roda sem prompt e o que é negado (`.env` nunca é lido).

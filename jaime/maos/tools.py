@@ -55,7 +55,7 @@ def build_maos_server(vault, workspace: Path, navegador: Navegador | None = None
         plano = arq.planejar(Path(args.get("pasta") or "~/Downloads"), arq.regras(vault.read("10-Eu/Jeito.md")))
         return _txt(arq.texto_plano(plano))
 
-    @tool("mover", "Move/renomeia um arquivo (ação do Vigia: só executa após 'confirmo').", {"origem": str, "destino": str})
+    @tool("mover", "Move/renomeia um arquivo (livre; apagar é que passa pelo Vigia).", {"origem": str, "destino": str})
     async def mover(args):
         return _txt(arq.mover(Path(args["origem"]), Path(args["destino"])))
 

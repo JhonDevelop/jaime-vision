@@ -63,6 +63,46 @@ def frases(buffer: str):
             break
     return prontas, buffer
 
+def _mesma_frase(a: str, b: str) -> bool:
+    na, nb = (re.sub(r"[^\wà-ú]+", " ", x.lower()).split() for x in (a, b))
+    return bool(na) and bool(nb) and (na == nb or (len(na) >= 3 and (na[:3] == nb[:3])))
+
+class Latencias:
+    """Fase 3: mede fala→texto, texto→1ª frase e fala→1ª frase de cada turno; registra no diário e no HUD."""
+    def __init__(self, jaime=None, maximo: int = 200):
+        self.jaime = jaime
+        self.turnos: deque = deque(maxlen=maximo)
+
+    def registrar(self, t_fim_fala: float, t_texto: float, t_audio: float, antecipado: bool = False, texto: str = "") -> dict | None:
+        if not t_fim_fala or not t_texto:
+            return None
+        r = {"fala_texto": max(0.0, t_texto - t_fim_fala),
+             "texto_frase": max(0.0, t_audio - t_texto) if t_audio else None,
+             "fala_frase": max(0.0, t_audio - t_fim_fala) if t_audio else None,
+             "antecipado": antecipado, "t": time.time()}
+        self.turnos.append(r)
+        bus.emitir("latencia", **{k: (round(v, 2) if isinstance(v, float) else v) for k, v in r.items()})
+        vault = getattr(self.jaime, "vault", None)
+        if vault is not None:
+            try:
+                fmt = lambda v: f"{v:.2f} s" if v is not None else "—"
+                vault.diario(f"Latência (voz): fala→texto {fmt(r['fala_texto'])} · texto→1ª frase {fmt(r['texto_frase'])} · "
+                             f"fala→1ª frase {fmt(r['fala_frase'])}{' · antecipado' if antecipado else ''} · «{texto[:40]}»", "Log")
+            except Exception:
+                pass
+        return r
+
+    def mediana(self, chave: str = "fala_frase") -> float | None:
+        vals = sorted(v for t in self.turnos if (v := t.get(chave)) is not None)
+        return vals[len(vals) // 2] if vals else None
+
+    def resumo(self) -> str:
+        if not self.turnos:
+            return "sem turnos medidos"
+        m = lambda k: (f"{self.mediana(k):.2f} s" if self.mediana(k) is not None else "—")
+        n = len(self.turnos); a = sum(1 for t in self.turnos if t["antecipado"])
+        return f"{n} turnos · mediana fala→texto {m('fala_texto')} · texto→1ª frase {m('texto_frase')} · fala→1ª frase {m('fala_frase')} · antecipados {a}"
+
 def interpretar_chamada(texto: str, modo: str = "nome") -> tuple[str, str]:
     """Devolve (decisao, texto_limpo). decisao ∈ {"chamou", "pediu", "sem_nome"}.
 
@@ -147,6 +187,12 @@ class Ouvido:
         self._tts = None
         self._vad = None
         self.erro = ""
+        self.cache_audio: tuple[str, bytes | None] | None = None   # fase 3: (rascunho, pcm) pré-sintetizado
+        self.latencias = Latencias(jaime)
+        from .fila import FilaDemandas
+        self.fila = FilaDemandas()          # fase 3: nada se perde quando o João interrompe
+        self.interrompido = False           # barge-in em curso: o turno atual deve parar de gerar
+        self._nao_ditas = 0                 # frases que o TTS descartou ao ser cortado
 
     # ── ciclo de vida ────────────────────────────────────
     def start(self):
@@ -216,11 +262,25 @@ class Ouvido:
 
     # ── pipeline ─────────────────────────────────────────
     async def _processar(self, pcm: bytes):
+        """Modo pipeline: transcreve o turno inteiro e trata. (O modo duplex chega em `_tratar_texto` direto.)"""
         try:
+            t_fim_fala = time.time()
             bus.emitir("voz", estado="transcrevendo", falando=False)
             texto = (await self._stt.transcrever(pcm, SR)).strip()
             if len(texto) < 3 or LIXO_WHISPER.search(texto):
                 return
+            await self._tratar_texto(texto, pcm, t_fim_fala=t_fim_fala, t_texto=time.time())
+        except Exception as e:
+            bus.emitir("voz", estado="erro", erro=f"{type(e).__name__}: {e}"[:200], falando=False)
+        finally:
+            self.ocupado = False
+            bus.emitir("voz", estado="ouvindo", falando=False)
+
+    async def _tratar_texto(self, texto: str, pcm: bytes, antecipacao=None, t_fim_fala: float = 0.0, t_texto: float = 0.0):
+        """Do texto transcrito à resposta falada. `antecipacao` (fase 3): rascunho já sintetizado em `cache_audio`
+        que toca antes do modelo responder; as latências vão para o diário."""
+        ja_dito = ""
+        if True:
             # quem falou? (cadastro em andamento consome a fala; senão identifica)
             falante, conf = "", 0.0
             if getattr(self, "falantes", None):
@@ -253,6 +313,15 @@ class Ouvido:
                 if getattr(self.jaime, "vault", None) is not None:
                     guardar(self.jaime.vault, texto); return
             print(f"🎙 você › {texto}")
+            # resposta à pergunta "Continuo o que eu dizia sobre X?" (fila de demandas)
+            if self.fila.aguardando and (r := self.fila.responder_retomada(limpo or texto)) is not None:
+                ant = self.fila.aguardando; self.fila.aguardando = None
+                bus.emitir("ouvido", texto=texto, ignorado=False)
+                if r == "nao":
+                    self.fila.descartar(ant)
+                    await asyncio.to_thread(self._falar, "Certo, deixo pra lá."); return
+                texto = limpo = self.fila.texto_de_continuacao(ant); decisao = "pediu"
+                ant.estado = "retomada"; self.fila._emitir()
             if quer_descansar(limpo or texto):
                 # dispensado: volta a responder só quando chamado pelo nome
                 self.ativo_ate = 0.0
@@ -276,9 +345,19 @@ class Ouvido:
                 await asyncio.to_thread(self._falar, "Pode escrever."); return
             bus.emitir("voz", estado="pensando", falando=False)
             buffer = ""
+            demanda = self.fila.nova(texto); self.fila.comecar(demanda); self.interrompido = False
             contexto = self.observador.contexto() if self.observador else ""
             if falante and falante != "João":
                 contexto = (contexto + "; " if contexto else "") + f"falante={falante}"
+            primeira = asyncio.Event(); usou_ferramenta = asyncio.Event()
+            # resposta especulativa (fase 3): a 1ª frase já está sintetizada → toca agora, o modelo continua dela
+            if antecipacao is not None and getattr(self, "cache_audio", None) and self._tts:
+                rascunho, pcm_cache = self.cache_audio; self.cache_audio = None
+                self._prosodia(); self.mudo = True
+                self._tts.tocar_pronto(rascunho, pcm_cache)
+                primeira.set(); ja_dito = rascunho
+                bus.emitir("fala", texto=rascunho); bus.emitir("antecipacao", usado=True, rascunho=rascunho)
+                contexto = (contexto + "; " if contexto else "") + f"você JÁ disse em voz alta: «{rascunho}» — continue a partir daí, sem repetir"
             # narrador: em tarefas longas ele diz o que está fazendo ("lendo os arquivos…"), como o Jarvis
             from .narrador import Narrador
             narrador = Narrador(self._enfileirar); narrador.comecar()
@@ -295,7 +374,6 @@ class Ouvido:
             tarefa_narrar = asyncio.create_task(narrar())
             # "deixa eu ver…" só quando ele está de fato TRABALHANDO (usou ferramenta) e a resposta ainda não veio
             # depois de MULETA_S — conversa curta responde direto, sem muleta
-            primeira = asyncio.Event(); usou_ferramenta = asyncio.Event()
             async def muleta():
                 try:
                     await asyncio.wait_for(usou_ferramenta.wait(), MULETA_S)
@@ -307,32 +385,61 @@ class Ouvido:
             asyncio.create_task(muleta())
             # Cada frase entra na fila do TTS assim que fica pronta, sem bloquear: o sintetizador
             # prepara a próxima enquanto a atual toca, e a resposta sai emendada em vez de picotada.
-            async for trecho in self.jaime.ask_stream(texto, canal="voice", contexto=contexto):
+            gen = self.jaime.ask_stream(texto, canal="voice", contexto=contexto)
+            async for trecho in gen:
+                if self.interrompido:
+                    break                              # barge-in: o João falou por cima; o resto fica na fila
                 buffer += trecho
                 prontas, buffer = frases(buffer)
                 for f in prontas:
-                    primeira.set(); self._enfileirar(f)
-            if buffer.strip():
-                self._enfileirar(buffer)
+                    if ja_dito and _mesma_frase(f, ja_dito):
+                        ja_dito = ""; continue          # o modelo repetiu o rascunho: não fala duas vezes
+                    primeira.set(); self.fila.gerada(demanda, f); self._enfileirar(f)
+            if self.interrompido:
+                await gen.aclose()
+            elif buffer.strip():
+                self.fila.gerada(demanda, buffer); self._enfileirar(buffer)
             narrador.parar(); tarefa_narrar.cancel(); bus.cancelar(fila_eventos)
             await asyncio.to_thread(self._aguardar_fala)
             self.ativo_ate = time.time() + self.s.janela_ativa_s
-        except Exception as e:
-            bus.emitir("voz", estado="erro", erro=f"{type(e).__name__}: {e}"[:200], falando=False)
-        finally:
-            self.ocupado = False
-            bus.emitir("voz", estado="ouvindo", falando=False)
+            if t_fim_fala and self._tts:
+                self.latencias.registrar(t_fim_fala, t_texto, getattr(self._tts, "t_inicio_audio", 0.0), antecipado=antecipacao is not None, texto=texto)
+            if self.interrompido:
+                self.fila.interromper(demanda, nao_ditas=self._nao_ditas)
+            else:
+                self.fila.concluir(demanda)
+                await self._retomar_se_preciso()
+
+    async def _retomar_se_preciso(self):
+        """Depois de atender a demanda nova: a interrompida volta sozinha (curta) ou vira uma pergunta só."""
+        pendentes = self.fila.interrompidas()
+        if not pendentes:
+            return
+        d = pendentes[-1]
+        for outra in pendentes[:-1]:
+            self.fila.descartar(outra)
+        modo, frase = self.fila.plano_de_retomada(d)
+        if modo == "automatica":
+            if frase:
+                self._enfileirar(frase); await asyncio.to_thread(self._aguardar_fala)
+            self.fila.concluir(d)
+        else:
+            self._enfileirar(frase); await asyncio.to_thread(self._aguardar_fala)
+            self.fila.pedir_retomada(d)
+
+    def _prosodia(self):
+        humor = getattr(self.jaime, "humor", None)
+        if humor is not None and self._tts:
+            from ..emocao.prosodia import prosodia
+            p = prosodia(humor, "voice")
+            self._tts.ajustes = p["eleven"]          # ElevenLabs: estabilidade/estilo
+            self._tts.instrucoes = p["instructions"]  # OpenAI: instrução de estilo
 
     def _enfileirar(self, texto: str):
         """Manda a frase para a fila do TTS e cala o microfone; quem espera é `_aguardar_fala`."""
         if not self._tts:
             return
-        humor = getattr(self.jaime, "humor", None)
-        if humor is not None:
-            from ..emocao.prosodia import prosodia
-            p = prosodia(humor, "voice")
-            self._tts.ajustes = p["eleven"]          # ElevenLabs: estabilidade/estilo
-            self._tts.instrucoes = p["instructions"]  # OpenAI: instrução de estilo
+        self._prosodia()
         self.mudo = True
         self._tts.enfileirar(texto)
 

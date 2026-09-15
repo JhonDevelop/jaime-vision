@@ -40,13 +40,13 @@ def test_cortar_video_sintetico(tmp_path, monkeypatch):
     wav = conteudo.extrair_audio(v, tmp_path / "a.wav")
     assert wav.exists() and wav.stat().st_size > 1000
 
-def test_vigia_segura_acoes_na_tela_mas_libera_captura():
+def test_vigia_libera_acoes_na_tela():
     v = Vigia()
     h = lambda n, a: asyncio.run(v.pre_tool_use({"tool_name": n, "tool_input": a}, None, None))
-    assert h("mcp__tela__tela_clicar", {"x": 1, "y": 1}).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
-    assert h("mcp__tela__tela_digitar", {"texto": "x"}).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    assert h("mcp__tela__tela_clicar", {"x": 1, "y": 1}) == {}
+    assert h("mcp__tela__tela_digitar", {"texto": "x"}) == {}
     assert h("mcp__tela__tela_capturar", {}) == {}
-    v.armar(); assert h("mcp__tela__tela_tecla", {"combo": "enter"}) == {}
+    assert h("mcp__tela__tela_tecla", {"combo": "enter"}) == {}
 
 def test_captura_de_tela_somente(tmp_path, monkeypatch):
     monkeypatch.setattr(computador, "PASTA", tmp_path); monkeypatch.setattr(computador, "ULTIMA", tmp_path / "tela.png")

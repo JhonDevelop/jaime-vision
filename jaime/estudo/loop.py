@@ -7,7 +7,11 @@ comando fora do sandbox — nunca toca em `~/projetos`, no repositório nem no v
                no Estado, placar; skill em `.claude/skills/<slug>/SKILL.md` quando o estudo achar que vale.
   não        → tentativa registrada em Problemas.md com o que falta.
 
-`pesquisador` é injetável: os testes passam uma função que "resolve" offline."""
+`pesquisador` é injetável: os testes passam uma função que "resolve" offline.
+
+Fase 3 (§4/§5): o próximo problema vem de `Problemas.proximo()`, que lê `90-Estudo/Prioridades.md`; o ciclo só roda
+fora do modo atento (`atencao`, fala nos últimos 15 min) e enquanto a fatia de estudo do `orcamento` tiver saldo.
+O custo de cada estudo (ResultMessage do SDK) vai ao placar e, por ele, ao orçamento."""
 from __future__ import annotations
 import asyncio, json, re, time
 from pathlib import Path
@@ -58,7 +62,7 @@ async def _hook_sandbox(input_data: dict, tool_use_id, context) -> dict:
 
 async def pesquisar_com_sdk(problema: Problema, modelo: str) -> dict:
     """Turno avulso do Agent SDK no sandbox. Devolve o JSON final (ou {'resolvido': False, 'falta': erro})."""
-    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, TextBlock, HookMatcher
+    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, ResultMessage, TextBlock, HookMatcher
     SANDBOX.mkdir(parents=True, exist_ok=True)
     opts = ClaudeAgentOptions(
         model=modelo, cwd=str(SANDBOX), max_turns=MAX_TURNOS, permission_mode="bypassPermissions",
@@ -68,33 +72,45 @@ async def pesquisar_com_sdk(problema: Problema, modelo: str) -> dict:
     prompt = PROMPT.format(sandbox=SANDBOX, id=problema.id, titulo=problema.titulo, origem=problema.origem,
                            contexto=problema.contexto or "(sem contexto)",
                            tentativas="\n".join(problema.tentativas) or "(nenhuma)")
-    partes = []
+    partes, custo = [], {"usd": 0.0}
     try:
         async def rodar():
             async for msg in query(prompt=prompt, options=opts):
                 if isinstance(msg, AssistantMessage):
                     partes.extend(b.text for b in msg.content if isinstance(b, TextBlock))
+                elif isinstance(msg, ResultMessage):
+                    custo["usd"] = float(msg.total_cost_usd or 0)
         await asyncio.wait_for(rodar(), timeout=LIMITE_S)
     except asyncio.TimeoutError:
-        return {"resolvido": False, "tentativa": "estourou os 15 minutos", "falta": "continuar de onde parou; ver /tmp/jaime-lab"}
+        return {"resolvido": False, "tentativa": "estourou os 15 minutos", "falta": "continuar de onde parou; ver /tmp/jaime-lab", "custo": custo["usd"]}
     except Exception as e:
-        return {"resolvido": False, "tentativa": f"falhou: {type(e).__name__}", "falta": str(e)[:160]}
+        return {"resolvido": False, "tentativa": f"falhou: {type(e).__name__}", "falta": str(e)[:160], "custo": custo["usd"]}
     texto = "".join(partes)
     m = re.search(r"\{.*\}", texto, re.S)
     if not m:
-        return {"resolvido": False, "tentativa": texto[-300:], "falta": "não devolveu o JSON final"}
+        return {"resolvido": False, "tentativa": texto[-300:], "falta": "não devolveu o JSON final", "custo": custo["usd"]}
     try:
-        return json.loads(m.group(0))
+        r = json.loads(m.group(0)); r.setdefault("custo", custo["usd"]); return r
     except json.JSONDecodeError:
-        return {"resolvido": False, "tentativa": texto[-300:], "falta": "JSON final inválido"}
+        return {"resolvido": False, "tentativa": texto[-300:], "falta": "JSON final inválido", "custo": custo["usd"]}
 
 class Estudo:
-    def __init__(self, vault, estado=None, placar=None, repo_root: Path | None = None, modelo: str = "claude-sonnet-5", pesquisador=None):
+    def __init__(self, vault, estado=None, placar=None, repo_root: Path | None = None, modelo: str = "claude-sonnet-5", pesquisador=None,
+                 orcamento=None, atencao=None):
         self.vault, self.estado, self.placar, self.repo_root, self.modelo = vault, estado, placar, repo_root, modelo
         self.problemas = Problemas(vault)
         self.pesquisador = pesquisador or (lambda p: pesquisar_com_sdk(p, self.modelo))
         self.ocupado = False
         self.ultimo_ciclo = 0.0
+        self.orcamento, self.atencao = orcamento, atencao      # fase 3 — D: injetados pelo servidor
+
+    def pode_estudar(self, agora: float | None = None) -> tuple[bool, str]:
+        """Modo atento (fala nos últimos 15 min) e orçamento de estudo. Sem `atencao`/`orcamento`, sempre pode."""
+        from ..agenda.scheduler import pode_estudar
+        ultima = self.atencao.ultima_fala if self.atencao is not None else None
+        if agora is None and self.atencao is not None:
+            agora = self.atencao.agora()
+        return pode_estudar(ultima, agora, self.orcamento)
 
     def emitir(self, msg: str = "") -> None:
         bus.emitir("estudo", abertos=len(self.problemas.abertos()), msg=msg)
@@ -128,7 +144,7 @@ class Estudo:
                 linha = f"- {r.get('titulo') or p.titulo}: {str(r.get('o_que_resolveu', ''))[:160]}"
                 self.estado.atualizar_secao("Aprendizados recentes", (atual + "\n" + linha).strip() if atual and "nenhum" not in atual.lower() else linha)
             if self.placar:
-                self.placar.registrar("estudo", "pesquisa", "acerto", 0, 0, p.titulo[:80])
+                self.placar.registrar("estudo", "pesquisa", "acerto", 0, float(r.get("custo") or 0), p.titulo[:80])
             if r.get("skill") and self.repo_root:
                 self._escrever_skill(p, r)
             try:
@@ -140,17 +156,26 @@ class Estudo:
         else:
             self.problemas.registrar_tentativa(p.id, str(r.get("tentativa", "sem detalhes"))[:300], str(r.get("falta", ""))[:200])
             if self.placar:
-                self.placar.registrar("estudo", "pesquisa", "erro", 0, 0, p.titulo[:80])
+                self.placar.registrar("estudo", "pesquisa", "erro", 0, float(r.get("custo") or 0), p.titulo[:80])
             self.emitir(f"{p.id} sem solução ainda: falta {str(r.get('falta', ''))[:60]}")
         return r
+
+    async def tick(self, pode_rodar=lambda: True) -> dict | None:
+        """Um passo da Mente: estuda um problema se está ocioso, há problema, não há fala recente e há orçamento."""
+        if not (pode_rodar() and self.problemas.abertos()):
+            return None
+        ok, motivo = self.pode_estudar()
+        if not ok:
+            self.emitir(f"estudo adiado: {motivo}")
+            return None
+        return await self.ciclo()
 
     async def rodar_em_ciclos(self, pode_rodar=lambda: True, intervalo: int = INTERVALO_S):
         """Mente contínua (mínima): a cada `intervalo`, se estiver ocioso e houver problema, estuda um."""
         while True:
             await asyncio.sleep(intervalo)
             try:
-                if pode_rodar() and self.problemas.abertos():
-                    await self.ciclo()
+                await self.tick(pode_rodar)
             except Exception as e:
                 bus.emitir("estudo", abertos=len(self.problemas.abertos()), msg=f"ciclo falhou: {type(e).__name__}: {e}"[:160])
 

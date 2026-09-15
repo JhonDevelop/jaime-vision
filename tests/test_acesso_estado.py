@@ -37,10 +37,17 @@ def test_vigia_protege_o_proprio_codigo():
     import asyncio
     from jaime.vigia.hooks import Vigia
     v = Vigia()
-    negado = asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "/x/jaime-vision/jaime/voice/tts.py"}}, None, None))
+    # o próprio código é livre (git desfaz); só o Vigia e o .env pedem "confirmo"; 00-Jaime nunca
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "/x/jaime-vision/jaime/voice/tts.py"}}, None, None)) == {}
+    negado = asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "/x/jaime-vision/jaime/vigia/hooks.py"}}, None, None))
     assert negado.get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
     v.armar()
-    assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "jaime/voice/tts.py"}}, None, None)) == {}
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "jaime/vigia/hooks.py"}}, None, None)) == {}
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "/x/jaime-vision/.env"}}, None, None)).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    v.armar()
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "/x/jaime-vision/.env"}}, None, None)) == {}
+    v.armar()
+    assert asyncio.run(v.pre_tool_use({"tool_name": "Write", "tool_input": {"file_path": "vault/00-Jaime/Origem.md"}}, None, None)).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
     assert asyncio.run(v.pre_tool_use({"tool_name": "Write", "tool_input": {"file_path": "/Users/x/projetos/app/main.py"}}, None, None)) == {}
 
 def test_confere_nao_libera():

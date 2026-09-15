@@ -41,7 +41,12 @@ async def lifespan(app: FastAPI):
             asyncio.get_running_loop().call_later(3, ouvido.falar, jaime.apresentacao)
     elif settings.voz != "off":
         # o microfone vive no servidor: abrir o HUD já é estar ouvindo
-        ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
+        # fase 3: `duplex` (padrão) = STT em streaming + antecipador + barge-in; `pipeline` = turno a turno
+        if settings.voz_modo == "duplex":
+            from .voice.duplex import OuvidoDuplex
+            ouvido = OuvidoDuplex(jaime, settings, asyncio.get_running_loop())
+        else:
+            ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
         ouvido.observador = observador; observador.ouvido = ouvido
         ouvido.start()
         if jaime.apresentacao:
@@ -55,11 +60,31 @@ async def lifespan(app: FastAPI):
     notificacoes = Notificacoes(jaime, ouvido)
     notif_t = asyncio.create_task(notificacoes.rodar())
     app.state.notificacoes = notificacoes
+    # fase 3 — D: telemetria local (janela ativa + pedidos), modo atento, orçamento diário e prioridades de estudo
+    from .telemetria.uso import Telemetria
+    from .telemetria import prioridades
+    from .cortex.orcamento import Orcamento
+    from .agenda.scheduler import Atencao
+    orcamento = Orcamento(settings.vault, float(os.environ.get("JAIME_ORCAMENTO_DIA_USD", "0").strip() or 0))
+    orcamento.ligar_ao_placar(jaime.placar)                 # todo custo de turno entra no orçamento (60/25/15)
+    atencao = Atencao()                                      # última fala do João, pelo bus
+    telemetria = Telemetria(jaime.vault, placar=jaime.placar)
+    jaime.estudo.orcamento, jaime.estudo.atencao = orcamento, atencao
+    jaime.agenda.ao("fecha o dia", lambda: prioridades.recalcular(jaime.vault, telemetria, jaime.placar))
+    jaime.agenda.ao("fecha a semana", lambda: telemetria.escrever_uso())
+    telemetria_t = asyncio.create_task(telemetria.rodar(observador))
+    atencao_t = asyncio.create_task(atencao.escutar_bus())
+    app.state.orcamento, app.state.telemetria, app.state.atencao = orcamento, telemetria, atencao
     jaime.agenda.ouvido = ouvido; jaime.agenda.start()      # rotinas e lembretes, no processo (sem n8n)
     # mente contínua (mínima): estuda um problema em aberto a cada 30 min, só quando ninguém está falando com ele
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
     estudo_t = asyncio.create_task(jaime.estudo.rodar_em_ciclos(ocioso))
+    # fase 3: relatórios dos filhos (terminais no Maestri) chegam pela nota compartilhada; os importantes são falados
+    equipe_t = asyncio.create_task(jaime.equipe.vigiar_relatorios(falar=(ouvido.falar if ouvido else None)))
     jaime.estudo.emitir()
+    # fase 3 — E: vontades (impulsos ouvem o bus), Mente (impulso × janela × orçamento) e noite criativa/Vitrine
+    from .vontade import ligar as ligar_vontade
+    app.state.vontade = ligar_vontade(jaime, ocioso, orcamento=getattr(app.state, "orcamento", None))   # orçamento do D, se já ligado
     # Telegram: canal do celular, só o dono (JAIME_OWNER_TELEGRAM_ID)
     from .conexoes.telegram import Telegram
     telegram = Telegram(settings.telegram_token, settings.owner_telegram_id, jaime)
@@ -67,7 +92,9 @@ async def lifespan(app: FastAPI):
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
-    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
+    app.state.vontade.parar()   # fase 3 — E
+    telemetria_t.cancel(); atencao_t.cancel(); telemetria.salvar()      # fase 3 — D
     if ouvido:
         ouvido.stop()
     await jaime.stop()
@@ -193,6 +220,25 @@ async def hud_mente():
                 "estado": {"fase": jaime.estado.fase(), "situacao": jaime.estado.secao("Situação agora"), "andamento": jaime.estado.secao("Em andamento")}}
     except Exception as e:
         return {"erro": str(e)[:160]}
+
+# fase 3 — E: Vitrine (criações da noite criativa) + níveis das vontades; o voto realimenta os impulsos pelo bus
+@app.get("/hud/vitrine")
+async def hud_vitrine():
+    v = getattr(app.state, "vontade", None)
+    if not v:
+        return {"itens": [], "vontades": {}, "escolha": None}
+    return {"itens": v.criacoes.listar(), "vontades": v.impulsos.dados(), "escolha": v.mente.ultima.dados() if v.mente.ultima else None}
+
+@app.post("/hud/vitrine/{id_}/voto")
+async def hud_vitrine_voto(id_: str, body: dict):
+    """body: {"gostei": true|false}"""
+    v = getattr(app.state, "vontade", None)
+    if not v:
+        raise HTTPException(409, "vontades indisponíveis")
+    item = v.criacoes.votar(id_, bool(body.get("gostei", body.get("gostou", True))))
+    if not item:
+        raise HTTPException(404, "criação não encontrada")
+    return item
 
 @app.get("/hud/nota")
 async def hud_nota(rel: str):

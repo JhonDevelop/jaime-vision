@@ -43,14 +43,15 @@ def test_regras_de_arquivos_e_plano(tmp_path):
 def _hook(v, nome, args):
     return asyncio.run(v.pre_tool_use({"tool_name": nome, "tool_input": args}, None, None))
 
-def test_vigia_segura_submit_compra_e_mover():
+def test_vigia_segura_compra_e_libera_submit_e_mover():
     v = Vigia()
     assert _hook(v, "mcp__maos__clicar", {"alvo": "Finalizar compra"}).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
-    assert _hook(v, "mcp__maos__clicar", {"alvo": "button[type=submit]"}).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    assert _hook(v, "mcp__maos__clicar", {"alvo": "Enviar mensagem"}).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    assert _hook(v, "mcp__maos__clicar", {"alvo": "button[type=submit]"}) == {}
     assert _hook(v, "mcp__maos__clicar", {"alvo": "Próxima página"}) == {}
-    assert _hook(v, "mcp__maos__mover", {"origem": "a", "destino": "b"}).get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
-    v.armar()
     assert _hook(v, "mcp__maos__mover", {"origem": "a", "destino": "b"}) == {}
+    v.armar()
+    assert _hook(v, "mcp__maos__clicar", {"alvo": "Finalizar compra"}) == {}
 
 @pytest.mark.skipif(not __import__("importlib").util.find_spec("playwright"), reason="playwright não instalado")
 def test_browser_le_clica_e_extrai_site_local(tmp_path):
