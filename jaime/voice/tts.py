@@ -41,7 +41,7 @@ def limpar_para_fala(texto: str) -> str:
     return re.sub(r"[ \t]{2,}", " ", t).strip()
 
 class TTS:
-    def __init__(self, s: Settings):
+    def __init__(self, s: Settings, ao_tocar=None):
         self.s = s
         self._client = None
         self._falhas = 0
@@ -58,6 +58,9 @@ class TTS:
         self.t_fim_audio = 0.0
         self.interrompida = False    # a última fala foi cortada por parar()
         self._openai = None
+        # Recebe PCM mono int16 a 24 kHz imediatamente antes de cada bloco ir
+        # para a placa. É opcional para não alterar os chamadores existentes.
+        self.ao_tocar = ao_tocar
         if s.openai_key:
             from openai import OpenAI
             self._openai = OpenAI(api_key=s.openai_key)
@@ -289,20 +292,30 @@ class TTS:
         tocado = bytearray()
         try:
             bloco = int(self._taxa * BLOCO_S) * 2          # bytes por 100 ms (int16 mono)
+            bloco_pcm = int(PCM_SR * BLOCO_S) * 2
             st = None
             for trecho in blocos:
                 if self._parando.is_set():
                     return                                  # barge-in: cala no próximo bloco
-                dados = self._na_taxa_do_aparelho(bytes(trecho))
-                if st is None:
-                    st = self._abrir_stream()
-                    if not self.t_inicio_audio:
-                        self.t_inicio_audio = time.time()
-                tocado += trecho
-                for i in range(0, len(dados), bloco):
+                for inicio in range(0, len(trecho), bloco_pcm):
                     if self._parando.is_set():
                         return
-                    st.write(dados[i:i + bloco])
+                    pcm_24k = bytes(trecho[inicio:inicio + bloco_pcm])
+                    if self.ao_tocar:
+                        try:
+                            self.ao_tocar(pcm_24k)
+                        except Exception:
+                            pass                         # observador não pode derrubar a reprodução
+                    dados = self._na_taxa_do_aparelho(pcm_24k)
+                    if st is None:
+                        st = self._abrir_stream()
+                        if not self.t_inicio_audio:
+                            self.t_inicio_audio = time.time()
+                    tocado += pcm_24k
+                    for i in range(0, len(dados), bloco):
+                        if self._parando.is_set():
+                            return
+                        st.write(dados[i:i + bloco])
         except Exception as e:
             if self._parando.is_set():
                 return
