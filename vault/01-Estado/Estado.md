@@ -9,8 +9,8 @@ Sessão de testes rápidos do João: ele checou se eu consigo pesquisar na inter
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 15:14 em MacBookPro
-- tema: Sabe, você sabe que eu tenho o agora por maldade de matar,
+- quando: 15/09/2026 18:06 em MacBook-Pro-de-Joao.local
+- tema: Quais são suas últimas funções que você tem agora?
 
 ## Em andamento
 - Desligamento do meu servidor pedido pelo João, bloqueado pelo Vigia — aguardando "confirmo" (PIDs 79340 `jaime serve` e 79379 falantes_worker)
