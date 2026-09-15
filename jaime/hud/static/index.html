@@ -252,7 +252,7 @@ const agora=()=>performance.now()/1000;
 // fase 3 — HUD vivo: cada campo aqui é UM estado real do Jaime (docs/HUD-VIVO.md); a animação lê daqui, nunca inventa.
 const UI={liberado:false,voz:'iniciando',falando:false,pensando:false,nivel:0,nivelSuave:0,gravando:false,micAtivo:true,energia:0.1,
   camada:'repouso',            // ouvir | pensar | agir | falar | interrompido | equipe | repouso | trancado
-  transcrevendo:false,         // transcrição viva em curso (duplex)
+  transcrevendo:false,transcT:0, // transcrição viva em curso (duplex) e quando chegou o último parcial
   antecip:{completude:0,fechou:false,fechouT:-9,intencao:'',t:-9,usado:-9,interj:-9},
   interrompidoT:-9,restantes:0,fimTurnoT:-9,equipeT:-9,
   streaming:false,             // texto da resposta chegando token a token
@@ -523,6 +523,7 @@ function flushDOM(t){
   if(t-ultimoFlushRot>0.2){ultimoFlushRot=t;
     const [txt,cls]=rotuloVoz();if(txt!==ultimoRotulo){ultimoRotulo=txt;const el=$('estadoVoz');el.textContent=txt;el.className=cls;}
     if(UI.pensando&&agora()-UI.ultimoEvento>120){UI.pensando=false;UI.pendTools.length=0;UI.agindo=false;}   // turno morto: solta o estado
+    if(UI.transcrevendo&&agora()-UI.transcT>8){UI.transcrevendo=false;$('voce').classList.remove('viva');}      // parcial sem final há 8 s: turno descartado
     const a=UI.antecip,on=UI.transcrevendo||(agora()-a.usado<0.8);$('ant').classList.toggle('on',on);
     if(on){const i=$('ant-i');i.style.width=((agora()-a.usado<0.8?1:a.completude)*100)+'%';i.className=agora()-a.usado<0.8?'usado':'';}}
   if(UI.turno&&!UI.turno.fim&&t-ultimoFlushTurno>0.5){ultimoFlushTurno=t;desenharTurno();}
@@ -736,7 +737,7 @@ function ligarStream(){
       case 'falante': UI.falante=e.nome;$('voce').dataset.quem=e.nome;break;
       case 'ouvido': $('voce').classList.remove('viva');UI.transcrevendo=false;if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
       case 'transcricao_viva': if(e.final){UI.transcrevendo=false;UI.fimTurnoT=agora();$('voce').classList.remove('viva');$('voce').classList.add('fechou');onda(0xffb347);if(e.texto)mostrarVoce(e.texto);}
-        else{UI.transcrevendo=true;$('voce').classList.remove('fechou');mostrarVoce(e.texto);$('voce').classList.add('viva');}break;
+        else{UI.transcrevendo=true;UI.transcT=agora();$('voce').classList.remove('fechou');mostrarVoce(e.texto);$('voce').classList.add('viva');}break;
       case 'antecipacao': if(e.usado){UI.antecip.usado=agora();feed($('rac'),`<span class="f ju">antecipado</span><span class="a">rascunho já tocou: ${esc(e.rascunho||'')}</span>`);}
         else if(e.interjeicao){UI.antecip.interj=agora();onda(0xc6a5ff);feed($('rac'),`<span class="f ju">interjeição</span><span class="a">${esc(e.interjeicao)}</span>`);}
         else if(e.completude!=null){const a=UI.antecip;if(e.fechou&&!a.fechou)a.fechouT=agora();a.completude=e.completude||0;a.fechou=!!e.fechou;a.intencao=e.intencao||'';a.t=agora();
