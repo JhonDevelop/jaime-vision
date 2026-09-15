@@ -44,6 +44,13 @@ def usar_nome(variantes: list[str]) -> None:
     NOME_RX = re.compile(r"\b(" + "|".join(re.escape(v) for v in variantes) + r")\b[,.!?…\s]*", re.I)
 CHAMADA_RX = re.compile(r"^(ô|oi|ei|hey|olá|ola|e aí|eai|alô|alo|fala)[,\s]*$|^(você\s+)?(tá|ta|está|esta)\s+a[íi]\??$|^(me\s+)?(ouve|escuta|ouvindo|escutando)\??$|^acorda\??$", re.I)
 
+DISPENSA_RX = re.compile(r"\b(encerrad[oa]|por enquanto (é|e) s[oó] isso|s[oó] isso por enquanto|pode descansar|descansa|pode ir|(até|ate) (mais|logo|depois)|"
+                         r"obrigad[oa],? (é|e) s[oó]|(era|é|e) s[oó] isso|pode dormir|tchau|fica (à|a) vontade|t[aá] liberado)\b", re.I)
+
+def quer_descansar(texto: str) -> bool:
+    """'encerrado', 'por enquanto é só isso', 'pode descansar' → ele volta a esperar o nome."""
+    return bool(DISPENSA_RX.search(texto or ""))
+
 def quer_teclado(texto: str) -> bool:
     return texto.strip().lower().rstrip(".!") in PEDIDOS_TECLADO
 
@@ -211,9 +218,16 @@ class Ouvido:
                 # ouviu, mas não era com ele — aparece apagado no HUD e mais nada
                 bus.emitir("ouvido", texto=texto, ignorado=True); return
             print(f"🎙 você › {texto}")
+            if quer_descansar(limpo or texto):
+                # dispensado: volta a responder só quando chamado pelo nome
+                self.ativo_ate = 0.0
+                bus.emitir("ouvido", texto=texto, ignorado=False); bus.emitir("voz", estado="ouvindo", falando=False, ativo=False)
+                await asyncio.to_thread(self._falar, "Certo, João. Estou aqui se precisar."); return
             self.ativo_ate = time.time() + self.s.janela_ativa_s
             if decisao == "chamou":
-                bus.emitir("ouvido", texto=texto, ignorado=False)
+                # "Jaime, está aí?" liga a conversa até o João dispensar ("encerrado", "pode descansar"…)
+                self.ativo_ate = float("inf")
+                bus.emitir("ouvido", texto=texto, ignorado=False); bus.emitir("voz", estado="ouvindo", falando=False, ativo=True)
                 await asyncio.to_thread(self._falar, "Estou aqui, João." if self.jaime.acesso.liberado else "Estou aqui. Palavra-passe, por favor.")
                 if getattr(self.jaime, "aguardando_nome", False):
                     await asyncio.to_thread(self._falar, f"Meu nome é {self.jaime.identidade.nome} — confirma?")

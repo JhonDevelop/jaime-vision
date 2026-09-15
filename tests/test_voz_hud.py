@@ -69,3 +69,8 @@ def test_limpar_para_fala_tira_markdown():
     t = limpar_para_fala("Estou aqui. O build do **BUB** está no `pod install`.\n\n- item um\n- item dois\nVeja https://x.y/z ok")
     assert "`" not in t and "*" not in t and "\n" not in t and "https" not in t and "- item" not in t
     assert t.startswith("Estou aqui. O build do BUB está no pod install.")
+
+def test_dispensa():
+    from jaime.voice.escuta import quer_descansar
+    assert quer_descansar("Jaime, encerrado.") and quer_descansar("por enquanto é só isso") and quer_descansar("pode descansar")
+    assert not quer_descansar("abre o Finder") and not quer_descansar("está aí?")

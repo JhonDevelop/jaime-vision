@@ -64,3 +64,10 @@ def test_audio_e_transcricao_de_saida_viram_eventos():
     assert "jaime" in instrucoes("Jaime") and "Vega" in instrucoes("Vega")
     sess = c._sessao()["session"]
     assert sess["audio"]["input"]["turn_detection"]["create_response"] is False and [t["name"] for t in sess["tools"]] == ["jaime", "hora", "clima", "lembrete"]
+
+def test_gate_esta_ai_liga_ate_dispensar():
+    g = Gate("nome", 25)
+    assert g.avaliar("Jaime, está aí?", True)[0] and g.ativo_ate == float("inf")
+    assert g.avaliar("qualquer coisa sem nome", True)[0]
+    assert g.avaliar("por enquanto é só isso", True) == (True, "__descansar__")
+    assert g.avaliar("qualquer coisa sem nome", True) == (False, "")

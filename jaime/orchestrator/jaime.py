@@ -245,7 +245,15 @@ class Jaime:
                             bus.emitir("raciocinio", texto=b.thinking[:600])
                     elif isinstance(b, ToolUseBlock):
                         tipo = "producao" if b.name in ("Write", "Edit", "MultiEdit", "Bash", "Task") or b.name.startswith("mcp__") else "raciocinio"
-                        bus.emitir(tipo, ferramenta=b.name, alvo=_resumo_tool(b.name, b.input or {}))
+                        args = b.input or {}
+                        # trecho visível no HUD: o código/texto que ele está escrevendo, o comando, a nota do vault
+                        trecho = ""
+                        if b.name in ("Write",): trecho = str(args.get("content", ""))[:1200]
+                        elif b.name in ("Edit", "MultiEdit"): trecho = "- " + str(args.get("old_string", ""))[:500] + "\n+ " + str(args.get("new_string", ""))[:700]
+                        elif b.name == "Bash": trecho = str(args.get("command", ""))[:600]
+                        elif b.name.startswith("mcp__cerebro__"): trecho = str(args.get("texto") or args.get("corpo") or args.get("descricao") or "")[:600]
+                        nota = str(args.get("nota") or args.get("caminho") or "") if b.name.startswith("mcp__cerebro__") else ""
+                        bus.emitir(tipo, ferramenta=b.name, alvo=_resumo_tool(b.name, args), trecho=trecho, nota=nota)
             elif isinstance(msg, UserMessage) and isinstance(msg.content, list):
                 for b in msg.content:
                     if isinstance(b, ToolResultBlock):

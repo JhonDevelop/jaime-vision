@@ -142,6 +142,37 @@ async def hud_tela():
         raise HTTPException(404)
     return FileResponse(ULTIMA, headers={"Cache-Control": "no-store"})
 
+@app.get("/hud/vault")
+async def hud_vault():
+    """O cérebro real: notas do vault como nós, [[links]] como arestas — o HUD desenha e acende o que ele toca."""
+    import re as _re
+    raiz = settings.vault; nos, arestas = [], []
+    idx = {}
+    for p in sorted(raiz.rglob("*.md")):
+        if ".obsidian" in p.parts or "templates" in p.parts:
+            continue
+        rel = str(p.relative_to(raiz)); pasta = rel.split("/")[0]
+        idx[p.stem] = rel; idx[rel] = rel
+        nos.append({"id": rel, "nome": p.stem, "pasta": pasta, "kb": round(p.stat().st_size / 1024, 1)})
+    for n in nos:
+        try:
+            txt = (raiz / n["id"]).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for alvo in set(_re.findall(r"\[\[([^\]|#]+)", txt)):
+            alvo = alvo.strip(); dest = idx.get(alvo) or idx.get(alvo.split("/")[-1])
+            if dest and dest != n["id"]:
+                arestas.append([n["id"], dest])
+    return {"nos": nos, "arestas": arestas, "total": len(nos)}
+
+@app.get("/hud/nota")
+async def hud_nota(rel: str):
+    """Conteúdo de uma nota (só local), para o painel do cérebro."""
+    try:
+        return {"rel": rel, "texto": jaime.vault.read(rel)[:6000]}
+    except Exception:
+        raise HTTPException(404)
+
 @app.get("/hud/conexoes")
 async def hud_conexoes():
     return conexoes.estado()

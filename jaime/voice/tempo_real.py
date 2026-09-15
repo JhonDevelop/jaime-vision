@@ -5,7 +5,7 @@ As partes puras (gate "é comigo?", tratamento de eventos, ferramentas) são tes
 from __future__ import annotations
 import asyncio, base64, json, queue, threading, time
 from ..hud.events import bus
-from .escuta import interpretar_chamada, quer_teclado, LIXO_WHISPER
+from .escuta import interpretar_chamada, quer_teclado, quer_descansar, LIXO_WHISPER
 
 SR = 24000
 BLOCO = 480                      # 20 ms
@@ -43,7 +43,10 @@ class Gate:
         decisao, limpo = interpretar_chamada(texto, self.modo)
         if decisao == "sem_nome" and time.time() >= self.ativo_ate:
             return False, ""
-        self.ativo_ate = time.time() + self.janela_s
+        if quer_descansar(limpo or texto):
+            self.ativo_ate = 0.0
+            return True, "__descansar__"
+        self.ativo_ate = float("inf") if decisao == "chamou" else max(self.ativo_ate, time.time() + self.janela_s)
         return True, (limpo if decisao == "pediu" else texto)
 
 class Conversa:
@@ -213,6 +216,10 @@ class Conversa:
             return
         print(f"🎙 você › {texto}")
         bus.emitir("ouvido", texto=texto, ignorado=False)
+        if limpo == "__descansar__":
+            bus.emitir("voz", estado="ouvindo", falando=False, ativo=False)
+            await self._dizer("Certo, João. Estou aqui se precisar."); return
+        bus.emitir("voz", estado="ouvindo", falando=False, ativo=self.gate.ativo_ate == float("inf"))
         if not liberado or quer_teclado(limpo):
             # palavra-passe, tranca, teclado, renomear: o Jaime decide sem modelo e o Realtime só repete
             r = await self.jaime.ask(limpo or texto, canal="voice")
