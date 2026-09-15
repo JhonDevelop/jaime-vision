@@ -38,7 +38,8 @@ Rode `python -m jaime permissoes` para reconferir (abre os painéis do que falta
 2. Acesso Total ao Disco (tabela acima).
 3. Tailscale para acesso remoto (docs/REMOTO.md); Atalho de saúde (docs/SAUDE-PASSOS.md).
 4. Aniversário em `10-Eu/Datas.md`; complementar `10-Eu/Pessoas.md` (Diego não apareceu em arquivo nenhum).
-5. Opcionais: Home Assistant token, app Meta, Blender, VPS para Evolution (WhatsApp pessoal — parado por decisão do João).
+5. Notion: `sincronizar_estado` devolve 404 em `/v1/pages` — a página raiz (`NOTION_ROOT_PAGE_ID`) precisa estar **compartilhada com a integração** (⋯ › Conexões) ou o ID está errado; o resto do espelho segue.
+6. Opcionais: Home Assistant token, app Meta, Blender, VPS para Evolution (WhatsApp pessoal — parado por decisão do João).
 
 ## Próximos passos de código (ordem sugerida)
 1. `git push origin main`.
