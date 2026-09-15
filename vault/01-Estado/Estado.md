@@ -9,8 +9,8 @@ Sessão de testes rápidos do João: ele checou se eu consigo pesquisar na inter
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 14:23 em MacBookPro
-- tema: Você não terminou de falar.
+- quando: 15/09/2026 14:53 em MacBookPro
+- tema: óbvio, óbvio, tudo que eu for falar,
 
 ## Em andamento
 - Desligamento do meu servidor pedido pelo João, bloqueado pelo Vigia — aguardando "confirmo" (PIDs 79340 `jaime serve` e 79379 falantes_worker)
