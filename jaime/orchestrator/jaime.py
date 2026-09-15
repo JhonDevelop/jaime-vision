@@ -263,8 +263,11 @@ class Jaime:
                 if ev.get("type") == "content_block_delta":
                     d = ev.get("delta") or {}
                     if d.get("type") == "text_delta" and d.get("text"):
+                        txt = d["text"]
+                        if re.search(r"\b(hit your session limit|session limit|rate limit exceeded|overloaded_error)\b", txt, re.I):
+                            raise RuntimeError(f"anthropic_session_limit: {txt}")
                         por_delta = True
-                        bus.emitir("fala", texto=d["text"]); yield d["text"]
+                        bus.emitir("fala", texto=txt); yield txt
                     elif d.get("type") == "thinking_delta" and d.get("thinking"):
                         pensando += d["thinking"]
                         if len(pensando) > 240:
@@ -273,6 +276,8 @@ class Jaime:
             if isinstance(msg, AssistantMessage):
                 for b in msg.content:
                     if isinstance(b, TextBlock) and b.text.strip():
+                        if re.search(r"\b(hit your session limit|session limit|rate limit exceeded|overloaded_error)\b", b.text, re.I):
+                            raise RuntimeError(f"anthropic_session_limit: {b.text}")
                         if not por_delta:
                             bus.emitir("fala", texto=b.text); yield b.text
                     elif isinstance(b, ThinkingBlock):
@@ -502,11 +507,29 @@ class Jaime:
                    motivo=escolha.motivo, exploracao=escolha.exploracao)
         memoria = self._memoria(texto) if canal in ("voice", "hud", "cli", "telegram", "whatsapp") else ""
         prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "") + (f" [memória do vault: {memoria}]" if memoria else "")
-        async for t in self._stream(f"{prefixo} {texto}"):
-            yield t
-        # acerto provisório: vira erro se o próximo turno for uma correção
-        self.placar.registrar(escolha.modelo, escolha.tipo, "acerto",
-                              asyncio.get_event_loop().time() - inicio, self._custo_turno, texto[:80])
+        try:
+            async for t in self._stream(f"{prefixo} {texto}"):
+                yield t
+            # acerto provisório: vira erro se o próximo turno for uma correção
+            self.placar.registrar(escolha.modelo, escolha.tipo, "acerto",
+                                  asyncio.get_event_loop().time() - inicio, self._custo_turno, texto[:80])
+        except Exception as e:
+            msg_e = str(e).lower()
+            if "anthropic_session_limit" in msg_e or "session limit" in msg_e or "rate limit" in msg_e or "overloaded" in msg_e:
+                bus.emitir("placar", msg="Anthropic em limite de sessão/quota; acionando fallback OpenAI")
+                self.vault.diario(f"Harness: failover automático Anthropic → OpenAI ({msg_e[:60]})", "Decisões")
+                if self.openai.disponivel:
+                    r = await self.openai.responder(texto, self._contexto_texto(contexto))
+                    if r.ok and r.texto:
+                        bus.emitir("fala", texto=r.texto); bus.emitir("fala_fim")
+                        yield r.texto
+                        self.placar.registrar(f"openai:{self.openai.modelo}", escolha.tipo, "acerto", r.latencia, r.custo, texto[:80])
+                        return
+                aviso = "Atingi temporariamente o limite de requisições da sessão. Retorno em instantes."
+                bus.emitir("fala", texto=aviso); bus.emitir("fala_fim")
+                yield aviso
+                return
+            raise
 
     def _contexto_texto(self, contexto: str = "") -> str:
         """Contexto para provedores de texto (sem as mãos): quem ele é, regras, perfil do João, estado."""
