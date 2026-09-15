@@ -246,7 +246,7 @@ def test_orcamento_do_prompt_d_recebe_o_vault(vault, tmp_path, monkeypatch):
     monkeypatch.setenv("JAIME_ORCAMENTO_DIA_USD", "2.5")
     o = _orcamento(j)
     assert isinstance(o, Orcamento) and o.vault == vault.root and o.dia_usd == 2.5
-    monkeypatch.delitem(sys.modules, "jaime.cortex.orcamento")
+    monkeypatch.setitem(sys.modules, "jaime.cortex.orcamento", None)        # simula o módulo do D ausente (import falha)
     assert type(_orcamento(j)).__name__ == "OrcamentoLivre"                 # sem o módulo do D: stub
 
 def test_ligar_monta_tudo_com_um_jaime_falso(vault, tmp_path):
