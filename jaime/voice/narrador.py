@@ -47,7 +47,7 @@ class Narrador:
         self.inicio = 0.0; self.ultima = 0.0; self.ultima_frase = ""; self.ativo = False; self.n = 0
 
     def comecar(self):
-        self.inicio = self.relogio(); self.ultima = self.inicio; self.ultima_frase = ""; self.ativo = True; self.n = 0
+        self.inicio = self.relogio(); self.ultima = self.inicio - self.a_cada_s; self.ultima_frase = ""; self.ativo = True; self.n = 0
 
     def parar(self):
         self.ativo = False
