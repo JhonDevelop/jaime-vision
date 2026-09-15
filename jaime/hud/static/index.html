@@ -152,6 +152,9 @@
   <h3>Pessoas</h3><div id="pessoas" class="lista"></div>
   <h3>Pensando agora</h3><div id="pensamentos" class="lista"></div>
   <h3>Problemas em estudo</h3><div id="problemas" class="lista"></div>
+  <h3>Vitrine <small style="color:var(--mu);letter-spacing:.05em;text-transform:none">criações da noite · vote 👍 👎</small></h3>
+  <div id="vontades" class="lista"><div class="m">—</div></div>
+  <div id="vitrine" class="lista"><div class="m">nada criado ainda</div></div>
   <h3>Guardado para lembrar</h3><div id="lembrar" class="lista"></div>
   <h3>Nota aberta</h3><pre id="notaAberta" class="codigo">—</pre>
 </aside>
@@ -317,13 +320,24 @@ function feixe(alvo){const g=new THREE.BufferGeometry().setFromPoints([new THREE
   const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.9}));scene.add(l);feixes.push({l,t:0});}
 function menteAberta(){return !$('menteBox').hidden}
 function toggleMente(){$('menteBox').hidden=!$('menteBox').hidden;if(!$('menteBox').hidden){carregarMente();setTimeout(()=>$('busca').focus(),30)}}
-async function carregarMente(){const m=await fetch('/hud/mente').then(r=>r.json()).catch(()=>null);if(!m||m.erro)return;
+async function carregarMente(){carregarVitrine();const m=await fetch('/hud/mente').then(r=>r.json()).catch(()=>null);if(!m||m.erro)return;
   $('pessoas').innerHTML=(m.pessoas||[]).map(p=>`<div data-n="${esc(p.nome)}"><b>${esc(p.nome)}</b> <span class="m">— ${esc(p.papel)}</span></div>`).join('')||'<div class="m">nenhuma pessoa em 10-Eu/Pessoas.md</div>';
   $('pessoas').querySelectorAll('div[data-n]').forEach(d=>d.onclick=()=>abrirNota('10-Eu/Pessoas.md'));
   $('problemas').innerHTML=(m.problemas||[]).map(p=>`<div data-rel="90-Estudo/Problemas.md">${esc(p.id)} · ${esc(p.titulo)} <span class="m">(${p.tentativas} tentativas)</span></div>`).join('')||'<div class="m">nenhum</div>';
   $('lembrar').innerHTML=(m.lembrar||[]).map(l=>`<div data-rel="30-Tarefas/Para-lembrar.md">${esc(l)}</div>`).join('')||'<div class="m">nada guardado</div>';
   $('menteBox').querySelectorAll('div[data-rel]').forEach(d=>d.onclick=()=>abrirNota(d.dataset.rel));
   const v=m.vinculo||{},h=m.humor||{};$('pensamentos').innerHTML=`<div class="m">vínculo: ${v.dias} dias · ${v.conversas} conversas · familiaridade ${Math.round((v.familiaridade||0)*100)}% · humor ${esc(h.rotulo||'')}</div>`+pensamentosHtml();}
+// fase 3 — E: Vitrine + vontades (impulsos). Só o painel; o resto do HUD fica como está.
+const IMPULSO={utilidade:'Utilidade',curiosidade:'Curiosidade',maestria:'Maestria',criacao:'Criação',ordem:'Ordem',vinculo:'Vínculo'};
+function vontadesHtml(v){const n=(v&&v.niveis)||{};const ks=Object.keys(n).sort((a,b)=>n[b]-n[a]);if(!ks.length)return '<div class="m">—</div>';
+  return `<div class="m" data-rel="01-Estado/Vontades.md">${ks.map(k=>`${IMPULSO[k]||k} <b>${Math.round(n[k]*100)}%</b>`).join(' · ')}${v.demanda_pendente?' · <b>demanda pendente</b>':''}</div>`;}
+async function carregarVitrine(){const m=await fetch('/hud/vitrine').then(r=>r.json()).catch(()=>null);if(!m)return;
+  $('vontades').innerHTML=vontadesHtml(m.vontades)+(m.escolha?`<div class="m">${esc(m.escolha.pensamento||'')}</div>`:'');
+  $('vitrine').innerHTML=(m.itens||[]).map(i=>`<div data-id="${esc(i.id)}"><span class="m">${esc(i.quando)} · ${esc(i.tipo)}</span> ${esc(i.titulo)} <span class="m">${esc(i.descricao||'')}</span>
+    <span class="voto" data-id="${esc(i.id)}" data-g="1" title="gostei" style="cursor:pointer;margin-left:6px;opacity:${i.voto==='gostei'?1:.45}">👍</span><span class="voto" data-id="${esc(i.id)}" data-g="0" title="não gostei" style="cursor:pointer;margin-left:4px;opacity:${i.voto==='nao_gostei'?1:.45}">👎</span></div>`).join('')||'<div class="m">nada criado ainda</div>';
+  $('vitrine').querySelectorAll('.voto').forEach(b=>b.onclick=ev=>{ev.stopPropagation();votarVitrine(b.dataset.id,b.dataset.g==='1')});
+  $('vontades').querySelectorAll('div[data-rel]').forEach(d=>d.onclick=()=>abrirNota(d.dataset.rel));}
+async function votarVitrine(id,gostei){await fetch('/hud/vitrine/'+encodeURIComponent(id)+'/voto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gostei})}).catch(()=>null);carregarVitrine();}
 const pensamentosRecentes=[];
 function pensamentosHtml(){return pensamentosRecentes.slice(-8).map(p=>`<div ${p.rel?`data-rel="${esc(p.rel)}"`:''}><span class="m">${esc(p.t)}</span> ${esc(p.texto)}</div>`).join('')}
 function registrarPensamento(texto,rel){pensamentosRecentes.push({t:hora(),texto:texto.slice(0,160),rel});if(menteAberta()){$('pensamentos').insertAdjacentHTML('beforeend','');carregarMente()}}
@@ -491,6 +505,8 @@ function ligarStream(){
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
+      case 'vontade': if(e.escolha)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.escolha.pensamento||'')}</span>`);if(e.erro)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.erro)}</span>`);if(menteAberta()&&(e.niveis||e.escolha))carregarVitrine();break;
+      case 'vitrine': if(e.acao==='entregue'){feed($('prod'),`<span class="f">vitrine</span><span class="a">criei ${esc(e.formato||'')}: ${esc(e.titulo||'')}</span>`);aviso('nova criação na Vitrine: '+(e.titulo||''),10000);}else if(e.acao==='criando')feed($('rac'),`<span class="f">vitrine</span><span class="a">criando ${esc(e.formato||'')}…</span>`);else if(e.acao==='falhou')feed($('rac'),`<span class="f">vitrine</span><span class="a">${esc(e.formato||'')} não saiu: ${esc(e.erro||'')}</span>`);if(menteAberta())carregarVitrine();break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
       case 'falante': UI.falante=e.nome;$('voce').dataset.quem=e.nome;break;
       case 'ouvido': $('voce').classList.remove('viva');if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;

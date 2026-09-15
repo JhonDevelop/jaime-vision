@@ -67,6 +67,9 @@ async def lifespan(app: FastAPI):
     # fase 3: relatórios dos filhos (terminais no Maestri) chegam pela nota compartilhada; os importantes são falados
     equipe_t = asyncio.create_task(jaime.equipe.vigiar_relatorios(falar=(ouvido.falar if ouvido else None)))
     jaime.estudo.emitir()
+    # fase 3 — E: vontades (impulsos ouvem o bus), Mente (impulso × janela × orçamento) e noite criativa/Vitrine
+    from .vontade import ligar as ligar_vontade
+    app.state.vontade = ligar_vontade(jaime, ocioso, orcamento=getattr(app.state, "orcamento", None))   # orçamento do D, se já ligado
     # Telegram: canal do celular, só o dono (JAIME_OWNER_TELEGRAM_ID)
     from .conexoes.telegram import Telegram
     telegram = Telegram(settings.telegram_token, settings.owner_telegram_id, jaime)
@@ -75,6 +78,7 @@ async def lifespan(app: FastAPI):
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
     monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
+    app.state.vontade.parar()   # fase 3 — E
     if ouvido:
         ouvido.stop()
     await jaime.stop()
@@ -200,6 +204,25 @@ async def hud_mente():
                 "estado": {"fase": jaime.estado.fase(), "situacao": jaime.estado.secao("Situação agora"), "andamento": jaime.estado.secao("Em andamento")}}
     except Exception as e:
         return {"erro": str(e)[:160]}
+
+# fase 3 — E: Vitrine (criações da noite criativa) + níveis das vontades; o voto realimenta os impulsos pelo bus
+@app.get("/hud/vitrine")
+async def hud_vitrine():
+    v = getattr(app.state, "vontade", None)
+    if not v:
+        return {"itens": [], "vontades": {}, "escolha": None}
+    return {"itens": v.criacoes.listar(), "vontades": v.impulsos.dados(), "escolha": v.mente.ultima.dados() if v.mente.ultima else None}
+
+@app.post("/hud/vitrine/{id_}/voto")
+async def hud_vitrine_voto(id_: str, body: dict):
+    """body: {"gostei": true|false}"""
+    v = getattr(app.state, "vontade", None)
+    if not v:
+        raise HTTPException(409, "vontades indisponíveis")
+    item = v.criacoes.votar(id_, bool(body.get("gostei", body.get("gostou", True))))
+    if not item:
+        raise HTTPException(404, "criação não encontrada")
+    return item
 
 @app.get("/hud/nota")
 async def hud_nota(rel: str):
