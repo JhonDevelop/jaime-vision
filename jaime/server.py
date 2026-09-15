@@ -248,6 +248,12 @@ async def hud_nota(rel: str):
     except Exception:
         raise HTTPException(404)
 
+# fase 3 — HUD: fotografia dos subsistemas para o painel "Sistemas" (lote do Vigia, fila, filhos, estudo, rotina, orçamento)
+@app.get("/hud/sistemas")
+async def hud_sistemas():
+    from .hud.sistemas import montar
+    return montar(jaime, ouvido, app.state, settings)
+
 @app.get("/hud/conexoes")
 async def hud_conexoes():
     return conexoes.estado()
