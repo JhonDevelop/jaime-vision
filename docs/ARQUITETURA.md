@@ -142,3 +142,15 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
 - `telegram.py`: bot próprio por long polling (httpx); só `JAIME_OWNER_TELEGRAM_ID` conversa; canal `telegram`.
 - Voz: com a cota da ElevenLabs esgotada, a reserva é `say -v "Eddy (Português (Brasil))"` (masculina); 3 falhas
   seguidas desligam a ElevenLabs por 10 min e ela volta sozinha.
+
+
+## Mídia (fase 2, etapa 10) — `jaime/maos/`
+- `imagens.py`: gpt-image-2.5 (`JAIME_OPENAI_IMAGEM`; cai para gpt-image-2/1) → `~/Jaime/imagens/`, registro no diário.
+  MCP `midia`: `gerar_imagem`, `editar_imagem`. Validado ao vivo (logo em 13 s).
+- `blender.py`: o modelo escreve o corpo bpy; o cabeçalho e o salvamento são nossos; roda `blender -b -P`. Sem Blender
+  instalado, salva o script e diz onde baixar. MCP `gerar_3d`.
+- `conteudo.py`: `cortar_video` e `extrair_audio` (ffmpeg 8 do pacote `static-ffmpeg`, sem Homebrew), `legendar_video`
+  (Deepgram com utterances → .srt), `roteiro_para_cortes`. Thumbnail = `gerar_imagem(formato="thumbnail")`.
+- `computador.py`: o Jaime vê a tela (`tela_capturar` → PNG lido com Read; o HUD mostra em `/hud/tela`) e interage com
+  apps sem API (`tela_clicar`, `tela_digitar`, `tela_tecla`, via pyautogui). As três interações são ações do Vigia.
+  macOS pede Acessibilidade e Gravação de Tela para o Terminal.

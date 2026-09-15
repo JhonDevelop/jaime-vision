@@ -126,6 +126,14 @@ def _voz_estado() -> dict:
             "stt": "deepgram" if settings.deepgram_key else f"whisper:{settings.whisper_modelo}",
             "tts": {"openai": "openai:" + os.environ.get("JAIME_OPENAI_VOZ", "onyx"), "elevenlabs": "elevenlabs"}.get(os.environ.get("JAIME_TTS", "auto"), "auto") if (settings.openai_key or settings.elevenlabs_key) else "say"}
 
+@app.get("/hud/tela")
+async def hud_tela():
+    """Última captura de tela do computer use (só local)."""
+    from .maos.computador import ULTIMA
+    if not ULTIMA.exists():
+        raise HTTPException(404)
+    return FileResponse(ULTIMA, headers={"Cache-Control": "no-store"})
+
 @app.get("/hud/conexoes")
 async def hud_conexoes():
     return conexoes.estado()

@@ -82,6 +82,8 @@
   .shake{animation:sh .35s}
   @keyframes sh{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 
+  #telaBox{position:fixed;right:18px;bottom:44px;width:300px;border:1px solid var(--bd);border-radius:10px;background:var(--pn);backdrop-filter:blur(10px);padding:8px;z-index:4;text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+  #telaBox img{width:100%;border-radius:6px;display:block;margin-bottom:6px}
   #aviso{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:6;font-size:11.5px;letter-spacing:.06em;color:var(--am);background:var(--pn);border:1px solid rgba(255,179,71,.35);padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none}
   #aviso.on{opacity:1}
   @media (max-width:1100px){.painel{display:none}}
@@ -127,6 +129,7 @@
   <div class="feed" id="prod"></div>
 </aside>
 
+<div id="telaBox" hidden><img id="telaImg" alt="tela"><span>o que ele está vendo</span></div>
 <div id="legenda">
   <div id="estadoVoz" class="trancado">iniciando</div>
   <div id="fala"></div>
@@ -368,6 +371,7 @@ function ligarStream(){
       case 'agenda': if(e.disparo)feed($('prod'),`<span class="f">rotina</span><span class="a">${esc(e.disparo)} · ${esc(e.quando)}</span>`);else if(e.erro)aviso('agenda: '+e.erro);else if(e.rotinas)feed($('rac'),`<span class="f">agenda</span><span class="a">${e.rotinas.length} rotina(s), ${e.lembretes} lembrete(s)</span>`);break;
       case 'lembrete': aviso('⏰ '+e.texto,15000);feed($('prod'),`<span class="f">lembrete</span><span class="a">${esc(e.quando)} · ${esc(e.texto)}</span>`);break;
       case 'estudo': if(e.abertos!=null)$('estudo').textContent=e.abertos;if(e.msg)feed($('rac'),`<span class="f">estudo</span><span class="a">${esc(e.msg)}</span>`);break;
+      case 'tela': $('telaImg').src='/hud/tela?t='+e.t;$('telaBox').hidden=false;clearTimeout(window._telaT);window._telaT=setTimeout(()=>$('telaBox').hidden=true,60000);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
