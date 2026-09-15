@@ -26,7 +26,7 @@ from ..hud.events import bus
 PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100 é só Pro)
 VOZ_PADRAO = "JBFqnCBsd6RMkjVDRZzb"  # premade (George) — fala pt-BR com sotaque; troque em ELEVENLABS_VOICE_ID
 ADIANTAR = 2                         # quantas frases o sintetizador prepara à frente da que está tocando
-BLOCO_S = 0.1                        # escrita na placa em blocos de 100 ms: é o tempo máximo para calar
+BLOCO_S = 0.05                       # escrita na placa em blocos de 50 ms: é o tempo máximo que parar() espera para calar
 
 def limpar_para_fala(texto: str) -> str:
     """O modelo às vezes manda markdown mesmo por voz; o TTS leria os símbolos. Tira tudo que não se fala."""
@@ -71,6 +71,9 @@ class TTS:
         self._cond = threading.Condition()
         self._geracao = 0            # parar() avança a geração: itens antigos são descartados
         self._parando = threading.Event()
+        # O PortAudio não aguenta abort()/close() numa thread enquanto write() roda em outra (segfault em
+        # PaUtil_WriteRingBuffer, 15/09 14:06). Todo acesso ao stream passa por este lock, bloco a bloco.
+        self._lock_stream = threading.RLock()
         threading.Thread(target=self._sintetizador, daemon=True).start()
         threading.Thread(target=self._reprodutor, daemon=True).start()
 
@@ -214,7 +217,7 @@ class TTS:
                 continue
             try:
                 if pcm is not None:
-                    self._tocar(pcm)
+                    self._tocar(pcm, g)
                 elif not self._say_nativo(texto):
                     print(f"🔈 {texto}")
             except Exception as e:
@@ -280,31 +283,36 @@ class TTS:
         with self._openai.audio.speech.with_streaming_response.create(**self._openai_kw(texto)) as resp:
             return b"".join(resp.iter_bytes())
 
-    def _tocar(self, pcm) -> None:
-        """`pcm`: bytes inteiros ou iterador de blocos (streaming). Escreve em blocos de ~100 ms; `parar()` corta no próximo."""
+    def _tocar(self, pcm, g: int | None = None) -> None:
+        """`pcm`: bytes inteiros ou iterador de blocos (streaming). Escreve em blocos de ~50 ms; `parar()` corta no próximo.
+        `g` é a geração da frase: se `parar()` avançou a geração, o resto é descartado mesmo que `_parando` já tenha baixado."""
         if isinstance(pcm, (bytes, bytearray)):
             blocos = [bytes(pcm)]
         else:
             blocos = pcm
+        if g is None:
+            g = self._geracao
+        cortada = lambda: self._parando.is_set() or g != self._geracao
         tocado = bytearray()
         try:
-            bloco = int(self._taxa * BLOCO_S) * 2          # bytes por 100 ms (int16 mono)
-            st = None
+            bloco = int(self._taxa * BLOCO_S) * 2          # bytes por bloco (int16 mono)
             for trecho in blocos:
-                if self._parando.is_set():
+                if cortada():
                     return                                  # barge-in: cala no próximo bloco
                 dados = self._na_taxa_do_aparelho(bytes(trecho))
-                if st is None:
-                    st = self._abrir_stream()
-                    if not self.t_inicio_audio:
-                        self.t_inicio_audio = time.time()
                 tocado += trecho
                 for i in range(0, len(dados), bloco):
-                    if self._parando.is_set():
-                        return
-                    st.write(dados[i:i + bloco])
+                    # Abrir e escrever sob o mesmo lock: parar() nunca fecha o aparelho no meio de um write(),
+                    # e uma frase antiga nunca reabre o aparelho depois de parar().
+                    with self._lock_stream:
+                        if cortada():
+                            return
+                        st = self._abrir_stream()
+                        if not self.t_inicio_audio:
+                            self.t_inicio_audio = time.time()
+                        st.write(dados[i:i + bloco])
         except Exception as e:
-            if self._parando.is_set():
+            if cortada():
                 return
             print(f"⚠ placa de som falhou ({type(e).__name__}); tocando pelo afplay")
             self._fechar_stream()
@@ -314,18 +322,20 @@ class TTS:
     def _abrir_stream(self):
         """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases."""
         import sounddevice as sd
-        if self._stream is None:
-            self._taxa = int(sd.query_devices(kind="output")["default_samplerate"]) or PCM_SR
-            self._stream = sd.RawOutputStream(samplerate=self._taxa, channels=1, dtype="int16",
-                                              blocksize=0, latency="low")
-            self._stream.start()
-        return self._stream
+        with self._lock_stream:
+            if self._stream is None:
+                self._taxa = int(sd.query_devices(kind="output")["default_samplerate"]) or PCM_SR
+                self._stream = sd.RawOutputStream(samplerate=self._taxa, channels=1, dtype="int16",
+                                                  blocksize=0, latency="low")
+                self._stream.start()
+            return self._stream
 
     def _fechar_stream(self) -> None:
-        st, self._stream = self._stream, None
-        if st is not None:
-            try: st.abort() if self._parando.is_set() else st.stop(); st.close()
-            except Exception: pass
+        with self._lock_stream:                             # espera o bloco em curso (≤ 50 ms) terminar
+            st, self._stream = self._stream, None
+            if st is not None:
+                try: st.abort() if self._parando.is_set() else st.stop(); st.close()
+                except Exception: pass
 
     def _na_taxa_do_aparelho(self, pcm: bytes) -> bytes:
         """Reamostragem linear 24 kHz → taxa do aparelho. Fazer aqui evita os estalos do PortAudio."""
