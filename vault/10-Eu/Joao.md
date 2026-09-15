@@ -1,0 +1,1 @@
+- Aniversário: 10 de março. (Dito por voz em 15/09/2026; ano de nascimento ainda não informado.)

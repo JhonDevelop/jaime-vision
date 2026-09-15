@@ -27,3 +27,5 @@ vault/.obsidian/cache
 
 # córtex: placar bruto (o Placar.md é a versão legível)
 vault/.placar.json
+
+# cérebro de estudo: sandbox fica fora do repo (/tmp/jaime-lab)

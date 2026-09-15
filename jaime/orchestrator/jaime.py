@@ -3,7 +3,7 @@
 Fluxo de cada fala: acesso (palavra-passe) → Claude (com maesters e Vigia) → eventos p/ HUD →
 registro da conversa no vault → reflexão a cada N turnos → espelho no Notion."""
 from __future__ import annotations
-import asyncio
+import asyncio, re
 from datetime import datetime
 from claude_agent_sdk import (
     ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, UserMessage, ResultMessage, StreamEvent,
@@ -33,6 +33,8 @@ from ..emocao.tools import build_emocao_server
 from ..agenda.scheduler import Agenda
 from ..agenda.tools import build_mundo_server
 from ..agenda import relogio, clima, lembretes as lem
+from ..estudo.loop import Estudo
+from ..estudo.tools import build_estudo_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -83,6 +85,9 @@ class Jaime:
         self.momento = calcular_momento(self.perfil)
         # agenda própria (rotinas, lembretes) — o servidor liga o scheduler depois do boot
         self.agenda = Agenda(self)
+        # cérebro de estudo: problemas em aberto → ciclos em /tmp/jaime-lab
+        self.estudo = Estudo(self.vault, self.estado, self.placar, settings.root, settings.model_padrao)
+        self._erros_vistos: dict[str, int] = {}
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -95,7 +100,8 @@ class Jaime:
             agents=carregar_maesters(self.s.root),
             mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self),
                          "emocao": build_emocao_server(self.perfil, self.perguntas, self.humor),
-                         "mundo": build_mundo_server(self.agenda, self.s.lat, self.s.lon)},
+                         "mundo": build_mundo_server(self.agenda, self.s.lat, self.s.lon),
+                         "estudo": build_estudo_server(self.estudo)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -205,6 +211,11 @@ class Jaime:
                         c = b.content if isinstance(b.content, str) else " ".join(x.get("text", "") for x in (b.content or []) if isinstance(x, dict))
                         if b.is_error:
                             self._erros_turno += 1
+                            # mesmo erro duas vezes → problema para o cérebro de estudo
+                            chave = re.sub(r"\d+", "#", (c or "")[:120]).strip()
+                            self._erros_vistos[chave] = self._erros_vistos.get(chave, 0) + 1
+                            if self._erros_vistos[chave] == 2:
+                                self.estudo.abrir(f"Ferramenta falha repetidamente: {chave[:80]}", c or "", "ferramenta_falhou")
                         bus.emitir("resultado", texto=(c or "")[:300], erro=bool(b.is_error))
             elif isinstance(msg, ResultMessage):
                 # total_cost_usd é acumulado da sessão: o custo do turno é a diferença
@@ -301,6 +312,12 @@ class Jaime:
         # resultado do turno alimenta o humor: ferramentas falhando = erro próprio (grave se repetiu)
         self.humor.registrar_resultado(self._erros_turno == 0, grave=self._erros_turno >= 2)
         bus.emitir("humor", **self.humor.dados())
+        # gatilhos do cérebro de estudo: o João pediu pesquisa, ou a resposta admitiu não saber
+        resposta = "".join(partes)
+        if re.search(r"\b(pesquisa isso|estuda isso|descobre isso|n[aã]o sei como|vê como faz)\b", texto, re.I):
+            self.estudo.abrir(texto[:100], resposta[:400], "joao_pediu")
+        elif re.search(r"\b(n[aã]o sei|n[aã]o tenho como|n[aã]o consegui descobrir|n[aã]o encontrei)\b", resposta[:300], re.I) and escolha.tipo in ("pesquisa", "código"):
+            self.estudo.abrir(texto[:100], resposta[:400], "sem_resposta")
         await self._pos_turno(canal, texto, "".join(partes))
 
     async def _turno_anthropic(self, escolha, texto: str, canal: str, contexto: str, inicio: float):

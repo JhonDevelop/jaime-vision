@@ -103,3 +103,18 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
   cache 10 min), `feriados.py` (`holidays` BR+SP; tabela fixa de reserva).
 - Perguntas de hora, data e clima e pedidos de lembrete **não vão ao modelo**: `Jaime._mundo()` responde em milissegundos.
 - Ferramentas MCP `mundo`: `agora`, `clima`, `feriado_hoje`, `criar_lembrete`, `rotinas`.
+
+
+## Cérebro de estudo (fase 2, etapa 6) — `jaime/estudo/`
+- `problemas.py`: `90-Estudo/Problemas.md` — ID, título, origem (ferramenta_falhou · teste_quebrou · joao_pediu ·
+  sem_resposta · correcao · manual), contexto, tentativas. Não duplica problema parecido; `proximo()` pega o com menos
+  tentativas.
+- Gatilhos automáticos no orquestrador: mesma mensagem de erro de ferramenta 2× no turno; o João disse "pesquisa isso" /
+  "não sei como"; resposta de pesquisa/código admitiu "não sei". Ferramentas MCP `estudo`: `abrir_problema`,
+  `problemas_abertos`, `resolver_problema`.
+- `loop.py`: um problema por ciclo, 15 min, turno avulso do Agent SDK em `/tmp/jaime-lab` com hook que nega escrita e
+  comandos fora do laboratório (nunca `~/projetos`, nunca o repositório). Resolvido → `50-Conhecimento/<slug>.md`
+  (como reproduzir · o que resolveu · onde se aplica), INDEX regenerado, aprendizado no Estado, placar (`estudo`),
+  skill em `.claude/skills/<slug>/` quando o estudo devolve uma. Não resolvido → tentativa e "o que falta" no problema.
+- Mente contínua (mínima): `rodar_em_ciclos` a cada 30 min, só com o cérebro liberado, ninguém falando e o lock livre.
+  HUD: chip "estudando: N".

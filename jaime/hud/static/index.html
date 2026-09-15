@@ -97,6 +97,7 @@
     <span class="chip"><i class="dot" id="dot"></i><span id="acesso">trancado</span></span>
     <span class="chip" id="ctxChip" title="o que você está fazendo agora">você em<b id="ctx">—</b></span>
     <span class="chip" id="humorChip" title="humor do Jaime: energia · calor · gravidade · confiança">humor<b id="humor">—</b><i class="hb"><i id="h1"></i><i id="h2"></i><i id="h3"></i><i id="h4"></i></i></span>
+    <span class="chip" id="estudoChip" title="cérebro de estudo: problemas em aberto">estudando<b id="estudo">0</b></span>
     <span class="chip">máquina<b id="maq">—</b></span>
     <span class="chip">modelo<b id="modelo">—</b></span>
     <button class="ico on" id="btMic" title="microfone (M)">mic</button>
@@ -366,6 +367,7 @@ function ligarStream(){
       case 'juiz': feed($('rac'),`<span class="f">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);break;
       case 'agenda': if(e.disparo)feed($('prod'),`<span class="f">rotina</span><span class="a">${esc(e.disparo)} · ${esc(e.quando)}</span>`);else if(e.erro)aviso('agenda: '+e.erro);else if(e.rotinas)feed($('rac'),`<span class="f">agenda</span><span class="a">${e.rotinas.length} rotina(s), ${e.lembretes} lembrete(s)</span>`);break;
       case 'lembrete': aviso('⏰ '+e.texto,15000);feed($('prod'),`<span class="f">lembrete</span><span class="a">${esc(e.quando)} · ${esc(e.texto)}</span>`);break;
+      case 'estudo': if(e.abertos!=null)$('estudo').textContent=e.abertos;if(e.msg)feed($('rac'),`<span class="f">estudo</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
