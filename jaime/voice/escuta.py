@@ -29,7 +29,8 @@ MAX_FALA_S = 20
 VAD_INICIO = 0.5            # probabilidade para começar a gravar
 VAD_FIM = 0.35              # abaixo disto conta como silêncio (histerese)
 JANELA_VAD = 8              # frames de contexto para o Silero (256 ms)
-MULETA_S = 3.0              # só em tarefas com ferramenta: silêncio máximo antes de "deixa eu ver…"
+MULETA_S = 3.0              # só em tarefas com ferramenta: espera até isto pela 1ª ferramenta do turno
+MULETA_APOS_FERRAMENTA_S = 0.4   # ferramenta usada e nada dito: "deixa eu ver…" quase na hora (antes 2 s → 1º som em ~4,5 s)
 MULETAS = ["Deixa eu ver…", "Só um segundo.", "Hmm… deixa eu olhar isso.", "Peraí, já te digo."]
 
 LIXO_WHISPER = re.compile(r"(legendas? pela comunidade|amara\.org|obrigad[oa] por assistir|tchau tchau|^\W*$|^\.+$)", re.I)
@@ -388,7 +389,7 @@ class Ouvido:
                     await asyncio.wait_for(usou_ferramenta.wait(), MULETA_S)
                 except asyncio.TimeoutError:
                     return
-                await asyncio.sleep(max(0.0, MULETA_S - 1.0))
+                await asyncio.sleep(MULETA_APOS_FERRAMENTA_S)
                 if not primeira.is_set():
                     self._enfileirar(random.choice(MULETAS))
             asyncio.create_task(muleta())
