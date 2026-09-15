@@ -142,7 +142,8 @@ class Antecipador:
         # o texto seguiu outro rumo enquanto o modelo pensava? então o parecer não vale
         if not self._ultimo_texto.startswith(texto) and not bate(texto, self._ultimo_texto):
             return
-        a = replace(base, origem="modelo", latencia_s=time.time() - inicio,
+        # o parecer vale para o texto ATUAL (o modelo viu um prefixo dele): assim `confere()` compara com o final certo
+        a = replace(base, texto=self._ultimo_texto, origem="modelo", latencia_s=time.time() - inicio,
                     intencao=str(d.get("intencao", base.intencao))[:80],
                     completude=max(0.0, min(1.0, float(d.get("completude", base.completude)))),
                     ambigua=bool(d.get("ambigua", base.ambigua)),
@@ -158,6 +159,10 @@ class Antecipador:
                     await r
             except Exception:
                 pass
+        # o texto cresceu enquanto o modelo pensava: já pede o parecer do texto novo
+        if self._ultimo_texto != texto and self.modelo_fn:
+            self._ultima_chamada = time.time()
+            self._em_curso = asyncio.create_task(self._refinar(self._ultimo_texto, a))
 
     async def esperar_modelo(self) -> Antecipacao | None:
         if self._em_curso and not self._em_curso.done():
