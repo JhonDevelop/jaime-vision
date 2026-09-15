@@ -36,19 +36,18 @@ def _tela() -> tuple[bool, str]:
         return False, str(e)[:100]
 
 def _acessibilidade() -> tuple[bool, str]:
+    """AXIsProcessTrusted() diz o estado; um toque inofensivo no Shift via pynput faz o macOS pedir a permissão."""
     try:
         AS = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
-        CF = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
-        AS.AXIsProcessTrustedWithOptions.restype = ctypes.c_bool
-        # kAXTrustedCheckOptionPrompt = true → o sistema abre o pedido
-        CF.CFStringCreateWithCString.restype = ctypes.c_void_p
-        chave = CF.CFStringCreateWithCString(None, b"AXTrustedCheckOptionPrompt", 0x08000100)
-        CF.kCFBooleanTrue = ctypes.c_void_p.in_dll(CF, "kCFBooleanTrue")
-        CF.CFDictionaryCreate.restype = ctypes.c_void_p
-        keys = (ctypes.c_void_p * 1)(chave); vals = (ctypes.c_void_p * 1)(CF.kCFBooleanTrue.value)
-        d = CF.CFDictionaryCreate(None, keys, vals, 1, None, None)
-        ok = AS.AXIsProcessTrustedWithOptions(ctypes.c_void_p(d))
-        return bool(ok), "ok" if ok else "pedido enviado — marque o python na lista"
+        AS.AXIsProcessTrusted.restype = ctypes.c_bool
+        if AS.AXIsProcessTrusted():
+            return True, "ok"
+        try:
+            from pynput.keyboard import Controller, Key
+            k = Controller(); k.press(Key.shift); k.release(Key.shift)
+        except Exception:
+            pass
+        return bool(AS.AXIsProcessTrusted()), "pedido enviado — marque o python na lista"
     except Exception as e:
         return False, f"{type(e).__name__}: {str(e)[:80]}"
 

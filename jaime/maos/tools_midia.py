@@ -58,7 +58,16 @@ def build_midia_server(imagens: Imagens, deepgram_key: str):
         except Exception as e:
             return _txt(f"falhou: {e}")
 
-    return create_sdk_mcp_server(name="midia", version="1.0.0", tools=[gerar_imagem, editar_imagem, gerar_3d, cortar_video, legendar_video])
+    @tool("ver_video", "Extrai quadros de um vídeo (um a cada N segundos, até 12) para você VER com Read e descrever/analisar.", {"video": str, "cada_s": float})
+    async def ver_video(args):
+        try:
+            import asyncio
+            qs = await asyncio.to_thread(conteudo.quadros, Path(args["video"]), float(args.get("cada_s") or 5))
+            return _txt("Quadros (leia com Read):\n" + "\n".join(str(q) for q in qs))
+        except Exception as e:
+            return _txt(f"falhou: {e}")
+
+    return create_sdk_mcp_server(name="midia", version="1.0.0", tools=[gerar_imagem, editar_imagem, gerar_3d, cortar_video, legendar_video, ver_video])
 
 def build_tela_server():
     @tool("tela_capturar", "Captura a tela inteira em ~/Jaime/capturas/tela.png (leia com Read para VER). Livre.", {})

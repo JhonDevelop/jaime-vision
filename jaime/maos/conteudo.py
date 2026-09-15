@@ -76,3 +76,17 @@ def roteiro_para_cortes(roteiro: str) -> list[tuple[str, str, str]]:
         if m:
             out.append((m.group(1), m.group(2), m.group(3).strip() or f"corte {len(out) + 1}"))
     return out
+
+
+def quadros(video: Path, cada_s: float = 5.0, maximo: int = 12, pasta: Path | None = None) -> list[Path]:
+    """Para o Jaime VER um vídeo: extrai um quadro a cada `cada_s` segundos (até `maximo`) — ele lê os PNGs com Read."""
+    video = Path(video).expanduser()
+    pasta = Path(pasta).expanduser() if pasta else PASTA / f"{video.stem}-quadros"
+    pasta.mkdir(parents=True, exist_ok=True)
+    for f in pasta.glob("q-*.png"):
+        f.unlink()
+    r = subprocess.run([ffmpeg(), "-y", "-i", str(video), "-vf", f"fps=1/{max(cada_s, 0.5)},scale=960:-1", "-frames:v", str(maximo),
+                        str(pasta / "q-%03d.png")], capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr[-300:])
+    return sorted(pasta.glob("q-*.png"))

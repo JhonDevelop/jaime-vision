@@ -55,3 +55,10 @@ def test_captura_de_tela_somente(tmp_path, monkeypatch):
     except Exception as e:
         pytest.skip(f"screencapture indisponível aqui: {e}")
     assert p.exists() and p.stat().st_size > 0
+
+@pytest.mark.skipif(not __import__("importlib").util.find_spec("static_ffmpeg"), reason="sem ffmpeg")
+def test_quadros_de_video(tmp_path):
+    ff = conteudo.ffmpeg(); v = tmp_path / "v.mp4"
+    subprocess.run([ff, "-y", "-f", "lavfi", "-i", "testsrc=duration=6:size=160x120:rate=5", "-pix_fmt", "yuv420p", str(v)], check=True, capture_output=True, timeout=120)
+    qs = conteudo.quadros(v, cada_s=2, pasta=tmp_path / "q")
+    assert 2 <= len(qs) <= 4 and all(q.suffix == ".png" for q in qs)
