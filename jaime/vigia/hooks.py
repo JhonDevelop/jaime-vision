@@ -15,7 +15,7 @@ BASH_PERIGOSO = [
     r"git\s+reset\s+--hard", r"curl[^|]*\|\s*(ba)?sh", r"\bDROP\s+TABLE\b", r"\bTRUNCATE\b",
     r"\bshutdown\b", r"\breboot\b", r"\bkillall\b", r"\bchmod\s+-R\s+777",
 ]
-TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete|mover|renomear|apagar)", re.I)
+TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete|mover|renomear|apagar|enviar|email_enviar)", re.I)
 # browser: clicar em enviar/comprar/pagar/confirmar/assinar (texto ou seletor de submit) espera o "confirmo"
 CLIQUE_IRREVERSIVEL = re.compile(r"(submit|enviar|comprar|finalizar|pagar|pagamento|confirmar|assinar|contratar|checkout|publicar|postar|excluir|apagar|deletar|delete|buy|pay|purchase|send)", re.I)
 CAMINHOS_PROTEGIDOS = re.compile(r"(^|/)(\.env|vault/00-Jaime/)")

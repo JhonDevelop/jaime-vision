@@ -105,15 +105,30 @@ def _skills(acao: str) -> int:
         print(f"  ✔ {nome} ({len(membros)} arquivos)" if membros else f"  ✘ {nome} não encontrada no repositório")
     print(f"skills em {destino}"); return 0
 
+def _conectar(servico: str) -> int:
+    """`jaime conectar google`: OAuth do seu projeto → token local + registro em 01-Estado/Conexoes.md."""
+    if servico != "google":
+        print("uso: python -m jaime conectar google"); return 2
+    from .conexoes.google import conectar
+    from .conexoes.registro import Registro
+    from .brain.vault import Vault
+    from datetime import date
+    email = conectar(settings.google_client_secret, settings.google_token)
+    Registro(Vault(settings.vault)).registrar("Google Gmail", "ler, rascunhar, enviar (Vigia), marcar", f"OAuth {date.today():%d/%m/%Y} ({email})", "myaccount.google.com › Segurança › Acesso de terceiros")
+    Registro(Vault(settings.vault)).registrar("Google Calendar", "ler e criar eventos", f"OAuth {date.today():%d/%m/%Y} ({email})", "idem; ou apagar ~/Jaime/google-token.json")
+    Registro(Vault(settings.vault)).registrar("Google Drive", "somente leitura", f"OAuth {date.today():%d/%m/%Y} ({email})", "idem")
+    print(f"✔ Google conectado como {email}. Token em {settings.google_token}"); return 0
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar"])
     ap.add_argument("acao", nargs="?", default="check")
     ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
     if m == "cerebro": return _cerebro(args.acao)
     if m == "cortex": return _cortex(args.acao, " ".join(args.texto))
     if m == "skills": return _skills(args.acao)
+    if m == "conectar": return _conectar(args.acao)
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
     elif m == "hud": _serve(abrir_hud=True)

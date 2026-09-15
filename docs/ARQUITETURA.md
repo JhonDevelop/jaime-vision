@@ -131,3 +131,14 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
   `organizar_arquivos` só propõe; `mover` é ação do Vigia (confirmo).
 - Skills oficiais de documentos (pdf, docx, xlsx, pptx) instaladas em `.claude/skills/` por `python -m jaime skills instalar`
   (baixa de github.com/anthropics/skills). O Agent SDK carrega `.claude/` via `setting_sources=["project"]`.
+
+
+## Conexões (fase 2, etapa 8) — `jaime/conexoes/`
+- `registro.py`: `01-Estado/Conexoes.md` — serviço, escopo, como foi autorizado, como revogar, último uso.
+- `google.py`: OAuth de app Desktop do projeto do João no Google Cloud; token local renovado sozinho
+  (`python -m jaime conectar google`; passo a passo em `docs/CONEXOES.md`). Ferramentas MCP `google`: `email_hoje`,
+  `email_buscar`, `email_rascunho`, `email_enviar` (Vigia), `agenda_dia`, `agenda_criar`, `conexoes`. Clientes injetáveis
+  para teste.
+- `telegram.py`: bot próprio por long polling (httpx); só `JAIME_OWNER_TELEGRAM_ID` conversa; canal `telegram`.
+- Voz: com a cota da ElevenLabs esgotada, a reserva é `say -v "Eddy (Português (Brasil))"` (masculina); 3 falhas
+  seguidas desligam a ElevenLabs por 10 min e ela volta sozinha.

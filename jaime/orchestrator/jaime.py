@@ -36,6 +36,9 @@ from ..agenda import relogio, clima, lembretes as lem
 from ..estudo.loop import Estudo
 from ..estudo.tools import build_estudo_server
 from ..maos.tools import build_maos_server
+from ..conexoes.registro import Registro
+from ..conexoes.google import GoogleConta
+from ..conexoes.tools import build_google_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -89,6 +92,9 @@ class Jaime:
         # cérebro de estudo: problemas em aberto → ciclos em /tmp/jaime-lab
         self.estudo = Estudo(self.vault, self.estado, self.placar, settings.root, settings.model_padrao)
         self._erros_vistos: dict[str, int] = {}
+        # conexões: registro do que ele acessa + Google pelo OAuth próprio (token local)
+        self.conexoes = Registro(self.vault)
+        self.google = GoogleConta(settings.google_token)
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -103,7 +109,8 @@ class Jaime:
                          "emocao": build_emocao_server(self.perfil, self.perguntas, self.humor),
                          "mundo": build_mundo_server(self.agenda, self.s.lat, self.s.lon),
                          "estudo": build_estudo_server(self.estudo),
-                         "maos": build_maos_server(self.vault, self.s.workspace)},
+                         "maos": build_maos_server(self.vault, self.s.workspace),
+                         "google": build_google_server(self.google, self.conexoes)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

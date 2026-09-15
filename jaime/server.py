@@ -44,8 +44,14 @@ async def lifespan(app: FastAPI):
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
     estudo_t = asyncio.create_task(jaime.estudo.rodar_em_ciclos(ocioso))
     jaime.estudo.emitir()
+    # Telegram: canal do celular, só o dono (JAIME_OWNER_TELEGRAM_ID)
+    from .conexoes.telegram import Telegram
+    telegram = Telegram(settings.telegram_token, settings.owner_telegram_id, jaime)
+    telegram_t = asyncio.create_task(telegram.rodar())
+    if telegram.ativo:
+        jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
-    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); jaime.agenda.stop()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); telegram_t.cancel(); jaime.agenda.stop()
     if ouvido:
         ouvido.stop()
     await jaime.stop()

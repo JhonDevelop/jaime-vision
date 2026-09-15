@@ -18,6 +18,7 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - 2026-09-15 — Agenda própria: APScheduler no processo lendo 30-Tarefas/Rotinas.md; lembretes em Lembretes.md; hora/clima/feriado respondidos sem modelo. O n8n não volta.
 - 2026-09-15 — Cérebro de estudo: 90-Estudo/Problemas.md + ciclo em /tmp/jaime-lab (turno avulso do SDK com hook de sandbox); resolvido vira 50-Conhecimento + skill; mente contínua mínima a cada 30 min quando ocioso.
 - 2026-09-15 — Mãos: browser próprio com Playwright (perfil persistente em ~/Jaime/browser-profile), criar_projeto no workspace, organizar arquivos pelas regras do Jeito.md; skills oficiais pdf/docx/xlsx/pptx em .claude/skills.
+- 2026-09-15 — Conexões: Google pelo OAuth do projeto do João (token local), Telegram só do dono; tudo que envia fica atrás do Vigia; registro vivo em 01-Estado/Conexoes.md. Instagram/WhatsApp pessoal por libs não oficiais: nunca.
 - 2026-09-15 — `jaime cerebro check` roda no boot; INDEX.md de Conhecimento e Projetos são gerados por código e entram no contexto inicial.
 - 2026-09-14 — Notion como espelho (página raiz + Diário, Tarefas, Conversas); vault continua sendo a fonte primária.
 - 2026-09-14 — Só local por padrão; palavra-passe com hash; reflexão a cada 6 turnos reescreve o Estado.
@@ -32,7 +33,8 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - [x] fase 2, etapa 5 — agenda própria (15/09)
 - [x] fase 2, etapa 6 — cérebro de estudo (15/09)
 - [x] fase 2, etapa 7 — mãos (15/09)
-- [ ] fase 2, etapa 8 — conexões Google (OAuth) + Telegram
+- [x] fase 2, etapa 8 — conexões (15/09; credencial Google e bot do Telegram são do João)
+- [ ] fase 2, etapa 9 — voz com persona e emoção
 - [ ] NOTION_TOKEN para religar o espelho
 - [ ] `.claude/agents/` — os maesters ainda não existem como arquivos
 

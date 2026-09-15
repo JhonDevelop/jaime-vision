@@ -17,7 +17,7 @@ Ordem de tentativa: ElevenLabs → `say` do macOS em pt-BR → texto no terminal
 `voz: falando=true` sai quando a primeira frase começa e só volta a false quando a fila esvazia —
 o cérebro do HUD pulsa durante a resposta toda, não a cada ponto final."""
 from __future__ import annotations
-import os, queue, re, shutil, subprocess, tempfile, threading, wave
+import os, queue, re, shutil, subprocess, tempfile, threading, time, wave
 from ..config import Settings
 from ..hud.events import bus
 
@@ -42,6 +42,7 @@ class TTS:
         self.s = s
         self._client = None
         self._falhas = 0
+        self._ultima_falha = 0.0
         self._afplay = shutil.which("afplay")
         self._stream = None          # stream de saída, aberto enquanto durar a resposta
         self._taxa = PCM_SR          # taxa nativa do aparelho, descoberta ao abrir
@@ -92,14 +93,17 @@ class TTS:
         while True:
             texto = self._pedidos.get()
             pcm = None
+            # 3 falhas seguidas desligam a ElevenLabs por 10 min (cota, rede); depois tenta de novo sozinho
+            if self._falhas >= 3 and time.time() - self._ultima_falha > 600:
+                self._falhas = 0
             if self._client and self._falhas < 3:
                 try:
                     pcm = self._elevenlabs(texto)
                     self._falhas = 0
                 except Exception as e:
                     # depois de 3 falhas seguidas para de tentar nesta sessão (não gasta latência à toa)
-                    self._falhas += 1
-                    print(f"⚠ ElevenLabs falhou ({type(e).__name__}); usando a voz local")
+                    self._falhas += 1; self._ultima_falha = time.time()
+                    print(f"⚠ ElevenLabs falhou ({type(e).__name__}: {str(e)[:80]}); usando a voz local")
             self._prontos.put((texto, pcm))
 
     def _reprodutor(self) -> None:
@@ -195,6 +199,7 @@ class TTS:
         """macOS: voz local em pt-BR. Grátis, offline, sotaque pior que a ElevenLabs."""
         if not shutil.which("say"):
             return False
-        subprocess.run(["say", "-v", os.environ.get("JAIME_SAY_VOZ", "Luciana"), "-r", "185", texto],
+        # Eddy é masculina pt-BR; a Luciana (feminina) era o padrão antigo — o João estranhou "voz feminina às vezes"
+        subprocess.run(["say", "-v", os.environ.get("JAIME_SAY_VOZ", "Eddy (Português (Brasil))"), "-r", "185", texto],
                        check=False, stderr=subprocess.DEVNULL)
         return True

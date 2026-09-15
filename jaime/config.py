@@ -48,6 +48,11 @@ class Settings:
     evolution_instance: str = _env("EVOLUTION_INSTANCE", "jaime")
     owner_phone: str = _env("JAIME_OWNER_PHONE")
     server_token: str = _env("JAIME_SERVER_TOKEN", "troque-isto")
+    # conexões (fase 2, etapa 8)
+    google_client_secret: Path = field(default_factory=lambda: Path(_env("GOOGLE_CLIENT_SECRET_FILE", "~/Jaime/google-client-secret.json")).expanduser())
+    google_token: Path = field(default_factory=lambda: Path(_env("GOOGLE_TOKEN_FILE", "~/Jaime/google-token.json")).expanduser())
+    telegram_token: str = _env("TELEGRAM_BOT_TOKEN")
+    owner_telegram_id: str = _env("JAIME_OWNER_TELEGRAM_ID")
     bind: str = _env("JAIME_BIND", "127.0.0.1")     # só local por padrão
     port: int = int(_env("JAIME_PORT", "8787"))
     # acesso ao cérebro (palavra-passe falada ou digitada) — hash SHA-256 de "12341234" por padrão
