@@ -48,6 +48,39 @@ class Antecipacao:
 def _norm(s: str) -> list[str]:
     return re.findall(r"[a-zà-ú0-9]+", (s or "").lower())
 
+# Rascunhos LOCAIS para os pedidos mais comuns (Mente, 15/09): o modelo em nuvem leva 3,7–5,4 s por parecer — mais
+# que o turno inteiro — e por isso o cache da 1ª frase nunca existia (0/10 na medição). Uma frase curta e certa,
+# sintetizada enquanto o João ainda fala, é o que faz a resposta sair em ~150 ms. O modelo continua a partir dela.
+VOCATIVO_RX = re.compile(r"^\s*(?:ô|o|oi|ei|hey|olá|ola|e aí|alô|fala)?\s*jaime\b[,\s]*", re.I)
+_ART = r"(?:o|a|os|as|um|uma)?"
+RASCUNHOS: list[tuple[re.Pattern, "callable"]] = [
+    (re.compile(rf"^(?:abre|abra|abrir)\s+(?P<art>{_ART})\s*(?P<alvo>[\wÀ-ÿ][\wÀ-ÿ .'-]{{1,40}}?)\s*(?:pra mim|para mim|por favor|aí|ai)?[.!?…]*$", re.I),
+     lambda m: ("abrir " + m.group("alvo").strip(), f"Abrindo {(m.group('art') + ' ') if m.group('art') else ''}{m.group('alvo').strip()}.")),
+    (re.compile(r"\b(?:quem|o que|que|alguém|alguem)\b.*\b(?:mandou|me mandou|mensagem|mensagens|escreveu)\b", re.I),
+     lambda m: ("ver mensagens", "Deixa eu ver as mensagens.")),
+    (re.compile(r"\b(?:manda|mande|envia|envie|responde|responda)\b.*?\b(?:mensagem|zap|whatsapp|e-mail|email)?\b.*?\b(?:pro|pra|para|ao|à)\s+(?P<pessoa>[A-Za-zÀ-ÿ][\wÀ-ÿ-]{1,24})", re.I),
+     lambda m: ("mensagem para " + m.group("pessoa"), f"Preparando a mensagem para {m.group('pessoa').capitalize()}.")),
+    (re.compile(r"\b(?:previs[aã]o do tempo|clima|vai chover|temperatura|tempo (?:hoje|amanhã|amanha))\b", re.I),
+     lambda m: ("clima", "Deixa eu ver o tempo.")),
+    (re.compile(r"\b(?:cria|crie|criar|anota|anote|adiciona|adicione)\s+(?:uma\s+)?tarefa\b", re.I),
+     lambda m: ("criar tarefa", "Criando a tarefa.")),
+    (re.compile(r"\bresumo\s+do\s+dia\b|\bcomo\s+(?:est[aá]|t[aá])\s+o\s+dia\b", re.I),
+     lambda m: ("resumo do dia", "Vou resumir o dia.")),
+    (re.compile(r"\b(?:quanto\s+(?:est[aá]|t[aá])\s+o\s+d[oó]lar|cota[cç][aã]o\s+do\s+d[oó]lar|d[oó]lar\s+hoje)\b", re.I),
+     lambda m: ("cotação do dólar", "Deixa eu ver a cotação.")),
+    (re.compile(r"\bme\s+lembra\b|\blembrete\b", re.I),
+     lambda m: ("lembrete", "Anotando o lembrete.")),
+]
+
+def rascunho_local(texto: str) -> tuple[str, str]:
+    """(acao_prevista, rascunho) para um pedido comum, ou ("", "") — sem modelo, em microssegundos."""
+    t = VOCATIVO_RX.sub("", (texto or "").strip())
+    for rx, fazer in RASCUNHOS:
+        if (m := rx.search(t)):
+            acao, r = fazer(m)
+            return acao, r
+    return "", ""
+
 def heuristico(texto: str) -> dict:
     """Sem modelo: completude pelo tamanho e pela pontuação; fechou se não termina em conjunção/hesitação."""
     t = (texto or "").strip()
@@ -59,8 +92,12 @@ def heuristico(texto: str) -> dict:
     completude = min(1.0, 0.25 + 0.12 * len(palavras)) if not inacabada else min(0.5, 0.08 * len(palavras))
     if pontuada:
         completude = max(completude, 0.85)
-    return {"intencao": " ".join(palavras[:5]), "completude": round(completude, 2), "ambigua": len(palavras) < 3,
-            "acao_prevista": "", "rascunho": "", "frase_fechou": (not inacabada) and (pontuada or len(palavras) >= 3)}
+    fechou = (not inacabada) and (pontuada or len(palavras) >= 3)
+    acao, rascunho = rascunho_local(t) if fechou else ("", "")
+    if rascunho:
+        completude = max(completude, ESPECULAR_A_PARTIR)         # pedido reconhecido: dá para especular a 1ª frase
+    return {"intencao": " ".join(palavras[:5]), "completude": round(completude, 2), "ambigua": len(palavras) < 3 and not rascunho,
+            "acao_prevista": acao, "rascunho": rascunho, "frase_fechou": fechou}
 
 def bate(antecipado: str, final: str, minimo: float = 0.6) -> bool:
     """A intenção antecipada ainda vale para a transcrição final? Jaccard de palavras + o final não pode ter
