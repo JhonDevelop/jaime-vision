@@ -74,7 +74,9 @@ class Latencias:
         self.jaime = jaime
         self.turnos: deque = deque(maxlen=maximo)
 
-    def registrar(self, t_fim_fala: float, t_texto: float, t_audio: float, antecipado: bool = False, texto: str = "") -> dict | None:
+    def registrar(self, t_fim_fala: float, t_texto: float, t_audio: float, antecipado: bool = False, texto: str = "",
+                  motivo: str = "") -> dict | None:
+        """`motivo`: por que a antecipação foi (ou não) usada neste turno — vai para o diário (Vigília, 15/09: era cego)."""
         if not t_fim_fala or not t_texto:
             return None
         r = {"fala_texto": max(0.0, t_texto - t_fim_fala),
@@ -88,7 +90,8 @@ class Latencias:
             try:
                 fmt = lambda v: f"{v:.2f} s" if v is not None else "—"
                 vault.diario(f"Latência (voz): fala→texto {fmt(r['fala_texto'])} · texto→1ª frase {fmt(r['texto_frase'])} · "
-                             f"fala→1ª frase {fmt(r['fala_frase'])}{' · antecipado' if antecipado else ''} · «{texto[:40]}»", "Log")
+                             f"fala→1ª frase {fmt(r['fala_frase'])}{' · antecipado' if antecipado else ''}"
+                             f"{' · antecipação: ' + motivo if motivo else ''} · «{texto[:40]}»", "Log")
             except Exception:
                 pass
         return r
@@ -281,6 +284,7 @@ class Ouvido:
         """Do texto transcrito à resposta falada. `antecipacao` (fase 3): rascunho já sintetizado em `cache_audio`
         que toca antes do modelo responder; as latências vão para o diário."""
         ja_dito = ""
+        usou_cache = False
         if True:
             # quem falou? (cadastro em andamento consome a fala; senão identifica)
             falante, conf = "", 0.0
@@ -365,7 +369,7 @@ class Ouvido:
                 rascunho, pcm_cache = self.cache_audio; self.cache_audio = None
                 self._prosodia(); self.mudo = True
                 self._tts.tocar_pronto(rascunho, pcm_cache)
-                primeira.set(); ja_dito = rascunho
+                primeira.set(); ja_dito = rascunho; usou_cache = True
                 bus.emitir("fala", texto=rascunho); bus.emitir("antecipacao", usado=True, rascunho=rascunho)
                 contexto = (contexto + "; " if contexto else "") + f"você JÁ disse em voz alta: «{rascunho}» — continue a partir daí, sem repetir"
             # narrador: em tarefas longas ele diz o que está fazendo ("lendo os arquivos…"), como o Jarvis
@@ -413,7 +417,8 @@ class Ouvido:
             await asyncio.to_thread(self._aguardar_fala)
             self.ativo_ate = time.time() + self.s.janela_ativa_s
             if t_fim_fala and self._tts:
-                self.latencias.registrar(t_fim_fala, t_texto, getattr(self._tts, "t_inicio_audio", 0.0), antecipado=antecipacao is not None, texto=texto)
+                motivo = f"usada: «{ja_dito or (antecipacao.rascunho if antecipacao else '')}»" if usou_cache else getattr(self, "_motivo_antecip", "")
+                self.latencias.registrar(t_fim_fala, t_texto, getattr(self._tts, "t_inicio_audio", 0.0), antecipado=usou_cache, texto=texto, motivo=motivo)
             if self.interrompido:
                 self.fila.interromper(demanda, nao_ditas=self._nao_ditas)
             else:

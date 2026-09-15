@@ -356,6 +356,19 @@ class OuvidoDuplex(Ouvido):
         if a.especulavel:
             self._pre_sintetizar(a)
 
+    def _motivo(self, antecip: Antecipacao | None, texto_final: str) -> str:
+        """Por que a antecipação vai (ou não) ser usada — uma frase para o diário."""
+        u = self.antecipador.ultima if self.antecipador else None
+        if u is None:
+            return "nenhuma (sem parcial avaliada)"
+        if not u.especulavel:
+            return f"sem rascunho ({u.origem}, completude {u.completude:.1f})"
+        if antecip is None:
+            return f"não bateu: «{u.texto[:30]}» ≠ «{texto_final[:30]}»"
+        if self.cache_audio is None:
+            return f"rascunho «{u.rascunho[:30]}» sem áudio a tempo"
+        return f"pronta: «{u.rascunho[:30]}»"
+
     async def _turno(self, texto: str, pcm: bytes, t_fim_fala: float, t_texto: float):
         async with self._lock_turno:
             self.ocupado = True
@@ -373,6 +386,7 @@ class OuvidoDuplex(Ouvido):
                         pass
                 if self.cache_audio and (antecip is None or self.cache_audio[0] != antecip.rascunho):
                     self.cache_audio = None              # cache de outra intenção (ou de outro turno) não pode tocar
+                self._motivo_antecip = self._motivo(antecip, texto)
                 self._eco_rms = 0.0; self._eco_amostras = 0; self._barge_ms = 0; self.interrompido = False
                 await self._tratar_texto(texto, pcm, antecipacao=antecip, t_fim_fala=t_fim_fala, t_texto=t_texto)
             except Exception as e:

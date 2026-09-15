@@ -87,3 +87,26 @@ def test_no_maximo_duas_pre_sinteses_por_turno():
         await _rodar_turno(o)
         assert len(o._tts.pre) == PRE_SINTESES_POR_TURNO == 2
     asyncio.run(rodar())
+
+def _linha_latencia(j):
+    return next(t for _, t in j.vault.linhas if "Latência (voz)" in t)
+
+def test_diario_diz_por_que_a_antecipacao_foi_ou_nao_usada():
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        # usada
+        j = _Jaime(); fluxo = _Fluxo(["jaime abre o finder"], "Jaime, abre o Finder.")
+        o = OuvidoDuplex(j, S, loop, fluxo=fluxo, antecipador=Antecipador(None, intervalo_s=0.0)); o._tts = _TTS(); o.fluxo.on_parcial = o._parcial
+        await _rodar_turno(o)
+        assert "antecipado · antecipação: usada: «Abrindo o finder.»" in _linha_latencia(j)
+        # não bateu
+        j = _Jaime(); fluxo = _Fluxo(["jaime abre o finder"], "Jaime, manda mensagem pro Rafael.")
+        o = OuvidoDuplex(j, S, loop, fluxo=fluxo, antecipador=Antecipador(None, intervalo_s=0.0)); o._tts = _TTS(); o.fluxo.on_parcial = o._parcial
+        await _rodar_turno(o)
+        l = _linha_latencia(j); assert "antecipação: não bateu: «jaime abre o finder»" in l and "antecipado ·" not in l
+        # sem rascunho
+        j = _Jaime(); fluxo = _Fluxo(["jaime tudo bem com você"], "Jaime, tudo bem com você?")
+        o = OuvidoDuplex(j, S, loop, fluxo=fluxo, antecipador=Antecipador(None, intervalo_s=0.0)); o._tts = _TTS(); o.fluxo.on_parcial = o._parcial
+        await _rodar_turno(o)
+        assert "antecipação: sem rascunho (heuristica, completude" in _linha_latencia(j)
+    asyncio.run(rodar())
