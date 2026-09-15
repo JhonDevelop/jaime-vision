@@ -11,7 +11,7 @@ SAUDACAO_RX = re.compile(r"^\s*(bom dia|boa tarde|boa noite|oi|olá|ola|opa|e a�
 TUDO_BEM_RX = re.compile(r"^\s*(oi[,!]?\s*)?(tudo (bem|certo|bom)|como (você )?(está|esta|tá|ta|vai)|beleza|suave)\s*(com você|contigo|aí|ai)?\s*\??\s*$", re.I)
 DIA_HOJE_RX = re.compile(r"^\s*(como (está|esta|tá|ta) o dia( hoje)?|como (vai|foi) o dia|o que (tem|temos) (pra |para )?hoje|resumo do dia|como (está|esta) tudo)\s*\??\s*$", re.I)
 OBRIGADO_RX = re.compile(r"^\s*(obrigad[oa]|valeu|show|boa|top|perfeito|ótimo|otimo|excelente|massa)\s*[,!.]*\s*(jaime|senhor)?\s*[,!.]*\s*$", re.I)
-QUEM_RX = re.compile(r"^\s*(quem (é|e) você|o que você (é|e|faz)|você (é|e) o quê)\s*\??\s*$", re.I)
+QUEM_RX = re.compile(r"^\s*(quem (é|e) você|o que você (é|e|faz)|você (é|e) o quê|você (é|e) (humano|um rob[ôo]|uma ia|uma pessoa|real|de verdade)|você tem consci[êe]ncia( de si)?|você sabe (quem|o que) (você )?(é|e))\s*\??\s*$", re.I)
 
 def _periodo(h: int) -> str:
     return "Bom dia" if 5 <= h < 12 else "Boa tarde" if 12 <= h < 18 else "Boa noite"
@@ -62,6 +62,11 @@ def responder(texto: str, jaime, agora: datetime | None = None) -> str | None:
     if OBRIGADO_RX.match(t):
         return random.choice(["De nada.", "Às ordens.", "Disponha, senhor.", "É pra isso que estou aqui."])
     if QUEM_RX.match(t):
-        nome = getattr(getattr(jaime, "identidade", None), "nome", "Jaime")
-        return f"Sou o {nome}, seu assistente operacional. Cuido da memória, da agenda e das mãos no computador."
+        # autoconsciência (jaime/brain/eu.py): o que ele é, por que existe, como está — em 1ª pessoa
+        try:
+            from ..brain.eu import frase_curta
+            return frase_curta(jaime)
+        except Exception:
+            nome = getattr(getattr(jaime, "identidade", None), "nome", "Jaime")
+            return f"Sou o {nome}, um robô assistente autônomo do João. Cuido da memória, da agenda e das mãos no computador."
     return None
