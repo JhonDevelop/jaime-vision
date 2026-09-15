@@ -7,7 +7,7 @@
 
 `ligar(jaime, pode_rodar)` monta tudo com o mínimo de fiação no servidor."""
 from __future__ import annotations
-import asyncio
+import asyncio, os
 from dataclasses import dataclass, field
 from .impulsos import Impulsos, observar_placar
 from .mente import Mente, OrcamentoLivre
@@ -24,11 +24,13 @@ class Vontade:
         for t in self.tasks:
             t.cancel()
 
-def _orcamento():
-    """Orçamento do Prompt D (jaime/cortex/orcamento.py) se existir; senão tudo liberado."""
+def _orcamento(jaime):
+    """Orçamento do Prompt D (jaime/cortex/orcamento.py, `Orcamento(vault, dia_usd)`) se existir; senão tudo liberado.
+    O servidor deve preferir injetar a instância do D (app.state.orcamento) para não haver dois contadores."""
     try:
         from ..cortex.orcamento import Orcamento          # type: ignore
-        return Orcamento()
+        dia = float((os.environ.get("JAIME_ORCAMENTO_DIA_USD") or "0").strip() or 0)
+        return Orcamento(jaime.vault.root, dia)
     except Exception:
         return OrcamentoLivre()
 
@@ -38,7 +40,7 @@ def ligar(jaime, pode_rodar=lambda: True, orcamento=None, intervalo: int | None 
     observar_placar(getattr(jaime, "placar", None))
     imagens = getattr(jaime, "imagens", None)
     cri = Criacoes(jaime.vault, pasta=pasta, imagens=imagens, modelo=getattr(getattr(jaime, "s", None), "model_padrao", "claude-sonnet-5"))
-    orc = orcamento or _orcamento()
+    orc = orcamento or _orcamento(jaime)
     estudo = getattr(jaime, "estudo", None)
     executores = {"criar": cri.noite}
     if estudo:

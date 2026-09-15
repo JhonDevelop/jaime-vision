@@ -81,6 +81,13 @@ def test_eventos_movem_os_impulsos(vault):
     imp.evento("humor", joao_em_problema=True); assert imp.nivel("utilidade") > u
     imp.evento("fila", pendentes=2); assert imp.demanda_pendente
     imp.evento("fila", pendentes=0); assert not imp.demanda_pendente
+    # formato real de jaime/voice/fila.py (B): itens com estado; concluida/descartada não contam
+    u = imp.nivel("utilidade")
+    imp.evento("fila", itens=[{"id": 1, "estado": "concluida"}, {"id": 2, "estado": "em_andamento"}, {"id": 3, "estado": "interrompida"}], atual=2, aguardando=None)
+    assert imp.demanda_pendente and imp._fila_pendentes == 2 and imp.nivel("utilidade") > u and "2 demanda(s) na fila" in imp.motivo("utilidade")
+    imp.evento("fala_fim"); assert imp.demanda_pendente                     # a fila ainda tem itens abertos
+    imp.evento("fila", itens=[{"id": 1, "estado": "concluida"}, {"id": 2, "estado": "concluida"}, {"id": 3, "estado": "descartada"}], atual=None, aguardando=None)
+    assert not imp.demanda_pendente and imp._fila_pendentes == 0
     imp.evento("conversa", canal="rotina", texto="rotina"); assert not imp.demanda_pendente   # rotina não é demanda do João
     # Curiosidade: problema aberto sobe, resolvido desce
     imp.evento("estudo", msg="aberto P-0001: pod install", abertos=1); assert imp.nivel("curiosidade") > base["curiosidade"]
@@ -227,6 +234,20 @@ def test_votos_realimentam_as_vontades_pelo_bus(vault, tmp_path):
         return depois_entrega, gostei, maestria, imp.nivel("criacao")
     entrega, gostei, maestria, nao = asyncio.run(_com_escuta(imp, corpo))
     assert entrega < REPOUSO["criacao"] and gostei > entrega and maestria > REPOUSO["maestria"] and nao < gostei
+
+def test_orcamento_do_prompt_d_recebe_o_vault(vault, tmp_path, monkeypatch):
+    import sys, types as _t
+    from jaime.vontade import _orcamento
+    j = _t.SimpleNamespace(vault=vault)
+    class Orcamento:                                                        # a assinatura do D: Orcamento(vault, dia_usd)
+        def __init__(self, vault, dia_usd=0.0): self.vault, self.dia_usd = Path(vault), dia_usd
+        def pode(self, tipo): return True
+    monkeypatch.setitem(sys.modules, "jaime.cortex.orcamento", _t.SimpleNamespace(Orcamento=Orcamento))
+    monkeypatch.setenv("JAIME_ORCAMENTO_DIA_USD", "2.5")
+    o = _orcamento(j)
+    assert isinstance(o, Orcamento) and o.vault == vault.root and o.dia_usd == 2.5
+    monkeypatch.delitem(sys.modules, "jaime.cortex.orcamento")
+    assert type(_orcamento(j)).__name__ == "OrcamentoLivre"                 # sem o módulo do D: stub
 
 def test_ligar_monta_tudo_com_um_jaime_falso(vault, tmp_path):
     j = types.SimpleNamespace(vault=vault, placar=Placar(vault.root), s=types.SimpleNamespace(model_padrao="x"), estudo=None)

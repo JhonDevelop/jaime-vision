@@ -26,6 +26,7 @@ ROTULO = {"utilidade": "Utilidade", "curiosidade": "Curiosidade", "maestria": "M
 REPOUSO = {"utilidade": 0.30, "curiosidade": 0.25, "maestria": 0.20, "criacao": 0.20, "ordem": 0.15, "vinculo": 0.20}
 DECAIMENTO_H = {"utilidade": 0.50, "curiosidade": 0.04, "maestria": 0.04, "criacao": 0.0, "ordem": 0.03, "vinculo": 0.03}
 CRIACAO_POR_DIA = 0.12          # Criação sobe com os dias sem criar (não decai sozinha)
+FILA_ABERTA = ("nova", "em_andamento", "interrompida")   # estados da fila (voice/fila.py) que ainda são demanda
 INBOX_GRANDE = 12               # tarefas abertas (mesmo limiar da "semana pesada" em emocao/momento.py)
 MOVIMENTOS_MAX = 20
 SONDA_S = 10 * 60               # perfil, Inbox e Criação por tempo: a cada 10 min
@@ -123,8 +124,10 @@ class Impulsos:
                 self.demanda_pendente = False
                 if not self._erro_no_turno:
                     desce("utilidade", 0.10, "demanda fechada sem correção")
-        elif tipo == "fila":                         # virá do Prompt B: pendentes=N ou estado=pendente|fechada
-            if "pendentes" in d:
+        elif tipo == "fila":                         # jaime/voice/fila.py (B): itens=[{estado…}], atual, aguardando
+            if "itens" in d:
+                self._fila_pendentes = sum(1 for i in (d.get("itens") or []) if isinstance(i, dict) and i.get("estado") in FILA_ABERTA)
+            elif "pendentes" in d:
                 self._fila_pendentes = int(d["pendentes"] or 0)
             elif d.get("estado") == "pendente":
                 self._fila_pendentes += 1
@@ -133,7 +136,7 @@ class Impulsos:
             if self._fila_pendentes > 0:
                 self.demanda_pendente = True
                 sobe("utilidade", 0.15, f"{self._fila_pendentes} demanda(s) na fila")
-            elif d.get("estado") in ("fechada", "concluida", "concluída") or d.get("pendentes") == 0:
+            elif "itens" in d or d.get("estado") in ("fechada", "concluida", "concluída") or d.get("pendentes") == 0:
                 self.demanda_pendente = False
                 desce("utilidade", 0.10, "fila vazia")
         elif tipo == "humor":
