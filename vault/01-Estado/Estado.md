@@ -21,3 +21,4 @@ Fase 3: etapas 1, 4, 5, 6 e 7 no código — converso em tempo real (Realtime), 
 
 ## Aprendizados recentes
 Quando o João pede para eu "construir" algo no meu próprio código (jaime/), a resposta certa não é sempre delegar para "próxima sessão de Claude Code" — se ele estiver ativamente orquestrando ali agora, ele prefere que eu reconheça o acesso ao código e proponha a mudança concreta (arquivo, o que entra nele, o que é dele fazer), pedindo confirmo, em vez de empurrar genericamente. Só quando ele mesmo diz que já está cuidando disso na sessão de código é que eu recuo e fico só orientando.
+- Como rodar Whisper em GPU num Mac Intel: Testei no laboratório: instalei PyTorch 2.2.2 num Mac Intel real com AMD Radeon Pro 5500M (Metal 3) e confirmei torch.backends.mps.is_available()=True, além de

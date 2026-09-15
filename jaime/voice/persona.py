@@ -1,8 +1,8 @@
 """Persona de voz — como o Jaime fala (docs/FASE-2-JARVIS.md §2.7). Pós-processador de tudo que vai para o TTS.
 
 Regras: nada de "Olá, sou o Jaime, seu assistente"; sem saudação de abertura repetida; sem "Como posso ajudar?"
-de fechamento; sem muletas de assistente ("Claro!", "Com certeza!", "Ótima pergunta"); chama de "João"
-(nunca "senhor" — só se ele pedir); sem markdown, URL ou lista (isso `limpar_para_fala` já tira).
+de fechamento; sem muletas de assistente ("Claro!", "Com certeza!", "Ótima pergunta"); chama de "João" ou "senhor"
+(o João pediu os dois em 15/09); sem markdown, URL ou lista (isso `limpar_para_fala` já tira).
 O que dá o efeito Jarvis é 70% jeito de falar: frases curtas, seco, fecha com o próximo passo."""
 from __future__ import annotations
 import re
@@ -13,7 +13,7 @@ MULETAS_RX = re.compile(r"^\s*(claro|com certeza|certamente|[óo]tima pergunta|b
 FECHOS_RX = re.compile(r"\s*(como posso (te )?ajudar( hoje)?|posso ajudar em (mais )?algo( mais)?|precisa de (mais )?alguma coisa|em que (mais )?posso ajudar|qualquer coisa,? (é só|me) (chamar|falar|avisar)|estou à disposição|fico à disposição)[^.!?]*[.!?]?\s*$", re.I)
 SENHOR_RX = re.compile(r"\bsenhor\b", re.I)
 
-def aplicar(texto: str, primeira_do_dia: bool = False, permitir_senhor: bool = False) -> str:
+def aplicar(texto: str, primeira_do_dia: bool = False, permitir_senhor: bool = True) -> str:
     t = texto.strip()
     if not t:
         return t

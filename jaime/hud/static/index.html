@@ -409,6 +409,9 @@ function ligarStream(){
       case 'conexoes_canal': if(e.texto)mostrarVoce(`${e.canal}: ${e.de} — ${e.texto}`,true);if(e.erro)aviso(e.canal+': '+e.erro);break;
       case 'visao': feed($('prod'),`<span class="f">visão ${esc(e.passo)}/${esc(e.max)}</span><span class="a">${esc(e.acao||e.estado)} · ${esc(e.objetivo)}${e.motivo?' · '+esc(e.motivo):''}</span>`);if(e.estado==='ativa')aviso('visão contínua ativa — diga "para" para encerrar',8000);break;
       case 'evolucao': feed($('rac'),`<span class="f">evolução</span><span class="a">${esc(e.id||'')} ${esc(e.titulo||'')} · ${esc(e.estado||e.msg||'')}</span>`);if(e.estado==='pronta')aviso('melhoria pronta: '+e.titulo+' — diga "confirmo" para o merge',20000);break;
+      case 'notificacao': feed($('prod'),`<span class="f">🔔 ${esc(e.app)}</span><span class="a">${esc(e.titulo)} ${esc(e.texto||'')}</span>`);aviso('🔔 '+e.app+': '+e.titulo,8000);break;
+      case 'notificacoes': if(e.erro)aviso('notificações: '+e.erro,15000);break;
+      case 'gravador': feed($('prod'),`<span class="f">gravador</span><span class="a">${esc(e.estado)} · ${esc(e.nome||'')}${e.passos!=null?' · '+e.passos+' passos':''}</span>`);if(e.estado==='gravando')aviso('● gravando processo — não digite senhas · "para de gravar" encerra',12000);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;

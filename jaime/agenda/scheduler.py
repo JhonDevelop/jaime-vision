@@ -85,6 +85,10 @@ class Agenda:
         self.vault.diario(f"Rotina disparada: {ordem}", "Log")
         if not self.jaime.acesso.liberado:
             bus.emitir("fala", texto=f"Rotina '{ordem}' esperando: cérebro trancado."); bus.emitir("fala_fim"); return
+        if ordem.lower().startswith("consolida o que ouvi"):
+            # ouvido passivo: à noite, silencioso — o resultado aparece no primeiro "está aí" do dia seguinte
+            from ..brain.ouvido_passivo import prompt_consolidar
+            await self.jaime.ask(prompt_consolidar(self.jaime.vault), canal=canal); return
         resposta = await self.jaime.ask(ordem, canal=canal)
         if self.ouvido:
             await asyncio.to_thread(self.ouvido.falar, resposta)

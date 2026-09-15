@@ -50,6 +50,8 @@ from ..casa.tools import build_casa_server
 from ..maos.visao import Visao, quer_parar
 from ..maos.tools_visao import build_visao_server
 from ..brain.indice import Indice
+from ..brain import ouvido_passivo
+from ..maos.gravador import Gravador, interpretar as gravador_interpretar
 from ..evolucao import Evolucao
 from ..tools_evolucao import build_evolucao_server
 from ..hud.events import bus
@@ -95,6 +97,7 @@ class Jaime:
         self._custo_turno = 0.0
         self._custo_sessao = 0.0
         self._erros_turno = 0
+        self._parar_repeticao = False
         # cérebro emocional: quem é o João, o que já perguntei, que dia é hoje, como estou
         self.perfil = Perfil(self.vault)
         self.perguntas = Perguntas(self.vault)
@@ -120,6 +123,9 @@ class Jaime:
         self.indice.atualizar()
         self.vault.indice = self.indice
         self.evolucao = Evolucao(self, settings.root)
+        # gravador de processos ("grava esse processo" / "repete o processo X"); o observador entra pelo servidor
+        self.gravador = Gravador(self)
+        self._avisos_entregues_em: str = ""
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -284,12 +290,23 @@ class Jaime:
         if quer_teclado(texto):
             bus.emitir("teclado", aberto=True, motivo="você pediu")
             return "Pode escrever."
+        if (g := gravador_interpretar(texto)) and self.acesso.liberado:
+            acao, nome = g
+            if acao == "gravar":
+                return self.gravador.iniciar(nome)
+            if acao == "parar":
+                return self.gravador.parar()
+            asyncio.get_event_loop().run_in_executor(None, lambda: self.gravador.repetir(nome, deve_parar=lambda: self._parar_repeticao))
+            self._parar_repeticao = False
+            return f"Repetindo o processo {nome}. Diga 'para' se algo sair errado."
         if (mi := re.match(r"^\s*implementa(?:r)?\s+(M-\d{4})\b", texto, re.I)):
             asyncio.get_event_loop().create_task(self.evolucao.implementar(mi.group(1).upper()))
             return f"Implementando {mi.group(1).upper()} num worktree isolado; te aviso quando a branch estiver pronta."
         if quer_parar(texto):
-            # kill switch: visão contínua e objetivo autônomo param na hora, sem modelo
-            parou = [n for n, ok in (("visão", self.visao.parar()), ("objetivo", self.autonomo.interromper())) if ok]
+            # kill switch: visão contínua, objetivo autônomo e repetição de processo param na hora, sem modelo
+            self._parar_repeticao = True
+            parou = [n for n, ok in (("visão", self.visao.parar()), ("objetivo", self.autonomo.interromper()),
+                                     ("gravação", self.gravador.gravando and bool(self.gravador.parar()))) if ok]
             return f"Parei: {', '.join(parou)}." if parou else "Nada rodando para parar."
         # identidade: "me chama de X" propõe; "confirmo" com proposta pendente executa; "sim" no boot confirma o nome
         if (novo := quer_renomear(texto)):
@@ -421,6 +438,19 @@ class Jaime:
             self.modelo_atual = modelo
         except Exception as e:
             bus.emitir("cortex", tarefa="", modelo=self.modelo_atual, motivo=f"não consegui trocar para {modelo}: {type(e).__name__}", exploracao=False)
+
+    def avisos_do_dia(self) -> str:
+        """No primeiro 'está aí' do dia: o que ele guardou de ontem (ouvido passivo) + tarefas do dia. Uma vez por dia."""
+        hoje = datetime.now().strftime("%Y-%m-%d")
+        if self._avisos_entregues_em == hoje:
+            return ""
+        frase = ouvido_passivo.frase_dos_pendentes(self.vault, self.vault.tarefas_abertas())
+        if not frase:
+            return ""
+        self._avisos_entregues_em = hoje
+        ouvido_passivo.marcar_entregues(self.vault)
+        self.vault.diario("Avisos do dia entregues: " + frase[:160], "Log")
+        return frase
 
     async def _mundo(self, texto: str) -> str | None:
         """Perguntas de hora/data/clima e pedidos de lembrete são respondidos aqui, em milissegundos."""

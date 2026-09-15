@@ -47,6 +47,14 @@ async def lifespan(app: FastAPI):
         if jaime.apresentacao:
             asyncio.get_running_loop().run_in_executor(None, _falar_quando_pronto, jaime.apresentacao)
     vigilancia = asyncio.create_task(observador.rodar())   # de olho no que o João faz na máquina
+    # gravador de processos usa o observador (app/janela) e a captura de tela a cada clique
+    from .maos import computador
+    jaime.gravador.observador = observador; jaime.gravador.capturador = computador.capturar
+    # notificações do Mac (Central de Notificações): avisa por voz as importantes
+    from .ops.notificacoes import Notificacoes
+    notificacoes = Notificacoes(jaime, ouvido)
+    notif_t = asyncio.create_task(notificacoes.rodar())
+    app.state.notificacoes = notificacoes
     jaime.agenda.ouvido = ouvido; jaime.agenda.start()      # rotinas e lembretes, no processo (sem n8n)
     # mente contínua (mínima): estuda um problema em aberto a cada 30 min, só quando ninguém está falando com ele
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
@@ -59,7 +67,7 @@ async def lifespan(app: FastAPI):
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
-    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); telegram_t.cancel(); jaime.agenda.stop()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
     if ouvido:
         ouvido.stop()
     await jaime.stop()

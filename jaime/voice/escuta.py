@@ -215,8 +215,11 @@ class Ouvido:
                     await asyncio.to_thread(self._falar, "Beleza, sigo de olho."); return
                 decisao, texto, limpo = "pediu", oferta, oferta
             if decisao == "sem_nome" and not self.janela_ativa and self.jaime.acesso.liberado:
-                # ouviu, mas não era com ele — aparece apagado no HUD e mais nada
-                bus.emitir("ouvido", texto=texto, ignorado=True); return
+                # ouviu, mas não era com ele — aparece apagado no HUD e vai para o ouvido passivo (consolidado às 22h)
+                bus.emitir("ouvido", texto=texto, ignorado=True)
+                from ..brain.ouvido_passivo import guardar
+                if getattr(self.jaime, "vault", None) is not None:
+                    guardar(self.jaime.vault, texto); return
             print(f"🎙 você › {texto}")
             if quer_descansar(limpo or texto):
                 # dispensado: volta a responder só quando chamado pelo nome
@@ -228,7 +231,9 @@ class Ouvido:
                 # "Jaime, está aí?" liga a conversa até o João dispensar ("encerrado", "pode descansar"…)
                 self.ativo_ate = float("inf")
                 bus.emitir("ouvido", texto=texto, ignorado=False); bus.emitir("voz", estado="ouvindo", falando=False, ativo=True)
-                await asyncio.to_thread(self._falar, "Estou aqui, João." if self.jaime.acesso.liberado else "Estou aqui. Palavra-passe, por favor.")
+                await asyncio.to_thread(self._falar, "Estou aqui, senhor." if self.jaime.acesso.liberado else "Estou aqui. Palavra-passe, por favor.")
+                if self.jaime.acesso.liberado and (aviso := self.jaime.avisos_do_dia()):
+                    await asyncio.to_thread(self._falar, aviso)
                 if getattr(self.jaime, "aguardando_nome", False):
                     await asyncio.to_thread(self._falar, f"Meu nome é {self.jaime.identidade.nome} — confirma?")
                 return

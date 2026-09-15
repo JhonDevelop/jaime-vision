@@ -1,6 +1,6 @@
 # Placar dos modelos
 
-> Gerado por `jaime/cortex/placar.py` em 15/09/2026 09:00. Acerto = tarefa fechada sem correção.
+> Gerado por `jaime/cortex/placar.py` em 15/09/2026 09:29. Acerto = tarefa fechada sem correção.
 
 | modelo | tipo | acertos | erros | taxa | latência média | custo |
 |---|---|---|---|---|---|---|
@@ -9,6 +9,7 @@
 | claude-sonnet-5 | pesquisa | 2 | 0 | 75% | 11.1 s | US$ 0.163 |
 | claude-sonnet-5 | redação | 2 | 0 | 75% | 3.6 s | US$ 0.137 |
 | claude-sonnet-5 | voz | 25 | 1 | 93% | 15.0 s | US$ 2.444 |
+| estudo | pesquisa | 1 | 0 | 67% | 0.0 s | US$ 0.000 |
 | openai:gpt-5.5 | pesquisa | 0 | 1 | 33% | 0.0 s | US$ 0.000 |
 
 ## Últimas correções

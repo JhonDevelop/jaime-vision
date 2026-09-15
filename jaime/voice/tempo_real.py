@@ -25,7 +25,7 @@ FERRAMENTAS = [
 
 def instrucoes(nome: str, prosodia: str = "") -> str:
     return (f"Você é {nome}, assistente pessoal e operacional do João (Franca/SP). Fale português do Brasil, frases curtas, "
-            f"seco e leal, sem 'como posso ajudar', sem se apresentar. Chame-o de João. Nunca invente o que não sabe: "
+            f"seco e leal, sem 'como posso ajudar', sem se apresentar. Chame-o de João ou de senhor. Nunca invente o que não sabe: "
             f"para agir, lembrar ou consultar qualquer coisa use a ferramenta `jaime`; para hora/clima/lembrete use as ferramentas próprias. "
             f"Quando a ferramenta devolver texto, diga-o com naturalidade em até 3 frases. {prosodia}").strip()
 
@@ -116,16 +116,22 @@ class Conversa:
     def _thread_saida(self):
         try:
             import sounddevice as sd
-            with sd.RawOutputStream(samplerate=SR, channels=1, dtype="int16", blocksize=0, latency="low") as out:
+            with sd.RawOutputStream(samplerate=SR, channels=1, dtype="int16", blocksize=0, latency="high") as out:
+                buf = bytearray()
                 while not self._parar.is_set():
                     try:
                         pcm = self._saida.get(timeout=0.2)
                     except queue.Empty:
+                        if buf:                                   # fim da resposta: toca o que sobrou
+                            out.write(bytes(buf)); buf.clear()
                         if self.mudo and time.time() - self._ultimo_audio > CAUDA_S:
                             self.mudo = False; bus.emitir("voz", falando=False, estado="ouvindo")
                         continue
                     self.mudo = True; self._ultimo_audio = time.time()
-                    out.write(pcm)
+                    buf += pcm
+                    # junta ~0,25 s antes de escrever: a rede solta o áudio em rajadas e a placa não pode ficar sem dado
+                    if len(buf) >= SR * 2 // 4:
+                        out.write(bytes(buf)); buf.clear()
         except Exception as e:
             self.erro = f"{type(e).__name__}: {e}"
 
@@ -213,6 +219,19 @@ class Conversa:
         if not responder:
             if texto and liberado:
                 bus.emitir("ouvido", texto=texto, ignorado=True)
+                from ..brain.ouvido_passivo import guardar
+                if getattr(self.jaime, "vault", None) is not None:
+                    guardar(self.jaime.vault, texto)
+            return
+        chamou = self.gate.ativo_ate == float("inf") and (limpo == texto)
+        from ..maos.gravador import interpretar as gravador_interpretar
+        from .escuta import interpretar_chamada
+        if liberado and (gravador_interpretar(limpo) or interpretar_chamada(texto, self.gate.modo)[0] == "chamou"):
+            # gravador de processos, "para" e "está aí" passam pelo Jaime (sem modelo) e o Realtime só repete
+            r = await self.jaime.ask(limpo or texto, canal="voice")
+            await self._dizer(r)
+            if interpretar_chamada(texto, self.gate.modo)[0] == "chamou" and (aviso := self.jaime.avisos_do_dia()):
+                await self._dizer(aviso)
             return
         print(f"🎙 você › {texto}")
         bus.emitir("ouvido", texto=texto, ignorado=False)
