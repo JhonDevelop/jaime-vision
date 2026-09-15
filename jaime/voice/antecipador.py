@@ -1,26 +1,25 @@
-"""Antecipador — enquanto o João ainda fala, um modelo rápido já diz o que ele quer (docs/FASE-3-TEMPO-REAL.md §2.1).
+"""Antecipador — enquanto o João ainda fala, já se sabe o que ele quer (docs/FASE-3-TEMPO-REAL.md §2.1).
 
-A cada ~500 ms de transcrição nova devolve: intenção, completude (0–1), ambígua?, ação prevista, um rascunho de
-primeira frase e se a frase fechou (critério semântico do fim de turno). Se completude ≥ 0.8 e não é ambígua, o
-rascunho vai para o TTS antes de o João terminar; ao fim do turno, `bate()` decide se o áudio em cache ainda serve.
-
-Modelo: OpenAI rápido (JAIME_ANTECIPADOR_MODEL, padrão gpt-5.6-luna) quando há OPENAI_API_KEY; senão a heurística
-local (pontuação, conjunções soltas, tamanho) — sem rede, sem custo, e é o que os testes usam.
-`modelo_fn` é injetável: `async (texto) -> dict`."""
+Duas camadas, porque nenhum modelo em nuvem responde em 300 ms (medido 15/09: gpt-4.1-nano ~0,7 s, luna ~4 s):
+1. **Heurística local, imediata** (pontuação, conjunção solta, hesitação, tamanho): decide `frase_fechou` para o
+   detector de fim de turno e uma completude aproximada. Custa microssegundos.
+2. **Modelo rápido, em segundo plano**: disparado a cada ~500 ms de texto novo, sem bloquear; quando responde (se o
+   texto não mudou de rumo) refina intenção/completude, traz o `rascunho` da 1ª frase e chama `on_modelo(a)` —
+   é aí que o TTS pré-sintetiza. Se chegar tarde demais, não faz mal: o turno segue pela heurística.
+`modelo_fn` é injetável: `async (texto) -> dict`. `avaliar(texto, esperar=True)` espera o modelo (testes)."""
 from __future__ import annotations
 import asyncio, json, re, time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 INTERVALO_S = 0.5           # não chama o modelo mais que isto
 MINIMO_CHARS = 6            # menos que isto não vale antecipar
 ESPECULAR_A_PARTIR = 0.8    # completude mínima para pré-sintetizar o rascunho
-TIMEOUT_S = 0.8             # resposta do modelo tem de ser rápida; senão fica a heurística
+TIMEOUT_S = 4.0             # o modelo roda em segundo plano; acima disto desiste
 
 # fala que termina assim está claramente no meio: "…e também", "abre o Finder e", "eu queria que"
 INACABADA_RX = re.compile(r"\b(e|ou|mas|que|também|tambem|aí|ai|então|entao|tipo|com|para|pra|de|do|da|no|na|em|se|porque|"
                           r"depois|antes|quando|onde|como|o|a|os|as|um|uma|meu|minha|esse|essa|isso|aquele|aquela|é|eh)\s*[,…]?\s*$", re.I)
 HESITACAO_RX = re.compile(r"\b(é+|hum+|ãh+|ah+|tipo|então|assim|né)\b[,…\s]*$", re.I)
-PERGUNTA_RX = re.compile(r"\b(o que|qual|quanto|quando|onde|como|por que|porque|quem|será|tem como|dá pra|da pra|pode)\b", re.I)
 
 SISTEMA = ("Você é o antecipador do Jaime, assistente pessoal do João. Recebe a transcrição PARCIAL do que o João está "
            "dizendo agora (ele ainda pode estar falando) e devolve SÓ um JSON com: intencao (5 palavras), completude "
@@ -86,9 +85,10 @@ def modelo_openai(client, modelo: str):
     return fn
 
 class Antecipador:
-    def __init__(self, modelo_fn=None, intervalo_s: float = INTERVALO_S, timeout_s: float = TIMEOUT_S):
+    def __init__(self, modelo_fn=None, intervalo_s: float = INTERVALO_S, timeout_s: float = TIMEOUT_S, on_modelo=None):
         self.modelo_fn = modelo_fn          # None = só heurística
         self.intervalo_s, self.timeout_s = intervalo_s, timeout_s
+        self.on_modelo = on_modelo          # callback(a) quando o modelo refina uma antecipação
         self.ultima: Antecipacao | None = None
         self._ultimo_texto = ""
         self._ultima_chamada = 0.0
@@ -105,37 +105,67 @@ class Antecipador:
     def pode_avaliar(self, texto: str, agora: float | None = None) -> bool:
         agora = time.time() if agora is None else agora
         t = (texto or "").strip()
-        return len(t) >= MINIMO_CHARS and t != self._ultimo_texto and agora - self._ultima_chamada >= self.intervalo_s
+        return len(t) >= MINIMO_CHARS and t != self._ultimo_texto
 
-    async def avaliar(self, texto: str, agora: float | None = None) -> Antecipacao | None:
-        """Avalia a transcrição parcial (respeitando o intervalo). Heurística sempre; modelo por cima quando há."""
+    def _pode_chamar_modelo(self, agora: float) -> bool:
+        return bool(self.modelo_fn) and (self._em_curso is None or self._em_curso.done()) and agora - self._ultima_chamada >= self.intervalo_s
+
+    async def avaliar(self, texto: str, agora: float | None = None, esperar: bool = False) -> Antecipacao | None:
+        """Heurística já; modelo em segundo plano (ou esperado, se `esperar`). Devolve a antecipação vigente."""
         agora = time.time() if agora is None else agora
         if not self.pode_avaliar(texto, agora):
             return self.ultima
-        self._ultimo_texto = texto.strip(); self._ultima_chamada = agora
+        self._ultimo_texto = texto.strip()
         base = heuristico(texto)
         a = Antecipacao(texto=texto.strip(), **{k: base[k] for k in ("intencao", "completude", "ambigua", "acao_prevista", "rascunho", "frase_fechou")})
-        if self.modelo_fn:
-            inicio = time.time()
-            try:
-                self.chamadas += 1
-                d = await asyncio.wait_for(self.modelo_fn(texto), self.timeout_s)
-                if isinstance(d, dict) and d:
-                    a.intencao = str(d.get("intencao", a.intencao))[:80]
-                    a.completude = max(0.0, min(1.0, float(d.get("completude", a.completude))))
-                    a.ambigua = bool(d.get("ambigua", a.ambigua))
-                    a.acao_prevista = str(d.get("acao_prevista", ""))[:120]
-                    a.rascunho = str(d.get("rascunho", ""))[:240]
-                    # o modelo decide se fechou, mas conjunção solta no fim é veto local (barato e certeiro)
-                    a.frase_fechou = bool(d.get("frase_fechou", a.frase_fechou)) and not INACABADA_RX.search(texto.strip())
-                    a.origem = "modelo"
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                self.erros += 1
-            except Exception:
-                self.erros += 1
-            a.latencia_s = time.time() - inicio
         self.ultima = a
-        return a
+        if self._pode_chamar_modelo(agora):
+            self._ultima_chamada = agora
+            self._em_curso = asyncio.create_task(self._refinar(texto.strip(), a))
+            if esperar:
+                try:
+                    await self._em_curso
+                except (asyncio.CancelledError, Exception):
+                    pass
+        return self.ultima
+
+    async def _refinar(self, texto: str, base: Antecipacao) -> None:
+        inicio = time.time(); self.chamadas += 1
+        try:
+            d = await asyncio.wait_for(self.modelo_fn(texto), self.timeout_s)
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            self.erros += 1; return
+        if not isinstance(d, dict) or not d:
+            self.erros += 1; return
+        # o texto seguiu outro rumo enquanto o modelo pensava? então o parecer não vale
+        if not self._ultimo_texto.startswith(texto) and not bate(texto, self._ultimo_texto):
+            return
+        a = replace(base, origem="modelo", latencia_s=time.time() - inicio,
+                    intencao=str(d.get("intencao", base.intencao))[:80],
+                    completude=max(0.0, min(1.0, float(d.get("completude", base.completude)))),
+                    ambigua=bool(d.get("ambigua", base.ambigua)),
+                    acao_prevista=str(d.get("acao_prevista", ""))[:120],
+                    rascunho=str(d.get("rascunho", ""))[:240],
+                    # o modelo decide se fechou, mas conjunção solta no fim é veto local (barato e certeiro)
+                    frase_fechou=bool(d.get("frase_fechou", base.frase_fechou)) and not INACABADA_RX.search(self._ultimo_texto))
+        self.ultima = a
+        if self.on_modelo:
+            try:
+                r = self.on_modelo(a)
+                if asyncio.iscoroutine(r):
+                    await r
+            except Exception:
+                pass
+
+    async def esperar_modelo(self) -> Antecipacao | None:
+        if self._em_curso and not self._em_curso.done():
+            try:
+                await self._em_curso
+            except (asyncio.CancelledError, Exception):
+                pass
+        return self.ultima
 
     def confere(self, texto_final: str) -> Antecipacao | None:
         """Ao fim do turno: a última antecipação especulável ainda bate com o texto final? Devolve-a, ou None."""

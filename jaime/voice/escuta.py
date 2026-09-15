@@ -189,6 +189,10 @@ class Ouvido:
         self.erro = ""
         self.cache_audio: tuple[str, bytes | None] | None = None   # fase 3: (rascunho, pcm) pré-sintetizado
         self.latencias = Latencias(jaime)
+        from .fila import FilaDemandas
+        self.fila = FilaDemandas()          # fase 3: nada se perde quando o João interrompe
+        self.interrompido = False           # barge-in em curso: o turno atual deve parar de gerar
+        self._nao_ditas = 0                 # frases que o TTS descartou ao ser cortado
 
     # ── ciclo de vida ────────────────────────────────────
     def start(self):
@@ -309,6 +313,15 @@ class Ouvido:
                 if getattr(self.jaime, "vault", None) is not None:
                     guardar(self.jaime.vault, texto); return
             print(f"🎙 você › {texto}")
+            # resposta à pergunta "Continuo o que eu dizia sobre X?" (fila de demandas)
+            if self.fila.aguardando and (r := self.fila.responder_retomada(limpo or texto)) is not None:
+                ant = self.fila.aguardando; self.fila.aguardando = None
+                bus.emitir("ouvido", texto=texto, ignorado=False)
+                if r == "nao":
+                    self.fila.descartar(ant)
+                    await asyncio.to_thread(self._falar, "Certo, deixo pra lá."); return
+                texto = limpo = self.fila.texto_de_continuacao(ant); decisao = "pediu"
+                ant.estado = "retomada"; self.fila._emitir()
             if quer_descansar(limpo or texto):
                 # dispensado: volta a responder só quando chamado pelo nome
                 self.ativo_ate = 0.0
@@ -332,6 +345,7 @@ class Ouvido:
                 await asyncio.to_thread(self._falar, "Pode escrever."); return
             bus.emitir("voz", estado="pensando", falando=False)
             buffer = ""
+            demanda = self.fila.nova(texto); self.fila.comecar(demanda); self.interrompido = False
             contexto = self.observador.contexto() if self.observador else ""
             if falante and falante != "João":
                 contexto = (contexto + "; " if contexto else "") + f"falante={falante}"
@@ -371,20 +385,47 @@ class Ouvido:
             asyncio.create_task(muleta())
             # Cada frase entra na fila do TTS assim que fica pronta, sem bloquear: o sintetizador
             # prepara a próxima enquanto a atual toca, e a resposta sai emendada em vez de picotada.
-            async for trecho in self.jaime.ask_stream(texto, canal="voice", contexto=contexto):
+            gen = self.jaime.ask_stream(texto, canal="voice", contexto=contexto)
+            async for trecho in gen:
+                if self.interrompido:
+                    break                              # barge-in: o João falou por cima; o resto fica na fila
                 buffer += trecho
                 prontas, buffer = frases(buffer)
                 for f in prontas:
                     if ja_dito and _mesma_frase(f, ja_dito):
                         ja_dito = ""; continue          # o modelo repetiu o rascunho: não fala duas vezes
-                    primeira.set(); self._enfileirar(f)
-            if buffer.strip():
-                self._enfileirar(buffer)
+                    primeira.set(); self.fila.gerada(demanda, f); self._enfileirar(f)
+            if self.interrompido:
+                await gen.aclose()
+            elif buffer.strip():
+                self.fila.gerada(demanda, buffer); self._enfileirar(buffer)
             narrador.parar(); tarefa_narrar.cancel(); bus.cancelar(fila_eventos)
             await asyncio.to_thread(self._aguardar_fala)
             self.ativo_ate = time.time() + self.s.janela_ativa_s
             if t_fim_fala and self._tts:
                 self.latencias.registrar(t_fim_fala, t_texto, getattr(self._tts, "t_inicio_audio", 0.0), antecipado=antecipacao is not None, texto=texto)
+            if self.interrompido:
+                self.fila.interromper(demanda, nao_ditas=self._nao_ditas)
+            else:
+                self.fila.concluir(demanda)
+                await self._retomar_se_preciso()
+
+    async def _retomar_se_preciso(self):
+        """Depois de atender a demanda nova: a interrompida volta sozinha (curta) ou vira uma pergunta só."""
+        pendentes = self.fila.interrompidas()
+        if not pendentes:
+            return
+        d = pendentes[-1]
+        for outra in pendentes[:-1]:
+            self.fila.descartar(outra)
+        modo, frase = self.fila.plano_de_retomada(d)
+        if modo == "automatica":
+            if frase:
+                self._enfileirar(frase); await asyncio.to_thread(self._aguardar_fala)
+            self.fila.concluir(d)
+        else:
+            self._enfileirar(frase); await asyncio.to_thread(self._aguardar_fala)
+            self.fila.pedir_retomada(d)
 
     def _prosodia(self):
         humor = getattr(self.jaime, "humor", None)

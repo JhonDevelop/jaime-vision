@@ -18,8 +18,8 @@ Sem cancelamento de eco, o microfone ouve a própria voz do Jaime: o barge-in s�
 passa bem acima do nível de eco medido no começo de cada fala dele (JAIME_BARGE_IN=on|off|fone; "fone" = sem
 guarda de eco, para quem usa fone de ouvido)."""
 from __future__ import annotations
-import asyncio, os, time
-from collections import deque
+import asyncio, os, re, threading, time
+from collections import Counter, deque
 from ..hud.events import bus
 from .escuta import (Ouvido, SR, FRAME, FRAME_MS, PRE_ROLL_MS, VAD_INICIO, VAD_FIM, MIN_FALA_MS, MAX_FALA_S, LIXO_WHISPER)
 from .antecipador import Antecipador, Antecipacao, modelo_openai
@@ -31,6 +31,28 @@ SILENCIO_ABERTO_MS = 1200     # antecipador diz que o João ainda vai continuar 
 BARGE_IN_PROB = 0.85          # VAD mais exigente enquanto o Jaime fala
 BARGE_IN_MS = 200             # voz contínua necessária para cortar
 BARGE_IN_ECO_X = 2.5          # RMS do João precisa ser 2,5× o eco medido (sem AEC)
+
+MULETAS_RX = re.compile(r"\b(é|eh|tipo|então|entao|assim|hum+|ãh+|né|sabe|enfim|aí|ai)\b", re.I)
+
+def hesitando(texto: str) -> bool:
+    """Está repetindo ou hesitando? ≥ 3 muletas, ou uma palavra 3× seguidas, ou o mesmo trigrama duas vezes."""
+    t = (texto or "").lower()
+    if len(MULETAS_RX.findall(t)) >= 3:
+        return True
+    palavras = re.findall(r"[a-zà-ú]+", t)
+    if any(palavras[i] == palavras[i + 1] == palavras[i + 2] for i in range(len(palavras) - 2)):
+        return True
+    tri = Counter(tuple(palavras[i:i + 3]) for i in range(len(palavras) - 2))
+    return any(n >= 2 for n in tri.values()) and len(palavras) >= 8
+
+def interjeicao(a: Antecipacao, maximo: int = 8) -> str:
+    """"Já entendi. Quer que eu X?" em no máximo `maximo` palavras."""
+    acao = re.sub(r"\s+", " ", (a.acao_prevista or a.intencao or "").strip().rstrip(".?!"))
+    if not acao:
+        return ""
+    acao = acao[0].lower() + acao[1:]
+    frase = f"Entendi. Quer que eu {acao}?"
+    return frase if len(frase.split()) <= maximo else ""
 
 class DetectorFim:
     """Fim de turno = silêncio (VAD) + critério semântico. Máquina de estados pura, testável.
@@ -92,6 +114,8 @@ class OuvidoDuplex(Ouvido):
         self.fluxo = fluxo
         self.antecipador = antecipador
         self.barge_in = os.environ.get("JAIME_BARGE_IN", "on").lower()
+        self.interromper_joao = os.environ.get("JAIME_INTERROMPER", "0").lower() in ("1", "on", "true")
+        self._interjeitou = False
         self.interrompido = False
         self._fila_audio: asyncio.Queue | None = None
         self._lock_turno = asyncio.Lock()
@@ -113,13 +137,14 @@ class OuvidoDuplex(Ouvido):
             self.fluxo = stt_stream.escolher(self.s, transcritor_local=local)
         if self.antecipador is None:
             fn = None
-            if getattr(self.s, "openai_key", ""):
+            modelo = os.environ.get("JAIME_ANTECIPADOR_MODEL", "") or "gpt-4o-mini"   # 15/09: 2–3 s, mas o melhor rascunho; roda em segundo plano
+            if getattr(self.s, "openai_key", "") and modelo != "off":
                 try:
                     from openai import AsyncOpenAI
-                    fn = modelo_openai(AsyncOpenAI(api_key=self.s.openai_key), os.environ.get("JAIME_ANTECIPADOR_MODEL", getattr(self.s, "openai_model_rapido", "gpt-5.6-luna")))
+                    fn = modelo_openai(AsyncOpenAI(api_key=self.s.openai_key), modelo)
                 except Exception:
                     fn = None
-            self.antecipador = Antecipador(fn)
+            self.antecipador = Antecipador(fn, on_modelo=self._modelo_chegou)
         self.fluxo.on_parcial = self._parcial
 
     def _garantir_fila(self) -> asyncio.Queue:
@@ -165,7 +190,7 @@ class OuvidoDuplex(Ouvido):
         """Um frame do microfone com a probabilidade de voz. Pode ser chamado de qualquer thread."""
         ev = self.det.alimentar(prob, agora)
         if ev == "inicio":
-            self._pcm_turno = bytearray(); self._parcial_texto = ""; self.cache_audio = None
+            self._pcm_turno = bytearray(); self._parcial_texto = ""; self.cache_audio = None; self._interjeitou = False
             if self.antecipador: self.antecipador.limpar()
             self._t_fim_fala = 0.0
             for f in self._pre:
@@ -205,10 +230,36 @@ class OuvidoDuplex(Ouvido):
             return False
         self._barge_ms = 0
         restantes = self._tts.parar()
+        self._nao_ditas = restantes
         self.interrompido = True
         self.mudo = False
+        self._cancelar_modelo()
         bus.emitir("voz", estado="interrompido", falando=False, restantes=restantes)
         self.det.cancelar(); self._alimentar(prob, frame)
+        return True
+
+    def _cancelar_modelo(self) -> None:
+        """O modelo pode estar no meio da resposta: pede ao Agent SDK para interromper (não bloqueia)."""
+        cli = getattr(self.jaime, "_client", None)
+        if cli is not None and hasattr(cli, "interrupt"):
+            try:
+                asyncio.run_coroutine_threadsafe(cli.interrupt(), self.loop)
+            except Exception:
+                pass
+
+    def _interjeitar(self, a: Antecipacao) -> bool:
+        """Jaime interrompe o João (§2.2) — só com JAIME_INTERROMPER ligado e todos os critérios valendo."""
+        if not (self.interromper_joao and self._tts) or self._interjeitou:
+            return False
+        if a.completude < 0.9 or a.ambigua or self.det.duracao_ms <= 4000 or not hesitando(self._parcial_texto):
+            return False
+        frase = interjeicao(a)
+        if not frase:
+            return False
+        self._interjeitou = True
+        bus.emitir("antecipacao", interjeicao=frase)
+        self.mudo = True; self._tts.enfileirar(frase)
+        threading.Thread(target=self._aguardar_fala, name="interjeicao", daemon=True).start()
         return True
 
     # ── STT / antecipação (loop) ─────────────────────────
@@ -250,18 +301,29 @@ class OuvidoDuplex(Ouvido):
                 asyncio.run_coroutine_threadsafe(self._antecipar(texto), self.loop)
 
     async def _antecipar(self, texto: str) -> Antecipacao | None:
+        """Heurística agora (fim de turno); o modelo refina em segundo plano e chama `_modelo_chegou`."""
+        if self.antecipador.on_modelo is None:
+            self.antecipador.on_modelo = self._modelo_chegou
         a = await self.antecipador.avaliar(texto)
         if not a:
             return None
-        # o parecer só vale se o texto não cresceu enquanto o modelo pensava
-        self.det.frase_fechou = a.frase_fechou if a.texto == self._parcial_texto.strip() else None
+        self._aplicar(a)
+        return a
+
+    def _aplicar(self, a: Antecipacao) -> None:
+        # o parecer sobre "fechou?" só vale se o texto não cresceu enquanto o modelo pensava (um parecer antigo não apaga o atual)
+        if a.texto == self._parcial_texto.strip():
+            self.det.frase_fechou = a.frase_fechou
         bus.emitir("antecipacao", intencao=a.intencao, completude=a.completude, fechou=a.frase_fechou,
                    rascunho=a.rascunho, origem=a.origem, latencia=round(a.latencia_s, 2))
+        self._interjeitar(a)
+
+    async def _modelo_chegou(self, a: Antecipacao) -> None:
+        self._aplicar(a)
         if a.especulavel and self._tts and (not self.cache_audio or self.cache_audio[0] != a.rascunho):
             pcm = await asyncio.to_thread(self._tts.pre_sintetizar, a.rascunho)
-            if self.antecipador.ultima is a:          # ainda é a antecipação vigente
+            if self.antecipador.ultima is a or (self.antecipador.ultima and self.antecipador.ultima.rascunho == a.rascunho):
                 self.cache_audio = (a.rascunho, pcm)
-        return a
 
     async def _turno(self, texto: str, pcm: bytes, t_fim_fala: float, t_texto: float):
         async with self._lock_turno:

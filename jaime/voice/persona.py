@@ -9,7 +9,10 @@ import re
 
 APRESENTACAO_RX = re.compile(r"^\s*(ol[aá]|oi|e a[ií])[,!.\s]*(jo[aã]o[,!.\s]*)?(eu\s+)?sou\s+o\s+jaime[^.!?]*[.!?]\s*", re.I)
 SAUDACAO_RX = re.compile(r"^\s*(ol[aá]|oi|opa|e a[ií]|bom dia|boa tarde|boa noite)[,!.\s]+(jo[aã]o[,!.\s]+)?", re.I)
-MULETAS_RX = re.compile(r"^\s*(claro|com certeza|certamente|[óo]tima pergunta|boa pergunta|sem problemas?|perfeito|excelente|entendido|entendi)[,!.\s]+", re.I)
+MULETAS_RX = re.compile(r"^\s*(claro|claro que sim|com certeza|certamente|[óo]tima pergunta|boa pergunta|sem problemas?|perfeito|excelente|entendido|entendi|beleza|show|tranquilo)[,!.\s]+", re.I)
+# preâmbulos que repetem a pergunta ou anunciam a resposta: "Você perguntou se…", "Sobre o que você pediu,", "Vou te explicar:"
+PREAMBULO_RX = re.compile(r"^\s*(voc[êe] (me )?(perguntou|pediu|quer saber|queria saber)[^,.:]*[,.:]\s*|sobre (isso|o que voc[êe] (pediu|perguntou))[,:]\s*|"
+                          r"(vou|deixa eu) (te )?(explicar|responder|contar)[,:]\s*|respondendo (à|a) (sua )?pergunta[,:]\s*|em resumo[,:]\s*|resumindo[,:]\s*)", re.I)
 FECHOS_RX = re.compile(r"\s*(como posso (te )?ajudar( hoje)?|posso ajudar em (mais )?algo( mais)?|precisa de (mais )?alguma coisa|em que (mais )?posso ajudar|qualquer coisa,? (é só|me) (chamar|falar|avisar)|estou à disposição|fico à disposição)[^.!?]*[.!?]?\s*$", re.I)
 SENHOR_RX = re.compile(r"\bsenhor\b", re.I)
 
@@ -21,6 +24,7 @@ def aplicar(texto: str, primeira_do_dia: bool = False, permitir_senhor: bool = T
     if not primeira_do_dia:
         t = SAUDACAO_RX.sub("", t)
     t = MULETAS_RX.sub("", t)
+    t = PREAMBULO_RX.sub("", t)
     t = FECHOS_RX.sub("", t)
     if not permitir_senhor:
         t = SENHOR_RX.sub("João", t)

@@ -64,6 +64,8 @@ async def lifespan(app: FastAPI):
     # mente contínua (mínima): estuda um problema em aberto a cada 30 min, só quando ninguém está falando com ele
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
     estudo_t = asyncio.create_task(jaime.estudo.rodar_em_ciclos(ocioso))
+    # fase 3: relatórios dos filhos (terminais no Maestri) chegam pela nota compartilhada; os importantes são falados
+    equipe_t = asyncio.create_task(jaime.equipe.vigiar_relatorios(falar=(ouvido.falar if ouvido else None)))
     jaime.estudo.emitir()
     # Telegram: canal do celular, só o dono (JAIME_OWNER_TELEGRAM_ID)
     from .conexoes.telegram import Telegram
@@ -72,7 +74,7 @@ async def lifespan(app: FastAPI):
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
-    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
     if ouvido:
         ouvido.stop()
     await jaime.stop()

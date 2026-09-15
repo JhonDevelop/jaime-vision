@@ -61,19 +61,20 @@ def test_antecipador_modelo_falso_timeout_e_confere():
         return {"intencao": "abrir finder", "completude": 0.9, "ambigua": False, "acao_prevista": "open -a Finder",
                 "rascunho": "Abrindo o Finder.", "frase_fechou": True}
     a = Antecipador(modelo, intervalo_s=0.5)
-    r = asyncio.run(a.avaliar("jaime abre o finder", agora=100.0))
+    r = asyncio.run(a.avaliar("jaime abre o finder", agora=100.0, esperar=True))
     assert r.origem == "modelo" and r.especulavel and r.frase_fechou and r.rascunho == "Abrindo o Finder."
-    assert asyncio.run(a.avaliar("jaime abre o finder por", agora=100.2)) is r      # dentro do intervalo: não chama
-    r2 = asyncio.run(a.avaliar("jaime abre o finder e", agora=100.7))
-    assert r2.frase_fechou is False                                                 # conjunção solta veta o modelo
+    r1 = asyncio.run(a.avaliar("jaime abre o finder por", agora=100.2, esperar=True))
+    assert r1.origem == "heuristica" and a.chamadas == 1                            # dentro do intervalo: não chama o modelo
+    r2 = asyncio.run(a.avaliar("jaime abre o finder e", agora=100.7, esperar=True))
+    assert r2.origem == "modelo" and r2.frase_fechou is False                                                 # conjunção solta veta o modelo
     assert a.confere("Jaime, abre o Finder.") is r2                                 # intenção ainda bate: o cache vale mesmo sem "fechou"
-    asyncio.run(a.avaliar("jaime abre o finder agora", agora=101.5))
+    asyncio.run(a.avaliar("jaime abre o finder agora", agora=101.5, esperar=True))
     assert a.confere("Jaime, abre o Finder agora.") is not None
     assert a.confere("manda um e-mail pro contador") is None
     async def lento(texto):
         await asyncio.sleep(0.3); return {"completude": 1.0}
     b = Antecipador(lento, timeout_s=0.05)
-    r3 = asyncio.run(b.avaliar("abre o finder agora", agora=1.0))
+    r3 = asyncio.run(b.avaliar("abre o finder agora", agora=1.0, esperar=True))
     assert r3.origem == "heuristica" and b.erros == 1
 
 # ── STT em streaming ──────────────────────────────────────────────────────
@@ -241,3 +242,20 @@ def test_latencias_resumo_e_mesma_frase():
     l.registrar(t, t + 0.3, t + 1.1, antecipado=False, texto="oi")
     assert l.mediana("fala_frase") == pytest.approx(1.1, abs=0.01) and "2 turnos" in l.resumo() and "antecipados 1" in l.resumo()
     assert _mesma_frase("Abrindo o Finder.", "abrindo o finder") and not _mesma_frase("Pronto.", "Abrindo o Finder.")
+
+# ── comando `voz latencia` (offline) ─────────────────────────────────────
+def test_medir_latencia_offline_com_fluxo_e_tts_falsos():
+    from jaime.voice import latencia as lat
+    class Fluxo(ss.FluxoSTT):
+        nome = "falso"
+        def __init__(self): self.n = 0
+        async def enviar(self, pcm): self.n += 1; self._parcial("jaime que horas" if self.n < 3 else "jaime que horas são")
+        async def finalizar(self): return "Jaime, que horas são?"
+    async def modelo(texto):
+        return {"intencao": "hora", "completude": 0.95, "ambigua": False, "rascunho": "São dez e meia.", "frase_fechou": True}
+    from jaime.voice.antecipador import Antecipador
+    saidas = []
+    r = asyncio.run(lat.medir(SimpleNamespace(openai_key=""), n=2, frases=["a", "b"], gerar_audio=lambda t: b"\x00" * 1024 * 5,
+                              fluxo=Fluxo(), antecipador=Antecipador(modelo, intervalo_s=0.0), tts=_TTS(), imprimir=saidas.append))  # medir espera o modelo
+    assert r["turnos"] == 2 and r["antecipados"] == 2 and r["mediana_fala_frase"] is not None and r["meta_ok"]
+    assert any("mediana" in s for s in saidas)

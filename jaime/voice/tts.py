@@ -110,7 +110,7 @@ class TTS:
             self._pendentes += 1
             g = self._geracao
         self._anterior = texto
-        self._prontos.put((g, texto, pcm))
+        self._prontos.put((g, texto, pcm if pcm else None))
 
     def parar(self) -> int:
         """Barge-in: cala em < 100 ms. Esvazia as filas, corta o bloco em curso e fecha o aparelho.
@@ -149,7 +149,10 @@ class TTS:
             return self._pendentes > 0
 
     # ── pipeline ──────────────────────────────────────────
-    def _sintetizar(self, texto: str, guardar_anterior: bool = True) -> bytes | None:
+    def _sintetizar(self, texto: str, guardar_anterior: bool = True, streaming: bool = False):
+        """PCM inteiro (bytes) ou, com `streaming`, um iterador de blocos que já vem com o 1º bloco baixado —
+        o reprodutor começa a tocar no primeiro byte em vez de esperar a frase inteira (medido 15/09: 0,5–1,4 s
+        até o 1º byte contra 1,3–2,4 s pela frase toda no gpt-4o-mini-tts)."""
         pcm = None
         # 3 falhas seguidas desligam a ElevenLabs por 10 min (cota, rede); depois tenta de novo sozinho
         if self._falhas >= 3 and time.time() - self._ultima_falha > 600:
@@ -157,17 +160,41 @@ class TTS:
         usar_eleven = self._client and self._falhas < 3 and self.motor in ("auto", "elevenlabs")
         if usar_eleven:
             try:
-                pcm = self._elevenlabs(texto, guardar_anterior)
+                pcm = self._elevenlabs(texto, guardar_anterior, streaming)
                 self._falhas = 0
             except Exception as e:
                 self._falhas += 1; self._ultima_falha = time.time()
                 print(f"⚠ ElevenLabs falhou ({type(e).__name__}: {str(e)[:80]}); tentando OpenAI/voz local")
         if pcm is None and self._openai and self.motor in ("auto", "openai"):
             try:
-                pcm = self._openai_tts(texto)
+                pcm = self._openai_tts(texto, streaming)
             except Exception as e:
                 print(f"⚠ OpenAI TTS falhou ({type(e).__name__}: {str(e)[:80]}); usando a voz local")
         return pcm
+
+    @staticmethod
+    def _primeiro_e_resto(blocos):
+        """Puxa o 1º bloco agora (absorve a latência de rede à frente) e devolve um iterador com ele + o resto."""
+        import itertools
+        it = iter(blocos)
+        primeiro = next(it, None)
+        if not primeiro:
+            return None
+        return itertools.chain([primeiro], it)
+
+    def medir_primeiro_byte(self, texto: str) -> float | None:
+        """Segundos até o 1º bloco de áudio da frase (o que o João espera quando não há cache)."""
+        texto = self._preparar(texto)
+        if not texto:
+            return None
+        ini = time.time()
+        r = self._sintetizar(texto, guardar_anterior=False, streaming=True)
+        if r is None:
+            return None
+        t = time.time() - ini
+        for _ in r:                     # esgota (fecha a conexão) sem tocar
+            pass
+        return t
 
     def _sintetizador(self) -> None:
         """Vai na frente: busca o áudio da próxima frase enquanto a atual ainda toca."""
@@ -175,7 +202,7 @@ class TTS:
             g, texto = self._pedidos.get()
             if g != self._geracao:
                 continue                        # parar() passou por aqui: frase descartada
-            pcm = self._sintetizar(texto)
+            pcm = self._sintetizar(texto, streaming=True)
             if g != self._geracao:
                 continue
             self._prontos.put((g, texto, pcm))
@@ -186,9 +213,7 @@ class TTS:
             if g != self._geracao:
                 continue
             try:
-                if not self.t_inicio_audio:
-                    self.t_inicio_audio = time.time()
-                if pcm:
+                if pcm is not None:
                     self._tocar(pcm)
                 elif not self._say_nativo(texto):
                     print(f"🔈 {texto}")
@@ -206,7 +231,7 @@ class TTS:
                     bus.emitir("voz", falando=False, estado="ouvindo")
 
     # ── saídas ────────────────────────────────────────────
-    def _elevenlabs(self, texto: str, guardar_anterior: bool = True) -> bytes:
+    def _elevenlabs(self, texto: str, guardar_anterior: bool = True, streaming: bool = False):
         from elevenlabs import VoiceSettings
         # Emoção: estabilidade baixa e "style" alto deixam a voz seguir a pontuação — exclamação sobe,
         # reticências hesitam, pergunta entoa. O prompt do Jaime escreve pensando nisso quando fala.
@@ -228,35 +253,63 @@ class TTS:
         )
         if guardar_anterior:
             self._anterior = texto
+        if streaming:
+            return self._primeiro_e_resto(c for c in fluxo if c)
         return b"".join(c for c in fluxo if c)
 
-    def _openai_tts(self, texto: str) -> bytes:
-        """gpt-4o-mini-tts: voz masculina (JAIME_OPENAI_VOZ, padrão onyx) + instrução de estilo vinda da prosódia.
-        PCM 24 kHz, a mesma taxa da ElevenLabs — cai no mesmo reprodutor."""
+    def _openai_kw(self, texto: str) -> dict:
         base = os.environ.get("JAIME_VOZ_ESTILO_BASE",
                               "Voz masculina grave e calma, dicção precisa, sotaque brasileiro neutro, tom seco e educado, "
                               "leve textura de assistente de inteligência artificial — um mordomo britânico falando português.")
-        with self._openai.audio.speech.with_streaming_response.create(
-                model=os.environ.get("JAIME_OPENAI_TTS_MODELO", "gpt-4o-mini-tts"), voice=os.environ.get("JAIME_OPENAI_VOZ", "onyx"),
-                input=texto, instructions=(base + " " + self.instrucoes).strip(), response_format="pcm",
-                speed=self.velocidade) as resp:
+        return dict(model=os.environ.get("JAIME_OPENAI_TTS_MODELO", "gpt-4o-mini-tts"), voice=os.environ.get("JAIME_OPENAI_VOZ", "onyx"),
+                    input=texto, instructions=(base + " " + self.instrucoes).strip(), response_format="pcm", speed=self.velocidade)
+
+    def _openai_blocos(self, texto: str):
+        """Blocos de ~100 ms conforme chegam da rede; para no barge-in."""
+        with self._openai.audio.speech.with_streaming_response.create(**self._openai_kw(texto)) as resp:
+            for ch in resp.iter_bytes(PCM_SR * 2 // 10):
+                if self._parando.is_set():
+                    return
+                yield ch
+
+    def _openai_tts(self, texto: str, streaming: bool = False):
+        """gpt-4o-mini-tts: voz masculina (JAIME_OPENAI_VOZ, padrão onyx) + instrução de estilo vinda da prosódia.
+        PCM 24 kHz, a mesma taxa da ElevenLabs — cai no mesmo reprodutor."""
+        if streaming:
+            return self._primeiro_e_resto(self._openai_blocos(texto))
+        with self._openai.audio.speech.with_streaming_response.create(**self._openai_kw(texto)) as resp:
             return b"".join(resp.iter_bytes())
 
-    def _tocar(self, pcm: bytes) -> None:
+    def _tocar(self, pcm) -> None:
+        """`pcm`: bytes inteiros ou iterador de blocos (streaming). Escreve em blocos de ~100 ms; `parar()` corta no próximo."""
+        if isinstance(pcm, (bytes, bytearray)):
+            blocos = [bytes(pcm)]
+        else:
+            blocos = pcm
+        tocado = bytearray()
         try:
-            dados = self._na_taxa_do_aparelho(pcm)
             bloco = int(self._taxa * BLOCO_S) * 2          # bytes por 100 ms (int16 mono)
-            st = self._abrir_stream()
-            for i in range(0, len(dados), bloco):
+            st = None
+            for trecho in blocos:
                 if self._parando.is_set():
                     return                                  # barge-in: cala no próximo bloco
-                st.write(dados[i:i + bloco])
+                dados = self._na_taxa_do_aparelho(bytes(trecho))
+                if st is None:
+                    st = self._abrir_stream()
+                    if not self.t_inicio_audio:
+                        self.t_inicio_audio = time.time()
+                tocado += trecho
+                for i in range(0, len(dados), bloco):
+                    if self._parando.is_set():
+                        return
+                    st.write(dados[i:i + bloco])
         except Exception as e:
             if self._parando.is_set():
                 return
             print(f"⚠ placa de som falhou ({type(e).__name__}); tocando pelo afplay")
             self._fechar_stream()
-            self._tocar_afplay(pcm)
+            resto = b"".join(bytes(t) for t in blocos) if not isinstance(pcm, (bytes, bytearray)) else b""
+            self._tocar_afplay(bytes(tocado) + resto if tocado or resto else bytes(pcm))
 
     def _abrir_stream(self):
         """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases."""
