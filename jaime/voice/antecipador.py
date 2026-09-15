@@ -185,12 +185,16 @@ class Antecipador:
         if not self._ultimo_texto.startswith(texto) and not bate(texto, self._ultimo_texto):
             return
         # o parecer vale para o texto ATUAL (o modelo viu um prefixo dele): assim `confere()` compara com o final certo
+        # O rascunho LOCAL (pedido reconhecido) prevalece: o modelo devolvia rascunho vazio/completude 0,5 para
+        # "abre o Finder" e apagava o da heurística — era isso o 0/10 do `voz latencia` com esperar=True (Vigília, 18:04).
+        rascunho_modelo = str(d.get("rascunho", ""))[:240].strip()
+        local = bool(base.rascunho) and base.origem == "heuristica" and not rascunho_modelo
         a = replace(base, texto=self._ultimo_texto, origem="modelo", latencia_s=time.time() - inicio,
                     intencao=str(d.get("intencao", base.intencao))[:80],
-                    completude=max(0.0, min(1.0, float(d.get("completude", base.completude)))),
-                    ambigua=bool(d.get("ambigua", base.ambigua)),
-                    acao_prevista=str(d.get("acao_prevista", ""))[:120],
-                    rascunho=str(d.get("rascunho", ""))[:240],
+                    completude=max(base.completude if local else 0.0, min(1.0, float(d.get("completude", base.completude)))),
+                    ambigua=False if local else bool(d.get("ambigua", base.ambigua)),
+                    acao_prevista=(base.acao_prevista if local else "") or str(d.get("acao_prevista", ""))[:120],
+                    rascunho=base.rascunho if local else rascunho_modelo,
                     # o modelo decide se fechou, mas conjunção solta no fim é veto local (barato e certeiro)
                     frase_fechou=bool(d.get("frase_fechou", base.frase_fechou)) and not INACABADA_RX.search(self._ultimo_texto))
         self.ultima = a

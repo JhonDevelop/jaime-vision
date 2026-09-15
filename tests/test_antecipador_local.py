@@ -118,3 +118,15 @@ def test_tres_palavras_soltas_nao_fecham_o_turno():
     assert heuristico("Jaime, abre o Finder.")["frase_fechou"]            # pontuação final: fechou
     assert heuristico("jaime abre o finder")["frase_fechou"]              # pedido reconhecido: fechou
     assert not heuristico("jaime tudo bem com você hoje")["frase_fechou"]  # solto, sem pontuação: espera o incerto (700 ms)
+
+def test_modelo_nao_apaga_o_rascunho_local():
+    async def modelo(texto):        # o que o gpt-4o-mini devolve de verdade para "abre o Finder": sem rascunho, completude baixa
+        return {"intencao": "abrir aplicativo", "completude": 0.5, "ambigua": True, "rascunho": "", "frase_fechou": True}
+    async def rodar():
+        a = await Antecipador(modelo, intervalo_s=0.0).avaliar("Jaime, abre o Finder.", esperar=True)
+        assert a.origem == "modelo" and a.rascunho == "Abrindo o Finder." and a.especulavel and a.acao_prevista == "abrir Finder"
+        # sem rascunho local, o modelo manda como antes
+        async def modelo2(texto): return {"completude": 0.9, "ambigua": False, "rascunho": "Tudo bem, e você?", "frase_fechou": True}
+        b = await Antecipador(modelo2, intervalo_s=0.0).avaliar("Jaime, tudo bem com você?", esperar=True)
+        assert b.rascunho == "Tudo bem, e você?" and b.especulavel
+    asyncio.run(rodar())
