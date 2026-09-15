@@ -51,6 +51,7 @@ from ..maos.visao import Visao, quer_parar
 from ..maos.tools_visao import build_visao_server
 from ..brain.indice import Indice
 from ..brain import ouvido_passivo
+from ..emocao.vinculo import Vinculo
 from ..maos.gravador import Gravador, interpretar as gravador_interpretar
 from ..evolucao import Evolucao
 from ..tools_evolucao import build_evolucao_server
@@ -87,10 +88,11 @@ class Jaime:
         self.placar = Placar(settings.vault)
         # OpenAI: texto, pesquisa e decisões; nunca as mãos. Sem chave → o roteador nem a lista.
         self.openai = ProvedorOpenAI(settings.openai_key, settings.openai_model)
+        # uso mínimo da OpenAI (pedido do João): o roteador nem lista os modelos dela; o juiz só com "pensa bem"
         self.roteador = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
                                  self.placar, settings.cortex_exploracao,
-                                 openai=settings.openai_model if self.openai.disponivel else "")
+                                 openai=settings.openai_model if (self.openai.disponivel and settings.openai_uso == "normal") else "")
         self.juiz = Juiz(ProvedorAnthropic(settings.model_padrao, str(settings.root)), self.openai,
                          ProvedorAnthropic(settings.model_decisao, str(settings.root)))
         self.modelo_atual = settings.model
@@ -126,6 +128,9 @@ class Jaime:
         # gravador de processos ("grava esse processo" / "repete o processo X"); o observador entra pelo servidor
         self.gravador = Gravador(self)
         self._avisos_entregues_em: str = ""
+        # vínculo com o dono: familiaridade, pessoas próximas, acompanhamentos — vira contexto e calor
+        self.vinculo = Vinculo(self.vault)
+        self.humor.e.calor = max(self.humor.e.calor, self.vinculo.calor())
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -176,9 +181,15 @@ class Jaime:
         self.humor.registrar_hora(datetime.now().hour)
         self.humor.registrar_momento(self.momento.peso, self.momento.aniversario)
         bus.emitir("humor", **self.humor.dados())
-        if apresentar:
+        marca = self.s.root / ".jaime-boot"
+        ja_hoje = marca.exists() and marca.read_text(encoding="utf-8").strip() == datetime.now().strftime("%Y-%m-%d")
+        if apresentar and ja_hoje and not nova:
+            # reiniciou no mesmo dia: sem se apresentar de novo — uma linha e pronto
+            self.apresentacao = "Sistemas operacionais, senhor." + (" " + resumo_falado(self.saude) if resumo_falado(self.saude) else "")
+        elif apresentar:
             self.apresentacao = await self._interno(prompt_apresentacao(nova, self.identidade.nome, resumo_falado(self.saude),
                                                                         self.momento.texto() if self.momento.aniversario or self.momento.hoje_e or self.momento.feriado else ""))
+            marca.write_text(datetime.now().strftime("%Y-%m-%d"), encoding="utf-8")
             if not self.identidade.confirmado:
                 # primeiro boot (ou depois de renomear): ele confere o próprio nome
                 self.aguardando_nome = True
@@ -356,7 +367,7 @@ class Jaime:
             escolha = self.roteador.decidir(texto, contexto, canal)
             partes, inicio = [], asyncio.get_event_loop().time()
             self._custo_turno = 0.0; self._erros_turno = 0
-            if self.openai.disponivel and pede_juiz(texto, escolha.tipo):
+            if self.openai.disponivel and (pede_juiz(texto, "") if self.s.openai_uso == "minimo" else pede_juiz(texto, escolha.tipo)):
                 # decisão: duas opiniões + árbitro (custa o dobro; só aqui)
                 bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo="juiz",
                            motivo="duas opiniões (Anthropic + OpenAI) e o Fable 5.1 arbitra", exploracao=False)
@@ -471,6 +482,8 @@ class Jaime:
 
     async def _pos_turno(self, canal: str, pergunta: str, resposta: str):
         self.estado.registrar_turno(canal, pergunta, resposta)
+        if canal in ("voice", "hud", "cli", "telegram", "whatsapp"):
+            self.vinculo.registrar_conversa()
         if self.estado.precisa_refletir():
             bus.emitir("raciocinio", ferramenta="reflexão", alvo="atualizando meu Estado")
             asyncio.create_task(self._interno(prompt_reflexao()))   # em segundo plano: não segura a resposta

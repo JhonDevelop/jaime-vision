@@ -25,6 +25,7 @@ class Settings:
     openai_key: str = _env("OPENAI_API_KEY")
     openai_model: str = _env("JAIME_OPENAI_MODEL", "gpt-5.5")
     openai_model_rapido: str = _env("JAIME_OPENAI_MODEL_RAPIDO", "gpt-5.6-luna")
+    openai_uso: str = _env("JAIME_OPENAI_USO", "minimo")      # minimo = só voz/imagem e "pensa bem" explícito; normal = roteador e juiz
     vault: Path = field(default_factory=lambda: Path(_env("JAIME_VAULT", "./vault")).expanduser().resolve())
     workspace: Path = field(default_factory=lambda: Path(_env("JAIME_WORKSPACE", "~/projetos")).expanduser())
     # onde o João está (clima, fuso): Franca/SP por padrão

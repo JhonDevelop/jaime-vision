@@ -32,3 +32,6 @@ vault/.placar.json
 
 # memória semântica: índice FTS5 é derivado do vault
 vault/.index.db*
+
+# marca do boot do dia (não se apresentar de novo)
+.jaime-boot

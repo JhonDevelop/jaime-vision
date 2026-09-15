@@ -173,6 +173,27 @@ async def hud_vault():
                 arestas.append([n["id"], dest])
     return {"nos": nos, "arestas": arestas, "total": len(nos)}
 
+@app.get("/hud/busca")
+async def hud_busca(q: str):
+    """Cérebro interativo: busca semântica no vault (FTS5) para o painel do HUD."""
+    try:
+        jaime.indice.atualizar()
+        return {"q": q, "hits": [{"rel": c, "trecho": t} for c, t, _ in jaime.indice.buscar(q, 12)]}
+    except Exception as e:
+        return {"q": q, "hits": [], "erro": str(e)[:120]}
+
+@app.get("/hud/mente")
+async def hud_mente():
+    """O que ele sabe de você e o que está pensando: pessoas, vínculo, humor, problemas em aberto, propostas, lembretes."""
+    try:
+        return {"pessoas": jaime.vinculo.pessoas(), "vinculo": jaime.vinculo.dados(), "humor": jaime.humor.dados(),
+                "problemas": [{"id": p.id, "titulo": p.titulo, "tentativas": len(p.tentativas)} for p in jaime.estudo.problemas.abertos()],
+                "propostas": [{"id": p.id, "titulo": p.titulo, "estado": p.estado} for p in jaime.evolucao.propostas()][-5:],
+                "lembrar": __import__("jaime.brain.ouvido_passivo", fromlist=["pendentes"]).pendentes(jaime.vault)[:5],
+                "estado": {"fase": jaime.estado.fase(), "situacao": jaime.estado.secao("Situação agora"), "andamento": jaime.estado.secao("Em andamento")}}
+    except Exception as e:
+        return {"erro": str(e)[:160]}
+
 @app.get("/hud/nota")
 async def hud_nota(rel: str):
     """Conteúdo de uma nota (só local), para o painel do cérebro."""
