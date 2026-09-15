@@ -86,7 +86,8 @@ class Jaime:
             if not self.identidade.confirmado:
                 # primeiro boot (ou depois de renomear): ele confere o próprio nome
                 self.aguardando_nome = True
-                self.apresentacao = f"{self.apresentacao} Meu nome é {self.identidade.nome} — confirma?"
+                if "confirma" not in self.apresentacao.lower():
+                    self.apresentacao = f"{self.apresentacao} Meu nome é {self.identidade.nome} — confirma?"
             bus.emitir("apresentacao", texto=self.apresentacao)
         asyncio.create_task(self.notion.tudo())
         return self.apresentacao
