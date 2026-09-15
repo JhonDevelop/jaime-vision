@@ -11,19 +11,33 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
-## Fase 3 — tempo real (branch `feat/fase3-duplex`, 15/09 tarde)
-- Tese e prompts em `docs/FASE-3-TEMPO-REAL.md`; guia do Maestri em `docs/MAESTRI.md`.
-- **Prompt A pronto** (etapas 1 e 2): `jaime/voice/stt_stream.py` (Deepgram ao vivo com parciais; OpenAI Realtime; Whisper
-  pseudo-stream), `antecipador.py` (heurística + modelo rápido OpenAI, cache, `confere()`), `duplex.py` (`DetectorFim`
-  450/700/1200 ms conforme "frase fechou?", `OuvidoDuplex` com transcrição viva, resposta especulativa, barge-in com
-  guarda de eco, métricas). `tts.py`: `pre_sintetizar`, `tocar_pronto`, `parar()` < 100 ms, velocidade 1.15×.
-  `escuta.py`: `_tratar_texto` compartilhado + `Latencias` (linha por turno no diário, evento `latencia` no HUD).
-  HUD: "você (ao vivo)" com cursor, feed do antecipador e da latência. `.env`: `JAIME_VOZ_MODO=duplex` (ligado 15/09 ~13:50).
-  Testes: `tests/test_duplex.py` (13) — suíte 132 verdes. **Falta validar ao vivo** (falar com ele e ler as latências no diário).
-- Próximos: Prompt B (fila de demandas `fila.py`, Vigia por lote + confiança progressiva, JAIME_INTERROMPER), C (persona
-  enxuta por voz, `python -m jaime voz latencia`), D e E via recrutas no Maestri (precisa do toggle Maestro no terminal).
-- Maestri: o CLI funciona daqui usando `MAESTRI_SOCKET` + `MAESTRI_TERMINAL_ID` do terminal "Cerebro Principal Jaime";
-  recrutar exige Maestro ligado nesse terminal.
+## Fase 3 — tempo real (branch `feat/fase3-duplex`, 15/09 tarde) — A, B, C, D, E prontos
+- Tese e prompts em `docs/FASE-3-TEMPO-REAL.md`; Maestri em `docs/MAESTRI.md`; prompt do Codex em `docs/PROMPT-CODEX.md`.
+- **A (ouvido em tempo real)**: `voice/stt_stream.py` (Deepgram ao vivo, OpenAI Realtime, Whisper pseudo), `voice/antecipador.py`
+  (heurística imediata + modelo em segundo plano, gpt-4o-mini por padrão; nenhum modelo de nuvem responde em < 2 s), `voice/duplex.py`
+  (`DetectorFim` 450/700/1200 ms, `OuvidoDuplex`, barge-in com guarda de eco, interjeição opcional `JAIME_INTERROMPER`).
+- **B**: `voice/fila.py` (demanda interrompida → "Voltando: …" ou "Continuo o que eu dizia sobre X?"), `vigia/hooks.py` por LOTE
+  ("Você deseja que eu X, Y e Z?" → "sim" libera exatamente aquelas), `vigia/confianca.py` (5 aprovações → "posso fazer sem perguntar?",
+  `01-Estado/Confianca.md`), barge-in interrompe o modelo (`ClaudeSDKClient.interrupt`).
+- **C**: `tts.py` toca em streaming a partir do 1º byte, `pre_sintetizar`/`tocar_pronto`/`parar()`, velocidade 1.15; `persona.py` sem
+  preâmbulos; prompt de voz 1–2 frases + "Quer o detalhe?"; `python -m jaime voz latencia` (say → Deepgram → antecipador → TTS).
+  **Medido 15/09 (2ª rodada)**: fala→texto 316 ms · TTS 1º byte 1,38 s (gpt-4o-mini-tts) · fala→1ª frase 1,7 s. A meta de 700 ms
+  depende de um TTS mais rápido: **ElevenLabs Flash (falta ELEVENLABS_API_KEY)** ou antecipação acertando (cache = ~0 ms).
+- **D (Bússola, Codex-like via Claude)**: `telemetria/uso.py` + `prioridades.py`, `cortex/orcamento.py` (60/25/15), Rotinas §5,
+  modo atento, noite criativa como janela, `01-Estado/Uso.md`, `90-Estudo/Prioridades.md`.
+- **E (Fagulha)**: `vontade/impulsos.py`, `mente.py`, `criacoes.py`; Vitrine `GET /hud/vitrine` + voto; CLAUDE.md §Vontades.
+- **Filhos (equipe)**: `jaime/equipe/` — o Jaime cria terminais no Maestri (Claude Code, Codex, OpenCode, shell) com papel, missão
+  e pasta (worktree `~/Jaime/worktrees/<slug>` para código; `~/Jaime/filhos/<slug>` para pesquisa; `~/projetos/<slug>` para MVP),
+  delega, lê relatórios pela nota `equipe-relatorios` (task a cada 60 s) e dispensa (Vigia). Ferramentas `mcp__equipe__*`; registro em
+  `01-Estado/Equipe.md`. Identidade: socket em $TMPDIR/maestri-*/ e terminal Maestro do workspace (auto-descoberta).
+- Testes: 179 verdes. Serviço reiniciado com tudo às ~15:00 (`JAIME_VOZ_MODO=duplex` no .env).
+- Maestri hoje: workspace "Jaime-assist", Maestro "Cerebro Principal J.A.I.M.E"; recrutas Bússola (jaime-telemetria) e Fagulha
+  (jaime-vontades) vivos e ociosos; papéis "Telemetria e Rotina do Jaime", "Vontades e Vitrine do Jaime", "Codex do Jaime".
+  Worktrees em `../jaime-telemetria` e `../jaime-vontades` (branches já mergeadas em `feat/fase3-duplex`; podem ser removidos:
+  `git worktree remove ../jaime-telemetria`).
+- **Falta**: validar ao vivo (falar com ele; ler "Latência (voz)" no diário; testar barge-in com fone), merge de `feat/fase3-duplex`
+  em `main` (o auto-push do João leva ao GitHub), ELEVENLABS_API_KEY para a meta de latência, calibrar o antecipador antes de ligar
+  `JAIME_INTERROMPER`.
 
 ## Última rodada (15/09, manhã)
 - **Loop de crash resolvido**: 24 segfaults (torch + onnxruntime no mesmo processo) até 10:14; `falantes_worker` separado; estável desde 10:16.
