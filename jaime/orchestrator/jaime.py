@@ -137,7 +137,8 @@ class Jaime:
         # vínculo com o dono: familiaridade, pessoas próximas, acompanhamentos — vira contexto e calor
         self.vinculo = Vinculo(self.vault)
         self.humor.e.calor = max(self.humor.e.calor, self.vinculo.calor())
-        self.falante_atual: str = ""     # quem está falando agora (voz reconhecida): "", "João", "Gabriel", "desconhecido"
+        self.falante_atual: str = ""     # quem está falando agora (voz reconhecida): "", "João", "Gabriel", "desconhecido", "incerto"
+        self._senha_incerta = 0          # palavra-passe certa mas voz "incerta": 1ª vez repete, 2ª vez digita
         usar_nome(self.identidade.variantes())
 
     # ── autoconsciência ────────────────────────────────
@@ -312,12 +313,14 @@ class Jaime:
         async with self._lock:
             return "".join([t async for t in self._stream(texto)]).strip()
 
-    def _porta(self, texto: str) -> str | None:
+    def _porta(self, texto: str, canal: str = "voice") -> str | None:
         """Palavra-passe e tranca. Devolve uma resposta curta se a fala não deve chegar ao Claude."""
-        # voz reconhecida e não é o João: palavra-passe, "confirmo", renomear e tranca são só dele
-        if self.falante_atual and self.falante_atual != "João" and (eh_confirmacao(texto) or quer_trancar(texto) or quer_renomear(texto)
-                                                                     or (not self.acesso.liberado and self.acesso.confere(texto))):
-            quem = self.falante_atual if self.falante_atual != "desconhecido" else ""
+        # voz reconhecida e não é o João: palavra-passe, "confirmo", renomear e tranca são só dele.
+        # Texto digitado (HUD, Telegram) não tem voz: o falante da última fala não vale para ele.
+        falante = self.falante_atual if canal == "voice" else ""
+        if falante and falante not in ("João", "incerto") and (eh_confirmacao(texto) or quer_trancar(texto) or quer_renomear(texto)
+                                                                 or (not self.acesso.liberado and self.acesso.confere(texto))):
+            quem = falante if falante != "desconhecido" else ""
             self.vault.diario(f"{quem or 'Voz desconhecida'} tentou algo só do João: {texto[:60]}", "Log")
             return f"Isso só com o João{', ' + quem if quem else ''}."
         if quer_trancar(texto):
@@ -357,7 +360,17 @@ class Jaime:
             # "sim" solto, sem pergunta pendente: um "sim" já custou 216 s de modelo implementando roadmap sozinho
             return "Sim ao quê, João?"
         if not self.acesso.liberado:
+            if falante == "incerto" and self.acesso.confere(texto):
+                # senha certa, voz na zona incerta (áudio ruim): repete uma vez; na segunda troca de fator — digita.
+                self._senha_incerta += 1
+                if self._senha_incerta == 1:
+                    return "Não reconheci bem a sua voz. Repete a palavra-passe?"
+                self._senha_incerta = 0
+                bus.emitir("teclado", aberto=True, motivo="voz não reconhecida")
+                self.vault.diario("Palavra-passe certa com voz incerta duas vezes: pedi para digitar", "Log")
+                return "Não consegui confirmar a sua voz. Digita a palavra-passe no painel."
             if self.acesso.tentar(texto):
+                self._senha_incerta = 0
                 bus.emitir("acesso", liberado=True)
                 return f"Acesso liberado. {self.estado.resumo_curto()} O que fazemos, João?"
             bus.emitir("acesso", liberado=False)
@@ -368,7 +381,7 @@ class Jaime:
         """contexto: o que o João está vendo na tela agora (app/janela) — vai só ao modelo, não ao diário."""
         assert self._client, "Chame start() antes."
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")
-        curta = self._porta(texto)
+        curta = self._porta(texto, canal)
         if curta is None and self.acesso.liberado:
             curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo
         if curta is not None:

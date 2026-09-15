@@ -1,0 +1,106 @@
+# MENTE — caderno do terminal que observa o Jaime e o melhora
+
+> Mantido pela Mente (terminal Maestri, worktree `jaime-mente`, branch `feat/mente`). Fontes: `~/Jaime/jaime.log`,
+> diário do dia, `01-Estado/*`, `90-Estudo/Problemas.md`, docs da fase 3. Só o Cérebro Principal faz merge e reinicia.
+> Formato de cada entrada: **problema → hipótese → solução proposta → como validar**.
+
+## Primeira leitura — 15/09/2026 ~14:20
+
+### O que está funcionando
+- Fase 3 A–E no chão e mergeada (`feat/fase3-duplex` → `feat/mente` em dia; 181 testes verdes).
+- Transcrição viva por Deepgram: fala→texto 0,18–0,53 s (mediana ~0,28 s) — dentro da meta de 300 ms.
+- Latência registrada no diário a cada turno (`Latência (voz)`), medição sintética (`voz latencia`) funcionando.
+- Vontades reagindo aos eventos (Utilidade sobe com fila, Maestria mexe com placar); noite criativa entregou 1 criação.
+- Notificações filtradas (só pessoa em conversa direta) e registradas; Vigia por lote sem reclamação no log.
+- Loop de crash da manhã (torch+onnx) resolvido com o `falantes_worker`: nenhum crash desse tipo depois das 10:16.
+
+### O que falha (por ordem do que mais atrapalha o João hoje)
+1. **Serviço CAÍDO desde 14:06** (SIGSEGV; porta 8787 muda; nenhum `jaime serve` vivo). → M-01, corrigido.
+2. **Tranca fala com todo mundo**: enquanto trancado, cada frase ambiente ("Veado.", "vai para o caralho", conversa
+   de terceiros) vira "Palavra-passe, por favor." em voz alta — dezenas de vezes entre 13:33 e 13:52, cada uma com
+   1,5–3 s de TTS. E a palavra-passe do João é recusada quando a voz chega com ruído (`desconhecido` ≠ `João`).
+   É a irritação relatada de manhã ("tenho que falar a palavra mas não deixa eu usar"). → M-02.
+3. **Latência texto→1ª frase 1,1–2,6 s** (meta 0,7 s): TTS gpt-4o-mini-tts com 1º byte ~1,4 s; ElevenLabs Flash sem chave.
+   Um outlier de 14,2 s às 14:03 (modelo pensando com ferramenta, sem muleta a tempo). → M-03.
+4. **Antecipador 0/10 acertos** nas duas medições sintéticas; nenhum `antecipacao usado=True` no diário. O cache de
+   1ª frase nunca toca — a meta de 700 ms só se alcança por aí sem trocar o TTS. → M-04.
+5. **Notion 404 a cada sincronização** (página não compartilhada com a integração): 1 linha de erro por evento no
+   log. Não é código; é pendência do João. Mas o log vira ruído. → M-05.
+6. **Transcrições ruins**: "Grand rabos", "Ludinossauro", "Hunchen", "O bergão me me esquente do bota" — a maioria é
+   conversa de outras pessoas captada pelo mic interno, não fala do João. O problema real é o item 2 (responder a
+   quem não falou com ele), não o STT.
+7. `FutureWarning: np.long` em `falantes.py:50` a cada subida — cosmético. → M-06.
+8. `Uso.md` e `Prioridades.md` vazios (telemetria sem amostras, placar sem erros na semana): a janela ativa não
+   está sendo amostrada ou o serviço reiniciou demais para acumular. → M-07 (observar mais um dia antes de mexer).
+
+### Entradas
+
+#### M-01 · Barge-in derruba o processo (SIGSEGV) — **CORRIGIDO em feat/mente (10ff5ea)**
+- Problema: crash report `python3.12-2026-09-15-140601.ips`: `PaUtil_WriteRingBuffer` ← `WriteStream` ← cffi, thread 11.
+  Diferente da manhã (torch+onnx). Última fala antes: "Você consegue abrir sua interface para mim?" por cima da resposta.
+- Hipótese: `duplex._barge()` roda na thread de captura e chama `tts.parar()` → `_fechar_stream()` → `abort()/close()`
+  do `RawOutputStream` enquanto a thread `_reprodutor` está dentro de `st.write()`. PortAudio não tolera isso.
+  Segundo bug no mesmo caminho: `parar()` seta e logo limpa `_parando`; a frase antiga, presa no `write()`, ao voltar
+  via `_parando` já baixado, reabria o aparelho e continuava falando.
+- Solução: `RLock` no stream; abrir+escrever por bloco (50 ms) sob o lock; `_fechar_stream()` espera o bloco acabar;
+  `_tocar(pcm, g)` descarta pela geração, não só pelo evento. Teste `tests/test_tts_barge_in.py` com `sounddevice`
+  falso que acusa write depois de close — falha no código antigo (9 writes após parar, writes em stream fechado), passa no novo.
+- Validar ao vivo: com fone (`JAIME_BARGE_IN=fone`), falar por cima 10× seguidas; nenhum crash; áudio cala < 150 ms;
+  nada da frase antiga volta a tocar. Até o merge: `JAIME_BARGE_IN=off` no .env evita a repetição.
+
+#### M-02 · Tranca responde a conversa ambiente; senha recusada com voz ruidosa — **CORRIGIDO em feat/mente**
+- Problema: em `escuta._tratar_texto`, o filtro "não era comigo" (`sem_nome` + janela inativa) só vale se `acesso.liberado`.
+  Trancado, tudo vai a `_porta` → "Palavra-passe, por favor." falado. Além disso `_porta` recusa a senha se
+  `falante_atual` ∈ {outro, "desconhecido"} — e `identificar()` devolve "desconhecido" para qualquer score < 0,75,
+  inclusive o João com ruído. O P-0003 (resolvido pelo estudo) recomendou 3 zonas (aceita ≥ 0,76 · incerto 0,55–0,76 ·
+  rejeita < 0,55), EMA 0,6 entre tentativas, 2 repetições e fallback para senha digitada — nada disso entrou no código.
+  Terceiro detalhe: a senha digitada no HUD passa por `_porta` com o `falante_atual` da última fala → também recusada.
+- Solução: (a) trancado + sem nome + janela inativa + não é a senha → ignorar em silêncio (HUD apagado, sem ouvido
+  passivo, sem TTS); (b) `identificar()` com 3 zonas e EMA curta: "incerto" em vez de "desconhecido" na zona do meio;
+  (c) `_porta`: senha certa com voz "incerta" → 1ª vez pede para repetir, 2ª vez abre o teclado do HUD; voz de outra
+  pessoa conhecida → continua "só com o João"; (d) canal ≠ voz ignora `falante_atual`; (e) cadastro passa a guardar as
+  5 amostras (`<nome>.amostras.npy`) e o score usa max(centróide, melhor amostra).
+- Validar: testes em `test_falantes.py` (3 zonas, EMA, amostras) e `test_escuta_tranca.py` (silêncio trancado, senha
+  incerta 2×, senha digitada). Ao vivo: trancar, deixar gente conversar 1 min — zero "Palavra-passe"; dizer a senha
+  com ruído — ou abre, ou pede uma repetição, nunca "isso só com o João" para o próprio João.
+
+#### M-03 · texto→1ª frase 1,1–2,6 s
+- Hipótese: 1º byte do gpt-4o-mini-tts ≈ 1,4 s domina. `optimize_streaming_latency=3` só vale na ElevenLabs.
+- Proposta: (1) pedir ao João `ELEVENLABS_API_KEY` (Flash v2.5 ~75 ms → meta batida sem antecipador); (2) enquanto
+  isso, resposta especulativa (M-04) e muleta mais cedo quando há ferramenta (o outlier de 14 s ficou mudo).
+- Validar: `python -m jaime voz latencia` mediana < 700 ms; diário sem `texto→1ª frase` > 5 s.
+
+#### M-04 · Antecipador nunca acerta (0/10; nenhum `usado=True`)
+- Hipótese: `Antecipador.confere(texto)` compara intenção antecipada com a final por critério estrito demais, ou o modelo
+  em segundo plano (gpt-4o-mini, > 2 s) chega depois do fim do turno e o cache nunca existe no momento de tocar.
+- Proposta: medir no diário `antecipacao` (latência do modelo vs. fim de turno) por 1 dia; se o modelo sempre chega
+  tarde, gerar rascunho heurístico local para as intenções mais comuns (abrir app, hora, clima, "está aí") e
+  pré-sintetizar só esses. Validar: `antecipados ≥ 5/10` no `voz latencia`; `usado=True` no diário em falas curtas.
+
+#### M-05 · Notion 404 em toda sincronização
+- Não é código: página não compartilhada com a integração. Proposta: depois de 3 falhas iguais seguidas, silenciar
+  o log por 1 h e registrar 1 linha no diário ("espelho parado: compartilhe a página com a integração"). Validar: log limpo.
+
+#### M-06 · FutureWarning np.long — **CORRIGIDO**: o próprio `hasattr(np, "long")` emitia o aviso; envolto em `catch_warnings`.
+
+#### M-07 · Telemetria sem amostras — observar 1 dia com o serviço estável antes de mexer.
+
+### Fila de melhorias (por impacto)
+| # | Item | Impacto hoje | Estado |
+|---|---|---|---|
+| 1 | M-01 barge-in segfault | serviço morto | pronto, aguardando merge |
+| 2 | M-02 tranca/senha por voz | irritação diária | pronto, aguardando merge |
+| 3 | M-04 antecipador | meta 700 ms | a medir |
+| 4 | M-03 TTS 1º byte | meta 700 ms | depende de chave |
+| 5 | M-05 Notion ruído no log | observabilidade | pequeno |
+| 6 | M-06 FutureWarning | cosmético | pronto |
+| 7 | M-07 telemetria vazia | estudo dirigido | observar |
+| 8 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
+
+### Observações para o Cérebro Principal
+- O log só mostra `🎙 você ›` e erros; as respostas do Jaime não aparecem — para observar, seria bom logar `🔈 jaime ›` (1 linha, truncada) e a latência. Proposta pequena, faço em seguida se ninguém objetar.
+- A palavra-passe em uso ainda parece ser a padrão do `.env.example` (ouvida no log). Sugerir ao João trocar com `python -m jaime senha`.
+
+## Ciclos
+- 14:10 — leitura inicial; serviço caído detectado; Cérebro avisado; M-01 corrigido e commitado (10ff5ea).
+- 14:45 — M-02 implementado (3 zonas + EMA + amostras; silêncio trancado; senha digitada sem voz) e M-06; 187 testes; Cérebro avisado.

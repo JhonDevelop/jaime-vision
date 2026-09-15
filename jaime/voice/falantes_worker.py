@@ -9,9 +9,11 @@ from __future__ import annotations
 import base64, json, sys
 
 def main() -> int:
-    import numpy as np
-    if not hasattr(np, "long"):
-        np.long = int
+    import numpy as np, warnings
+    with warnings.catch_warnings():                 # o próprio hasattr(np, "long") emite FutureWarning no numpy 2
+        warnings.simplefilter("ignore", FutureWarning)
+        if not hasattr(np, "long"):
+            np.long = int
     from resemblyzer import VoiceEncoder, preprocess_wav
     enc = VoiceEncoder("cpu", verbose=False)
     sys.stdout.write(json.dumps({"ok": True, "pronto": True}) + "\n"); sys.stdout.flush()
