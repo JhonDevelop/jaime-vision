@@ -11,6 +11,26 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
+## Como o Jaime roda agora (15/09, 14:10)
+- **Atualização 15/09 tarde:** o nó do Maestri caiu às 14:06 (segfault no libportaudio durante barge-in). O serviço voltou ao
+  LaunchAgent `com.jaime` (KeepAlive) com `JAIME_BARGE_IN=off` no `.env` até o fix da Mente (`feat/mente`). **Não** rode o nó
+  "J.A.I.M.E · serviço" enquanto o LaunchAgent estiver ligado (ele recusa a porta, mas evite a disputa).
+- **O serviço roda dentro do Maestri**, no nó "J.A.I.M.E · serviço" (preset Shell, `python -u -m jaime serve | tee -a ~/Jaime/jaime.log`,
+  pasta jaime-vision). O LaunchAgent `com.jaime` foi **parado** (`servico.sh parar`) para não disputar a porta; se o Maestri fechar,
+  o Jaime cai — para voltar ao modo serviço: `bash jaime/ops/servico.sh ligar`. Não rode os dois.
+- O serviço age no canvas pelo Maestro "Cerebro Principal J.A.I.M.E" (descoberta automática em `jaime/equipe/maestri.py`).
+- **"J.A.I.M.E · mente"** (Claude Code, papel "Mente do J.A.I.M.E", worktree `../jaime-mente`, branch `feat/mente`): lê log, diário
+  e problemas, escreve `docs/MENTE.md` (problema → hipótese → solução → validação), implementa melhorias com testes e avisa o
+  Cérebro Principal; pode recrutar Codex. Só o Cérebro Principal (esta sessão) faz merge e reinicia o serviço.
+- Nós conectados: Bússola, Fagulha (ociosos), nota `fase3-progresso`.
+- **"J.A.I.M.E · HUD"** (Claude Code, papel "HUD viva do Jaime", worktree `../jaime-hud`, branch `feat/hud-obra`): animações
+  que significam o estado real (ouvido duplex, raciocínio/Córtex, fila/lote/filhos/estudo, vontades/humor/orçamento).
+- **"J.A.I.M.E · Codex"** (Codex CLI 0.154, plano Plus já logado, papel "Codex do Jaime", worktree `../jaime-codex`, branch
+  `feat/codex-obra`): missão 1 = cancelamento de eco para o barge-in (`jaime/voice/eco.py`). A missão "ler Mensagens do iPhone
+  (chat.db)" foi barrada pelo classificador do Claude Code (dados pessoais) — se quiser, passe-a você mesmo no terminal do Codex.
+- Ao terminar cada obra: o Cérebro Principal revisa, mergeia em `feat/fase3-duplex`/`main` e reinicia o nó do serviço.
+- `main` = fase 3 completa (merge 621a0f1); **push pendente** (`git push origin main` no terminal do João).
+
 ## Fase 3 — tempo real (branch `feat/fase3-duplex`, 15/09 tarde) — A, B, C, D, E prontos
 - Tese e prompts em `docs/FASE-3-TEMPO-REAL.md`; Maestri em `docs/MAESTRI.md`; prompt do Codex em `docs/PROMPT-CODEX.md`.
 - **A (ouvido em tempo real)**: `voice/stt_stream.py` (Deepgram ao vivo, OpenAI Realtime, Whisper pseudo), `voice/antecipador.py`

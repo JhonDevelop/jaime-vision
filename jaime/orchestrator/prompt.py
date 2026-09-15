@@ -18,12 +18,15 @@ def _momento_e_humor(vault: Vault) -> str:
     except Exception as e:
         return f"(momento indisponível: {type(e).__name__})"
 
-def system_prompt(vault: Vault, estado: Estado, canal: str) -> str:
+def system_prompt(vault: Vault, estado: Estado, canal: str, eu: str = "") -> str:
     from ..config import settings
     agora = datetime.now().strftime("%A, %d/%m/%Y %H:%M"); m = maquina()
     return f"""Agora: {agora}. Canal atual: {canal}. Máquina: {m['host']} ({m['os']}, usuário {m['user']}).
 A constituição em CLAUDE.md manda. O que segue é o estado do seu cérebro no início desta sessão —
 mantenha-o vivo com as ferramentas mcp__cerebro__* (registrar_diario, criar_tarefa, lembrar, atualizar_estado).
+
+### Quem eu sou (autoconsciência — jaime/brain/eu.py, gerado agora)
+{eu or "(autoconsciência indisponível neste turno)"}
 
 ### Suas mãos nesta máquina
 Este computador é seu para operar: Bash roda o que for preciso, Write/Edit criam e alteram arquivos, Read lê

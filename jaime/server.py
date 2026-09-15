@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
     # fase 3 — E: vontades (impulsos ouvem o bus), Mente (impulso × janela × orçamento) e noite criativa/Vitrine
     from .vontade import ligar as ligar_vontade
     app.state.vontade = ligar_vontade(jaime, ocioso, orcamento=getattr(app.state, "orcamento", None))   # orçamento do D, se já ligado
+    jaime.vontade = app.state.vontade      # a autoconsciência (brain/eu.py) lê o impulso dominante daqui
     # Telegram: canal do celular, só o dono (JAIME_OWNER_TELEGRAM_ID)
     from .conexoes.telegram import Telegram
     telegram = Telegram(settings.telegram_token, settings.owner_telegram_id, jaime)
