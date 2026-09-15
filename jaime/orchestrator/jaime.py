@@ -367,6 +367,19 @@ class Jaime:
         self.acesso.tocar(); return None
 
     async def ask_stream(self, texto: str, canal: str = "cli", contexto: str = ""):
+        """Resposta em fluxo. Ao terminar (ou ser cortada), deixa UMA linha `🔈 jaime ›` no log — sem ela, o log
+        mostra só o que o João disse e ninguém consegue observar o que o Jaime respondeu (Mente, 15/09)."""
+        partes: list[str] = []
+        try:
+            async for t in self._ask_stream(texto, canal, contexto):
+                partes.append(t); yield t
+        finally:
+            resposta = re.sub(r"\s+", " ", "".join(partes)).strip()
+            if resposta:
+                tranca = "" if self.acesso.liberado else " 🔒"
+                print(f"🔈 jaime{tranca} › {resposta[:160]}{'…' if len(resposta) > 160 else ''}")
+
+    async def _ask_stream(self, texto: str, canal: str = "cli", contexto: str = ""):
         """contexto: o que o João está vendo na tela agora (app/janela) — vai só ao modelo, não ao diário."""
         assert self._client, "Chame start() antes."
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")

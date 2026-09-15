@@ -18,6 +18,7 @@ class NotionSync:
         self.s, self.vault, self.estado = s, vault, estado
         self.ativo = bool(s.notion_token and s.notion_root)
         self._cache = vault.root / "01-Estado" / "notion.json"
+        self._erros: dict[str, tuple[str, int, float]] = {}   # por função: (última mensagem, vezes, quando mostrei)
 
     def _h(self) -> dict:
         return {"Authorization": f"Bearer {self.s.notion_token}", "Notion-Version": "2022-06-28",
@@ -120,5 +121,25 @@ class NotionSync:
         for fn in (self.sincronizar_estado, self.sincronizar_diario, self.sincronizar_tarefas):
             try:
                 await fn()
+                self._erros.pop(fn.__name__, None)
             except Exception as e:  # nunca derruba o Jaime por causa do espelho
+                if self._repetido(fn.__name__, str(e)):
+                    continue
                 print(f"[notion] {fn.__name__}: {e}")
+
+    # o mesmo erro (página não compartilhada → 404) repetia a cada evento: dezenas de linhas por hora no log.
+    # Mostra a 1ª e a 3ª vez; depois, uma vez por hora, com a contagem.
+    SILENCIO_S = 3600.0
+
+    def _repetido(self, nome: str, msg: str) -> bool:
+        import time
+        agora = time.time()
+        msg_ant, n, quando = self._erros.get(nome, ("", 0, 0.0))
+        if msg != msg_ant:
+            self._erros[nome] = (msg, 1, agora); return False
+        n += 1
+        if n == 3 or agora - quando >= self.SILENCIO_S:
+            self._erros[nome] = (msg, n, agora)
+            print(f"[notion] {nome}: mesmo erro {n}× (mostro de novo em 1 h)")
+            return True
+        self._erros[nome] = (msg, n, quando); return True
