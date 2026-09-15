@@ -154,3 +154,13 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
 - `computador.py`: o Jaime vê a tela (`tela_capturar` → PNG lido com Read; o HUD mostra em `/hud/tela`) e interage com
   apps sem API (`tela_clicar`, `tela_digitar`, `tela_tecla`, via pyautogui). As três interações são ações do Vigia.
   macOS pede Acessibilidade e Gravação de Tela para o Terminal.
+
+
+## Meta e modo autônomo (fase 2, etapas 11–12)
+- `jaime/conexoes/meta.py`: webhook `/webhook/meta` (handshake + assinatura X-Hub-Signature-256), parsing de WhatsApp Cloud
+  e Instagram Messaging; dono → resposta direta; terceiro → resumo + rascunho pendente; `enviar_whatsapp`/`enviar_instagram`
+  são ações do Vigia. Passo a passo do app em `docs/CONEXOES.md`. Evolution API virou opcional.
+- `jaime/autonomo.py`: `objetivo(texto, limite_horas)` → plano em 3–8 etapas com critério de aceite (pelo próprio Jaime),
+  execução etapa a etapa com checkpoint no diário e no HUD, pausa quando o Vigia bloqueia (o "confirmo" retoma sem gastar um
+  turno), limites de horas/custo/ferramentas do `.env`, relatório final em 40-Diario com próximos passos. MCP `autonomo`:
+  `objetivo`, `situacao`. Planejador e executor injetáveis (testes offline).

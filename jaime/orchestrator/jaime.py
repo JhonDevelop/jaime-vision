@@ -41,6 +41,10 @@ from ..conexoes.google import GoogleConta
 from ..conexoes.tools import build_google_server
 from ..maos.imagens import Imagens
 from ..maos.tools_midia import build_midia_server, build_tela_server
+from ..conexoes.meta import Meta
+from ..conexoes.tools_meta import build_meta_server
+from ..autonomo import Autonomo
+from ..tools_autonomo import build_autonomo_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -97,6 +101,9 @@ class Jaime:
         # conexões: registro do que ele acessa + Google pelo OAuth próprio (token local)
         self.conexoes = Registro(self.vault)
         self.google = GoogleConta(settings.google_token)
+        self.meta = Meta(settings.meta_token, settings.meta_app_secret, settings.meta_verify_token, settings.meta_whatsapp_phone_id,
+                         settings.meta_instagram_id, self, dono_whatsapp=settings.owner_phone)
+        self.autonomo = Autonomo(self, settings.autonomo_horas, settings.autonomo_custo_usd, settings.autonomo_ferramentas)
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -114,7 +121,9 @@ class Jaime:
                          "maos": build_maos_server(self.vault, self.s.workspace),
                          "google": build_google_server(self.google, self.conexoes),
                          "midia": build_midia_server(Imagens(self.s.openai_key, self.vault), self.s.deepgram_key),
-                         "tela": build_tela_server()},
+                         "tela": build_tela_server(),
+                         "meta": build_meta_server(self.meta),
+                         "autonomo": build_autonomo_server(self.autonomo)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -281,6 +290,10 @@ class Jaime:
             self.canal = canal
             if eh_confirmacao(texto):
                 self.vigia.armar(); texto = "confirmo — pode executar a ação que o Vigia bloqueou."
+                if self.autonomo.confirmar():
+                    # a missão autônoma pausada retoma sozinha; não precisa de um turno do modelo
+                    bus.emitir("fala", texto="Confirmado. Retomando o objetivo."); bus.emitir("fala_fim")
+                    yield "Confirmado. Retomando o objetivo."; return
             elif eh_correcao(texto):
                 # o turno anterior estava errado: o placar tira o acerto provisório daquele modelo
                 if (u := self.placar.corrigir_ultimo(f"o João disse: {texto[:60]}")):

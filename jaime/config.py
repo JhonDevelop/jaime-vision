@@ -52,6 +52,15 @@ class Settings:
     google_client_secret: Path = field(default_factory=lambda: Path(_env("GOOGLE_CLIENT_SECRET_FILE", "~/Jaime/google-client-secret.json")).expanduser())
     google_token: Path = field(default_factory=lambda: Path(_env("GOOGLE_TOKEN_FILE", "~/Jaime/google-token.json")).expanduser())
     telegram_token: str = _env("TELEGRAM_BOT_TOKEN")
+    meta_token: str = _env("META_ACCESS_TOKEN")
+    meta_app_secret: str = _env("META_APP_SECRET")
+    meta_verify_token: str = _env("META_VERIFY_TOKEN", "troque-isto-tambem")
+    meta_whatsapp_phone_id: str = _env("META_WHATSAPP_PHONE_ID")
+    meta_instagram_id: str = _env("META_INSTAGRAM_ACCOUNT_ID")
+    # modo autônomo
+    autonomo_horas: float = float(_env("JAIME_AUTONOMO_HORAS", "2"))
+    autonomo_custo_usd: float = float(_env("JAIME_AUTONOMO_CUSTO_USD", "5"))
+    autonomo_ferramentas: str = _env("JAIME_AUTONOMO_FERRAMENTAS", "Read,Write,Edit,Bash,Glob,Grep,WebSearch,WebFetch")
     owner_telegram_id: str = _env("JAIME_OWNER_TELEGRAM_ID")
     bind: str = _env("JAIME_BIND", "127.0.0.1")     # só local por padrão
     port: int = int(_env("JAIME_PORT", "8787"))

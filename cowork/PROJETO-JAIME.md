@@ -52,6 +52,8 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F33 | Conexões: Google (Gmail/Calendar/Drive por OAuth próprio) + Telegram só do dono; registro em Conexoes.md | funcional | código pronto (15/09) — falta o João criar a credencial Google e o bot |
 | F34 | Voz com persona e emoção: gpt-4o-mini-tts (onyx) com instrução pelo humor; sem frases prontas; `jaime voz testar` | funcional | feito (15/09) |
 | F35 | Mídia: imagens (gpt-image-2.5), 3D (Blender headless), cortes e legendas (ffmpeg + Deepgram), interação com a tela | funcional | feito (15/09) — Blender a instalar |
+| F36 | Meta: WhatsApp Cloud API + Instagram Messaging com webhook próprio; terceiros viram rascunho, envio com confirmo | funcional | código pronto (15/09) — app no Meta for Developers é do João |
+| F37 | Modo autônomo: objetivo → etapas com aceite → checkpoints, pausa no Vigia, relatório | estratégica | feito (15/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -66,5 +68,5 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 
 ## Fase atual
 **1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
-em andamento: etapas 1–10 fechadas em 15/09; próximas: 11 (Meta: WhatsApp Cloud + Instagram) e 12 (modo autônomo).
+em andamento: **as 12 etapas da fase 2 fechadas em 15/09.** Do João: credencial Google, bot Telegram, app Meta, Blender, permissões do macOS, cota ElevenLabs. Próximo: fase 3 (a definir).
 n8n saiu do projeto — automações viram código nosso.

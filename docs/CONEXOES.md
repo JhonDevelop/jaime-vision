@@ -29,6 +29,25 @@ Ferramentas: `email_hoje`, `email_buscar`, `email_rascunho`, `email_enviar` (Vig
 
 **Revogar**: @BotFather → `/revoke` (gera token novo) ou `/deletebot`. Ou apague o token do `.env`.
 
+## Meta — WhatsApp Cloud API e Instagram Messaging (contas comerciais)
+Só APIs oficiais. O webhook é o próprio servidor do Jaime (`/webhook/meta`), exposto por um túnel (ex.: `cloudflared tunnel --url http://127.0.0.1:8787`).
+
+1. https://developers.facebook.com → **Meus apps → Criar app → Empresa**. Adicione os produtos **WhatsApp** e **Instagram**
+   (Messenger API para Instagram).
+2. **WhatsApp → Configuração da API**: número comercial (o de teste serve para começar), copie o **Phone number ID** →
+   `META_WHATSAPP_PHONE_ID`. Gere um **token de acesso permanente** (usuário do sistema no Business Manager) → `META_ACCESS_TOKEN`.
+3. **Instagram**: conta profissional vinculada a uma Página; permissões `instagram_basic`, `instagram_manage_messages`;
+   ID da conta → `META_INSTAGRAM_ACCOUNT_ID`. Para responder DMs de qualquer pessoa o app precisa passar pela **revisão** da Meta;
+   antes disso só testadores do app conversam.
+4. **Configurações do app → Básico**: *Chave secreta do aplicativo* → `META_APP_SECRET` (assina cada webhook).
+5. **Webhooks**: URL `https://<seu-túnel>/webhook/meta`, *Verify token* = o que você puser em `META_VERIFY_TOKEN`; assine
+   `messages` (WhatsApp) e `messages` (Instagram).
+6. Reinicie o servidor. Mensagem sua (número em `JAIME_OWNER_PHONE`) → ele responde; mensagem de terceiro → resumo +
+   rascunho no HUD, e **só envia com "confirmo"** (`enviar_whatsapp` / `enviar_instagram` são ações do Vigia).
+
+**Revogar**: apague o token no Business Manager ou remova o app. A Evolution API (WhatsApp pessoal) ficou **opcional**:
+risco real de bloqueio da conta.
+
 ## GitHub e Notion
 Já autenticados como MCPs do Claude (`claude mcp list`). Revogar: nas configurações de cada serviço (tokens/integrações).
 

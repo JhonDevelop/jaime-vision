@@ -175,6 +175,26 @@ async def ask(body: dict, x_jaime_token: str | None = Header(default=None)):
     _auth(x_jaime_token)
     return {"resposta": await jaime.ask(body.get("texto", ""), canal=body.get("canal", "api"))}
 
+@app.get("/webhook/meta")
+async def meta_verificar(request: Request):
+    """Handshake do webhook da Meta (hub.mode/verify_token/challenge)."""
+    from .conexoes.meta import handshake
+    desafio = handshake(dict(request.query_params), settings.meta_verify_token)
+    if desafio is None:
+        raise HTTPException(403, "verify_token inválido")
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(desafio)
+
+@app.post("/webhook/meta")
+async def meta_receber(request: Request):
+    """WhatsApp Cloud API e Instagram Messaging: assinatura verificada com o app secret; terceiros viram rascunho."""
+    from .conexoes.meta import verificar_assinatura
+    corpo = await request.body()
+    if not verificar_assinatura(settings.meta_app_secret, corpo, request.headers.get("X-Hub-Signature-256")):
+        raise HTTPException(403, "assinatura inválida")
+    asyncio.create_task(jaime.meta.receber(json.loads(corpo or b"{}")))
+    return {"ok": True}
+
 @app.post("/webhook/whatsapp")
 async def whatsapp(req: Request, x_jaime_token: str | None = Header(default=None)):
     _auth(x_jaime_token)
