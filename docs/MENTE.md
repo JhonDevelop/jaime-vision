@@ -90,6 +90,11 @@
   `tests/test_muleta.py`. Com M-08 (cache) a muleta passa a custar ~0 de TTS.
 - Validar: no diário, turnos com ferramenta com texto→1ª frase < 2 s.
 
+#### M-10 · Diário cego sobre a antecipação (pedido da Vigília) — **CORRIGIDO em feat/mente**
+- A linha "Latência (voz)" ganha `antecipação: usada «…» | não bateu «parcial» ≠ «final» | sem rascunho (origem, completude) |
+  rascunho «…» sem áudio a tempo | nenhuma`; e `antecipado` agora significa que o cache tocou de fato.
+- Validar: depois do merge, cada turno de voz no diário traz o motivo; contar "usada" por dia.
+
 #### M-08 · Frases fixas sintetizadas uma vez (delegado ao Codex às 15:45)
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -127,3 +132,4 @@
 - 15:05 — serviço voltou às 14:10 (Cérebro, JAIME_BARGE_IN=off). No log pós-reinício o João repete a senha 3× e pede a interface 3× sem ser atendido — é o M-02; merge urgente. Commitados: `🔈 jaime ›` no log e M-05 (Notion).
 - 15:35 — Cérebro mergeou os 5 commits na main (194 testes, serviço no ar com barge-in ligado). `git merge main` feito. M-04 medido e corrigido com rascunho local (commits WIP + testes); 200 testes.
 - 15:55 — M-09 (muleta logo após a ferramenta) commitado; 205 testes. M-08 aguardando o Codex.
+- 16:05 — Vigília reportou etapas 2 e 5 falhando (mesma leitura: 0/10, TTS OpenAI). Respondi; M-10 (motivo da antecipação no diário) commitado; 206 testes.
