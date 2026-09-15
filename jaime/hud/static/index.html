@@ -46,6 +46,7 @@
   .painel.esq{left:18px;overflow-y:auto;scrollbar-width:thin}.painel.dir{right:18px;width:340px}
   body.sem-paineis .painel{opacity:0;pointer-events:none;transform:translateY(-8px)}
   .painel h2{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--cy2);font-weight:500}
+  .painel>*{flex-shrink:0}.painel>.feed{flex:1 1 90px;min-height:60px}.painel>.codigo{flex-shrink:1}   /* só os feeds encolhem; córtex e turno nunca somem */
   .gauge{margin:2px 0}
   .lab{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.12em;color:var(--mu);text-transform:uppercase}
   .lab b{color:var(--tx);font-weight:500}
@@ -698,7 +699,7 @@ function ligarStream(){
         $('down').textContent=e.down_kbs+' KB/s';$('up').textContent=e.up_kbs+' KB/s';$('procs').textContent=e.procs;$('bat').textContent=e.bateria!=null?e.bateria+'%':'—';break;
       case 'estado': $('sit').textContent=e.situacao||'…';if(e.maquina)$('maq').textContent=e.maquina.host;if(e.liberado!=null)setAcesso(e.liberado);carregarSistemasLogo();break;
       case 'apresentacao': mostrarFala(e.texto,false);break;
-      case 'conversa': mostrarVoce(e.texto);bufFala='';DOMQ.fala=true;tConversa=e.t||0;novoTurno();UI.pensando=true;UI.streaming=false;if(UI.liberado)setVoz('pensando');somPensando(true);carregarSistemasLogo();break;
+      case 'conversa': UI.transcrevendo=false;$('voce').classList.remove('viva');mostrarVoce(e.texto);bufFala='';DOMQ.fala=true;tConversa=e.t||0;novoTurno();UI.pensando=true;UI.streaming=false;if(UI.liberado)setVoz('pensando');somPensando(true);carregarSistemasLogo();break;
       case 'fala': if(UI.pensando){SONS.fala()}UI.pensando=false;somPensando(false);
         if(UI.turno&&!UI.turno.fim){if(UI.turno.primeira==null&&tConversa&&e.t)UI.turno.primeira=Math.max(0,Math.round((e.t-tConversa)*1000));UI.turno.chars+=(e.texto||'').length;}
         UI.streaming=true;$('fala').classList.add('stream');UI.carga=Math.min(1,UI.carga+0.02);mostrarFala(e.texto,true);break;
