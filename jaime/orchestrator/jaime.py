@@ -314,8 +314,9 @@ class Jaime:
         bus.emitir("humor", **self.humor.dados())
         # gatilhos do cérebro de estudo: o João pediu pesquisa, ou a resposta admitiu não saber
         resposta = "".join(partes)
-        if re.search(r"\b(pesquisa isso|estuda isso|descobre isso|n[aã]o sei como|vê como faz)\b", texto, re.I):
-            self.estudo.abrir(texto[:100], resposta[:400], "joao_pediu")
+        if (mp := re.search(r"\b(pesquisa isso|estuda isso|descobre isso|n[aã]o sei como|vê como faz)\b[:,\s]*(?:depois[:,\s]*)?(.*)", texto, re.I)):
+            titulo = re.split(r"[.;]\s|\bpor agora\b", mp.group(2), 1)[0].strip() or texto
+            self.estudo.abrir(titulo[:100], f"pedido: {texto[:200]}", "joao_pediu")
         elif re.search(r"\b(n[aã]o sei|n[aã]o tenho como|n[aã]o consegui descobrir|n[aã]o encontrei)\b", resposta[:300], re.I) and escolha.tipo in ("pesquisa", "código"):
             self.estudo.abrir(texto[:100], resposta[:400], "sem_resposta")
         await self._pos_turno(canal, texto, "".join(partes))
