@@ -35,6 +35,11 @@ class Acesso:
             return True
         return False
 
+    def confere(self, texto: str) -> bool:
+        """É a palavra-passe? Sem liberar nada (para saber que alguém que NÃO é o dono tentou)."""
+        digitos = normalizar(texto)
+        return len(digitos) >= 4 and hashlib.sha256(digitos.encode()).hexdigest() == self._hash
+
     def tocar(self) -> None:
         if self.liberado:
             self._ate = time.time() + self._timeout

@@ -131,6 +131,7 @@ class Jaime:
         # vínculo com o dono: familiaridade, pessoas próximas, acompanhamentos — vira contexto e calor
         self.vinculo = Vinculo(self.vault)
         self.humor.e.calor = max(self.humor.e.calor, self.vinculo.calor())
+        self.falante_atual: str = ""     # quem está falando agora (voz reconhecida): "", "João", "Gabriel", "desconhecido"
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -295,6 +296,12 @@ class Jaime:
 
     def _porta(self, texto: str) -> str | None:
         """Palavra-passe e tranca. Devolve uma resposta curta se a fala não deve chegar ao Claude."""
+        # voz reconhecida e não é o João: palavra-passe, "confirmo", renomear e tranca são só dele
+        if self.falante_atual and self.falante_atual != "João" and (eh_confirmacao(texto) or quer_trancar(texto) or quer_renomear(texto)
+                                                                     or (not self.acesso.liberado and self.acesso.confere(texto))):
+            quem = self.falante_atual if self.falante_atual != "desconhecido" else ""
+            self.vault.diario(f"{quem or 'Voz desconhecida'} tentou algo só do João: {texto[:60]}", "Log")
+            return f"Isso só com o João{', ' + quem if quem else ''}."
         if quer_trancar(texto):
             self.acesso.trancar(); bus.emitir("acesso", liberado=False)
             return "Cérebro trancado. Diga a palavra-passe quando quiser voltar."

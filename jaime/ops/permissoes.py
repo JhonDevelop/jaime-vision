@@ -8,7 +8,8 @@ import ctypes, os, sqlite3, subprocess, sys, time
 from pathlib import Path
 
 PAINEIS = {"microfone": "Privacy_Microphone", "camera": "Privacy_Camera", "tela": "Privacy_ScreenCapture",
-           "acessibilidade": "Privacy_Accessibility", "disco": "Privacy_AllFiles"}
+           "acessibilidade": "Privacy_Accessibility", "disco": "Privacy_AllFiles", "automacao": "Privacy_Automation",
+           "notificacoes": "Privacy_AllFiles"}
 
 def _microfone() -> tuple[bool, str]:
     try:
@@ -51,6 +52,15 @@ def _acessibilidade() -> tuple[bool, str]:
     except Exception as e:
         return False, f"{type(e).__name__}: {str(e)[:80]}"
 
+def _automacao() -> tuple[bool, str]:
+    """Automação (controlar System Events/apps por AppleScript): o macOS pergunta na primeira vez."""
+    try:
+        r = subprocess.run(["osascript", "-e", 'tell application "System Events" to get name of first application process whose frontmost is true'],
+                           capture_output=True, text=True, timeout=15)
+        return r.returncode == 0, "ok" if r.returncode == 0 else ("pedido enviado / negado: " + r.stderr.strip()[:80])
+    except Exception as e:
+        return False, str(e)[:80]
+
 def _disco() -> tuple[bool, str]:
     db = Path("~/Library/Group Containers/group.com.apple.usernoted/db2/db").expanduser()
     try:
@@ -61,7 +71,7 @@ def _disco() -> tuple[bool, str]:
 
 def rodar(abrir_paineis: bool = True) -> int:
     print(f"binário: {sys.executable}")
-    checks = [("microfone", _microfone), ("camera", _camera), ("tela", _tela), ("acessibilidade", _acessibilidade), ("disco", _disco)]
+    checks = [("microfone", _microfone), ("camera", _camera), ("tela", _tela), ("acessibilidade", _acessibilidade), ("automacao", _automacao), ("disco", _disco)]
     faltando = []
     for nome, fn in checks:
         ok, msg = fn()

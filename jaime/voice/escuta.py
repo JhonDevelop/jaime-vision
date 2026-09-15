@@ -167,6 +167,16 @@ class Ouvido:
         self._tts = TTS(self.s)
         self._vad = VAD()
         self._stt = STT(self.s)   # Whisper local: baixa o modelo na primeira vez
+        # quem fala (resemblyzer/torch): carga de ~1 min no Intel — em segundo plano, o ouvido não espera
+        self.falantes = None
+        def carregar_falantes():
+            try:
+                from .falantes import Falantes
+                f = Falantes(); f._encoder(); self.falantes = f
+                bus.emitir("voz", estado="ouvindo", falando=False, aviso=f"reconhecimento de voz pronto ({', '.join(f.conhecidos()) or 'nenhuma voz cadastrada'})")
+            except Exception as e:
+                bus.emitir("voz", estado="ouvindo", falando=False, aviso=f"reconhecimento de voz indisponível: {type(e).__name__}")
+        threading.Thread(target=carregar_falantes, name="falantes", daemon=True).start()
 
     def _rodar(self):
         try:
@@ -207,6 +217,24 @@ class Ouvido:
             texto = (await self._stt.transcrever(pcm, SR)).strip()
             if len(texto) < 3 or LIXO_WHISPER.search(texto):
                 return
+            # quem falou? (cadastro em andamento consome a fala; senão identifica)
+            falante, conf = "", 0.0
+            if getattr(self, "falantes", None):
+                from .falantes import interpretar as falantes_interpretar
+                if (fim := await asyncio.to_thread(self.falantes.alimentar_cadastro, pcm, SR)):
+                    bus.emitir("ouvido", texto=texto, ignorado=False); await asyncio.to_thread(self._falar, fim); return
+                if self.falantes.cadastrando:
+                    n = len(self.falantes.cadastrando[1]); bus.emitir("ouvido", texto=f"(voz {n}/5 guardada) {texto}", ignorado=False); return
+                falante, conf = await asyncio.to_thread(self.falantes.identificar, pcm, SR)
+                if (cmd := falantes_interpretar(texto)):
+                    if cmd[0] == "aprender":
+                        await asyncio.to_thread(self._falar, self.falantes.comecar_cadastro(cmd[1])); return
+                    resposta = (f"É você, {falante}." if falante and falante != "desconhecido" else
+                                "Ainda não conheço essa voz. Diga 'aprende a minha voz' ou 'essa é a voz do Gabriel'.")
+                    await asyncio.to_thread(self._falar, resposta); return
+                if falante:
+                    bus.emitir("falante", nome=falante, confianca=round(conf, 2))
+            self.jaime.falante_atual = falante
             decisao, limpo = interpretar_chamada(texto, self.s.ativacao)
             # resposta a uma oferta de ajuda do observador ("sim" / "deixa")
             if self.observador and (oferta := self.observador.responder_oferta(limpo or texto)) is not None:
@@ -245,6 +273,8 @@ class Ouvido:
             bus.emitir("voz", estado="pensando", falando=False)
             buffer = ""
             contexto = self.observador.contexto() if self.observador else ""
+            if falante and falante != "João":
+                contexto = (contexto + "; " if contexto else "") + f"falante={falante}"
             # narrador: em tarefas longas ele diz o que está fazendo ("lendo os arquivos…"), como o Jarvis
             from .narrador import Narrador
             narrador = Narrador(self._enfileirar); narrador.comecar()

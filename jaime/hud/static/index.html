@@ -411,7 +411,7 @@ function setVoz(estado){UI.voz=estado;const el=$('estadoVoz');const chave=!UI.li
 let somemFala=null,somemVoce=null,bufFala='';
 function mostrarFala(txt,acumula){bufFala=acumula?bufFala+txt:txt;$('fala').textContent=bufFala.slice(-420);$('fala').classList.remove('some');
   clearTimeout(somemFala);somemFala=setTimeout(()=>$('fala').classList.add('some'),12000);}
-function mostrarVoce(txt,ignorado){$('voce').textContent=txt;$('voce').classList.toggle('ign',!!ignorado);$('voce').classList.remove('some');clearTimeout(somemVoce);somemVoce=setTimeout(()=>$('voce').classList.add('some'),ignorado?4000:9000);}
+function mostrarVoce(txt,ignorado){const q=UI.falante&&UI.falante!=='desconhecido'?UI.falante+' · ':(UI.falante==='desconhecido'?'? · ':'');$('voce').textContent=q+txt;$('voce').classList.toggle('ign',!!ignorado);$('voce').classList.remove('some');clearTimeout(somemVoce);somemVoce=setTimeout(()=>$('voce').classList.add('some'),ignorado?4000:9000);}
 function setAcesso(on){UI.liberado=on;$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado';setVoz(UI.voz);
   if(!on&&tecladoAberto()){$('tecSenha').hidden=false;$('tecTexto').hidden=true;$('tecSenha').focus();}}
 function aviso(txt,ms=6000){const a=$('aviso');a.textContent=txt;a.classList.add('on');clearTimeout(a._t);a._t=setTimeout(()=>a.classList.remove('on'),ms);}
@@ -490,6 +490,7 @@ function ligarStream(){
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
+      case 'falante': UI.falante=e.nome;$('voce').dataset.quem=e.nome;break;
       case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
       case 'raciocinio': registrarPensamento(e.ferramenta?(e.ferramenta+' '+(e.alvo||'')):(e.texto||''),e.ferramenta==='memória'?(e.alvo||'').split('; ')[0]:'');feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;

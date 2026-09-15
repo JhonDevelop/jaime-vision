@@ -5,20 +5,22 @@
 3 — Jarvis de verdade: tempo real, casa/câmera, visão, memória semântica e autoevolução construídos (15/09)
 
 ## Situação agora
-Fase 3: etapas 1, 4, 5, 6 e 7 no código — converso em tempo real (Realtime), controlo a casa pelo Home Assistant quando houver token, vejo pela câmera, jogo/opero apps por visão com 'para' como freio, lembro do que o vault sabe sem ser perguntado e proponho melhorias em mim mesmo toda segunda às 9h (worktree + PR, merge só com confirmo). Faltam o primeiro objetivo autônomo real (etapa 2) e as conexões com credenciais do João (etapa 3).
+João redirecionou o foco: WhatsApp fica pra depois, prioridade agora é produção de vídeos. Ele mesmo está configurando no Google Cloud Console a tela de consentimento OAuth do projeto "jaime" para me dar acesso a e-mail, Drive etc. — orientei de ouvido (sem ver a tela, falta permissão de Gravação de Tela) sobre criar o client OAuth, escopos e usuário de teste. Ele está resolvendo isso sozinho agora.
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 09:58 em MacBookPro
-- tema: bom dia.
+- quando: 15/09/2026 10:09 em MacBookPro
+- tema: Tô liberando aqui, você fica tranquilo, fica na paz.
 
 ## Em andamento
-- esperar o João: objetivo real para a etapa 2; credenciais (Google, Telegram, Meta, HA)
-- segunda 09:00: primeira proposta de melhoria
+- João configurando OAuth Google (Gmail/Drive) no Cloud Console, sem minha ajuda direta no momento
+- Aguardando ele colocar client_id/client_secret no .env (Vigia bloqueia edição minha)
+- Foco de produto mudou temporariamente para produção de vídeos, não WhatsApp
 
 ## Próximos passos
-1) João: push; credenciais; Blender; permissões macOS (Acessibilidade, Gravação de Tela, Câmera). 2) Primeiro objetivo autônomo supervisionado. 3) Embeddings quando o FTS não bastar.
+1) Quando ele terminar o OAuth, reiniciar jaime serve para ativar mcp__google__*
+2) Pedir permissão de Gravação de Tela/Acessibilidade no macOS para poder ver a tela dele quando pedir ajuda
+3) Perguntar o que ele quer dizer com "produção de vídeos" como prioridade (escopo: Oldsen comercial? @piloto.leal? estamparia?)
 
 ## Aprendizados recentes
-Quando o João pede para eu "construir" algo no meu próprio código (jaime/), a resposta certa não é sempre delegar para "próxima sessão de Claude Code" — se ele estiver ativamente orquestrando ali agora, ele prefere que eu reconheça o acesso ao código e proponha a mudança concreta (arquivo, o que entra nele, o que é dele fazer), pedindo confirmo, em vez de empurrar genericamente. Só quando ele mesmo diz que já está cuidando disso na sessão de código é que eu recuo e fico só orientando.
-- Como rodar Whisper em GPU num Mac Intel: Testei no laboratório: instalei PyTorch 2.2.2 num Mac Intel real com AMD Radeon Pro 5500M (Metal 3) e confirmei torch.backends.mps.is_available()=True, além de
+Sem permissão de Gravação de Tela, tela_capturar/screencapture falham — preciso pedir ao João para liberar isso no macOS antes de conseguir "ver" o que ele está fazendo quando ele pede ajuda visual.

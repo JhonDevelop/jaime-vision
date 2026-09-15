@@ -42,3 +42,8 @@ def test_vigia_protege_o_proprio_codigo():
     v.armar()
     assert asyncio.run(v.pre_tool_use({"tool_name": "Edit", "tool_input": {"file_path": "jaime/voice/tts.py"}}, None, None)) == {}
     assert asyncio.run(v.pre_tool_use({"tool_name": "Write", "tool_input": {"file_path": "/Users/x/projetos/app/main.py"}}, None, None)) == {}
+
+def test_confere_nao_libera():
+    a = Acesso(hash_senha("12341234"), timeout_min=1)
+    assert a.confere("um dois três quatro um dois três quatro") and not a.liberado
+    assert not a.confere("oi")
