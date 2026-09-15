@@ -359,6 +359,7 @@ function ligarStream(){
         if(UI.liberado&&!UI.falando&&!UI.pensando)setVoz(UI.gravando?'gravando':(UI.micAtivo?(UI.janelaAtiva?'ativo':'ouvindo'):'mudo'));break;
       case 'contexto': $('ctx').textContent=(e.app||'—')+(e.janela?' · '+e.janela.slice(0,38):'');$('ctxChip').title=e.janela||'';break;
       case 'cortex': $('modelo').textContent=(e.modelo||'').replace('claude-','');feed($('rac'),`<span class="f">córtex</span><span class="a">${esc(e.tarefa)} → ${esc((e.modelo||'').replace('claude-',''))}${e.exploracao?' (exploração)':''} · ${esc(e.motivo)}</span>`);break;
+      case 'juiz': feed($('rac'),`<span class="f">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;

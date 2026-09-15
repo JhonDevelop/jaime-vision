@@ -60,3 +60,22 @@ for uma correção do João ("errado", "não era isso", "refaz", "de novo"), `co
 **Troca de modelo sem perder a conversa:** o `ClaudeSDKClient` do SDK 0.2.152 tem `set_model(model)`; o
 orquestrador chama antes de cada turno quando o roteador muda a escolha. Recriar o cliente perderia o contexto.
 `python -m jaime cortex explicar "<tarefa>"` mostra tipo, modelo e porquê.
+
+
+## Dois provedores (fase 2, etapa 3) — OpenAI ao lado da Anthropic
+`jaime/cortex/provedores/` tem a interface única `responder(prompt, contexto, ferramentas=None) → Resposta`:
+- `anthropic.py`: `claude_agent_sdk.query()` de um turno, sem ferramentas — é o árbitro e a segunda opinião.
+- `openai.py`: Responses API (`JAIME_OPENAI_MODEL`, padrão `gpt-5.5`; `web_search` quando a tarefa é pesquisa).
+  Lista real vista pela chave em 15/09/2026: gpt-5.5, gpt-5.5-pro, gpt-5.6-luna, gpt-5.6-sol; voz gpt-realtime-2,
+  gpt-realtime-whisper, gpt-4o-mini-tts; imagem gpt-image-2.5-flare/sunburst. Não existem "GPT-6 Astra" nem "5.6 Terra".
+
+**Regra:** ações no mundo (ferramentas do Agent SDK, MCPs, Vigia) continuam só pela Anthropic, no cliente
+persistente. A OpenAI produz texto, decisões e — nas etapas 9/10 — voz e imagem. O roteador só lista
+`openai:<modelo>` como candidato para *pesquisa* e *redação*, e só quando há `OPENAI_API_KEY`. Se a chamada
+falhar (sem crédito, rede), o mesmo turno cai na Anthropic e o placar anota o erro.
+
+**Juiz** (`jaime/cortex/juiz.py`): tarefa do tipo *decisão*, ou "pensa bem" / "compara" no texto → os dois
+provedores respondem em paralelo e o Fable 5.1 (`JAIME_MODEL_DECISAO`) escolhe A, B ou mescla, com uma frase
+de justificativa que vai para o diário (seção Decisões) e para o painel Raciocínio do HUD. Custa o dobro; se um
+provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda fora do cliente persistente
+(sem as mãos), com o mesmo system prompt do Jaime como contexto.

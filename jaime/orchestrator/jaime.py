@@ -20,6 +20,9 @@ from ..identidade import Identidade, quer_renomear, eh_sim
 from ..brain.saude import verificar, gerar_indices, relatorio, resumo_falado
 from ..cortex.placar import Placar
 from ..cortex.roteador import Roteador, eh_correcao
+from ..cortex.juiz import Juiz, pede_juiz
+from ..cortex.provedores.openai import ProvedorOpenAI
+from ..cortex.provedores.anthropic import ProvedorAnthropic
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -51,9 +54,14 @@ class Jaime:
         self.saude: list = []
         # Córtex: o modelo é escolhido por tarefa; o placar aprende com acertos e correções
         self.placar = Placar(settings.vault)
+        # OpenAI: texto, pesquisa e decisões; nunca as mãos. Sem chave → o roteador nem a lista.
+        self.openai = ProvedorOpenAI(settings.openai_key, settings.openai_model)
         self.roteador = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
-                                 self.placar, settings.cortex_exploracao)
+                                 self.placar, settings.cortex_exploracao,
+                                 openai=settings.openai_model if self.openai.disponivel else "")
+        self.juiz = Juiz(ProvedorAnthropic(settings.model_padrao, str(settings.root)), self.openai,
+                         ProvedorAnthropic(settings.model_decisao, str(settings.root)))
         self.modelo_atual = settings.model
         self._custo_turno = 0.0
         self._custo_sessao = 0.0
@@ -222,18 +230,57 @@ class Jaime:
                 if (u := self.placar.corrigir_ultimo(f"o João disse: {texto[:60]}")):
                     bus.emitir("placar", msg=f"correção: {u['modelo']} errou em '{u['tipo']}'")
             escolha = self.roteador.decidir(texto, contexto, canal)
-            await self._usar_modelo(escolha.modelo)
-            bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
-                       motivo=escolha.motivo, exploracao=escolha.exploracao)
             partes, inicio = [], asyncio.get_event_loop().time()
             self._custo_turno = 0.0
-            prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
-            async for t in self._stream(f"{prefixo} {texto}"):
-                partes.append(t); yield t
-            # acerto provisório: vira erro se o próximo turno for uma correção
-            self.placar.registrar(escolha.modelo, escolha.tipo, "acerto",
-                                  asyncio.get_event_loop().time() - inicio, self._custo_turno, texto[:80])
+            if self.openai.disponivel and pede_juiz(texto, escolha.tipo):
+                # decisão: duas opiniões + árbitro (custa o dobro; só aqui)
+                bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo="juiz",
+                           motivo="duas opiniões (Anthropic + OpenAI) e o Fable 5.1 arbitra", exploracao=False)
+                v = await self.juiz.julgar(texto, self._contexto_texto(contexto))
+                bus.emitir("juiz", escolha=v.escolha, justificativa=v.justificativa,
+                           provedores=[f"{r.provedor}/{r.modelo}" + ("" if r.ok else " ✘") for r in v.respostas])
+                self.vault.diario(f"Juiz ({v.escolha}): {v.justificativa}", "Decisões")
+                bus.emitir("fala", texto=v.texto); bus.emitir("fala_fim")
+                partes.append(v.texto); yield v.texto
+                self.placar.registrar(f"juiz:{v.escolha}", escolha.tipo, "acerto", v.latencia, v.custo, texto[:80])
+            elif escolha.modelo.startswith("openai:"):
+                # texto pela OpenAI; se falhar (sem crédito, rede), cai na Anthropic no mesmo turno
+                bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
+                           motivo=escolha.motivo, exploracao=escolha.exploracao)
+                r = await self.openai.responder(texto, self._contexto_texto(contexto),
+                                                ["web_search"] if escolha.tipo == "pesquisa" else None)
+                if r.ok:
+                    bus.emitir("fala", texto=r.texto); bus.emitir("fala_fim")
+                    partes.append(r.texto); yield r.texto
+                    self.placar.registrar(escolha.modelo, escolha.tipo, "acerto", r.latencia, r.custo, texto[:80])
+                else:
+                    self.placar.registrar(escolha.modelo, escolha.tipo, "erro", 0, 0, r.erro[:80])
+                    bus.emitir("placar", msg=f"{escolha.modelo} falhou ({r.erro[:60]}); indo pela Anthropic")
+                    escolha.modelo = self.s.model_padrao
+                    async for t in self._turno_anthropic(escolha, texto, canal, contexto, inicio):
+                        partes.append(t); yield t
+            else:
+                async for t in self._turno_anthropic(escolha, texto, canal, contexto, inicio):
+                    partes.append(t); yield t
         await self._pos_turno(canal, texto, "".join(partes))
+
+    async def _turno_anthropic(self, escolha, texto: str, canal: str, contexto: str, inicio: float):
+        """O caminho normal: cliente persistente da Anthropic, com as mãos."""
+        await self._usar_modelo(escolha.modelo)
+        bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
+                   motivo=escolha.motivo, exploracao=escolha.exploracao)
+        prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
+        async for t in self._stream(f"{prefixo} {texto}"):
+            yield t
+        # acerto provisório: vira erro se o próximo turno for uma correção
+        self.placar.registrar(escolha.modelo, escolha.tipo, "acerto",
+                              asyncio.get_event_loop().time() - inicio, self._custo_turno, texto[:80])
+
+    def _contexto_texto(self, contexto: str = "") -> str:
+        """Contexto para provedores de texto (sem as mãos): quem ele é, regras, perfil do João, estado."""
+        base = system_prompt(self.vault, self.estado, self.canal)
+        return base + (f"\n\n[contexto agora: {contexto}]" if contexto else "") + \
+            "\n\nResponda em português do Brasil, direto, sem markdown quando o canal for voice."
 
     async def _usar_modelo(self, modelo: str) -> None:
         """Troca o modelo do cliente persistente sem perder a conversa (ClaudeSDKClient.set_model).

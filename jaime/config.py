@@ -21,6 +21,10 @@ class Settings:
     model_padrao: str = _env("JAIME_MODEL_PADRAO", "claude-sonnet-5")
     model_rotina: str = _env("JAIME_MODEL_ROTINA", "claude-haiku-4-5-20251001")
     cortex_exploracao: float = float(_env("JAIME_CORTEX_EXPLORACAO", "0.10"))
+    # OpenAI como segundo provedor (texto, decisão, imagem, voz) — ações no mundo continuam pela Anthropic
+    openai_key: str = _env("OPENAI_API_KEY")
+    openai_model: str = _env("JAIME_OPENAI_MODEL", "gpt-5.5")
+    openai_model_rapido: str = _env("JAIME_OPENAI_MODEL_RAPIDO", "gpt-5.6-luna")
     vault: Path = field(default_factory=lambda: Path(_env("JAIME_VAULT", "./vault")).expanduser().resolve())
     workspace: Path = field(default_factory=lambda: Path(_env("JAIME_WORKSPACE", "~/projetos")).expanduser())
     # voz

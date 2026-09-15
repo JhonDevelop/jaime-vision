@@ -44,6 +44,7 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F25 | Voz direta: Silero VAD, Deepgram, ativação por nome, fala em streaming, emoção | funcional | feito (14/09) |
 | F26 | Observador: contexto da tela em cada fala; oferta de ajuda quando trava | funcional | feito (14/09) |
 | F27 | Córtex: roteador de modelos por tipo de tarefa + placar de acertos/erros/custo | funcional | feito (15/09) |
+| F28 | OpenAI como segundo provedor (Responses API) + juiz Fable 5.1 para decisões | funcional | feito (15/09) — aguarda crédito na OpenAI |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -58,5 +59,5 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 
 ## Fase atual
 **1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
-em andamento: etapas 1 (limpeza, saúde, identidade) e 2 (Córtex + placar) fechadas em 15/09; próxima é a etapa 3 (OpenAI como segundo provedor + juiz).
+em andamento: etapas 1 (limpeza, saúde, identidade), 2 (Córtex + placar) e 3 (OpenAI + juiz) fechadas em 15/09; próxima é a etapa 4 (cérebro emocional).
 n8n saiu do projeto — automações viram código nosso.

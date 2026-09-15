@@ -59,21 +59,25 @@ def classificar(texto: str, contexto: str = "", canal: str = "cli") -> tuple[str
     return tipo, round(conf, 2)
 
 class Roteador:
-    def __init__(self, modelos: dict, placar: Placar, exploracao: float = 0.10, rng: random.Random | None = None):
-        """modelos: {"decisao": ..., "codigo": ..., "padrao": ..., "rotina": ...} vindos do .env."""
+    def __init__(self, modelos: dict, placar: Placar, exploracao: float = 0.10, rng: random.Random | None = None,
+                 openai: str = ""):
+        """modelos: {"decisao": ..., "codigo": ..., "padrao": ..., "rotina": ...} vindos do .env.
+        openai: modelo da OpenAI (ex.: "gpt-5.5") quando houver chave — entra como candidato "openai:<modelo>"
+        para pesquisa e redação. Um candidato "openai:" produz só texto: nunca recebe as mãos."""
         self.m = modelos
         self.placar = placar
         self.exploracao = exploracao
         self.rng = rng or random.Random()
+        self.openai = f"openai:{openai}" if openai else ""
 
     def candidatos(self, tipo: str) -> list[str]:
         m = self.m
         ordem = {
             "código":   [m["codigo"], m["padrao"]],
-            "pesquisa": [m["padrao"], m["codigo"]],
-            "redação":  [m["padrao"], m["codigo"]],
+            "pesquisa": [m["padrao"], self.openai, m["codigo"]],
+            "redação":  [m["padrao"], self.openai, m["codigo"]],
             "decisão":  [m["decisao"], m["codigo"]],
-            "imagem":   [m["padrao"]],                 # OpenAI entra na etapa 3
+            "imagem":   [m["padrao"]],                 # GPT-Image entra na etapa 10
             "voz":      [m["padrao"], m["rotina"]],
             "rotina":   [m["rotina"], m["padrao"]],
         }
