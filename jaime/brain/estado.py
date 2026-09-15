@@ -7,13 +7,14 @@ from __future__ import annotations
 import getpass, hashlib, platform, socket
 from datetime import date, datetime
 from .vault import Vault
+from ..identidade import Identidade
 
 ESTADO_REL = "01-Estado/Estado.md"
 MAQUINAS_REL = "01-Estado/Maquinas.md"
 CONVERSAS_DIR = "60-Conversas"
 REFLEXAO_A_CADA = 6
 
-ESTADO_TEMPLATE = """# Estado do Jaime
+ESTADO_TEMPLATE = """# Estado
 > Reescrito pelo próprio Jaime. O João lê; o Jaime mantém.
 
 ## Fase
@@ -103,7 +104,7 @@ class Estado:
         if not self.vault.read(rel):
             self.vault.write(rel, f"# Conversas — {date.today():%d/%m/%Y}\n")
         self.vault.append(rel, f"\n### {datetime.now():%H:%M} · {canal} · sessão {self.sessao_id}\n"
-                               f"**João:** {pergunta.strip()}\n\n**Jaime:** {resposta.strip()}\n")
+                               f"**João:** {pergunta.strip()}\n\n**{Identidade(self.vault.root).nome}:** {resposta.strip()}\n")
         m = maquina()
         self.atualizar_secao("Última conversa",
             f"- canal: {canal}\n- quando: {datetime.now():%d/%m/%Y %H:%M} em {m['host']}\n- tema: {pergunta.strip()[:100]}")

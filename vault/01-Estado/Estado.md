@@ -2,27 +2,22 @@
 > Reescrito pelo próprio Jaime. O João lê; o Jaime mantém.
 
 ## Fase
-0 → 1 (em transição) — permaneço em 0 até Notion e n8n estarem conectados
+1 — operando localmente; fase 2 (Jarvis) em andamento, etapa 1 fechada
 
 ## Situação agora
-Mesma sessão no MacBookPro, branch feat/voz-direta-hud-3d, rodando em Opus 5 pela assinatura do CLI. O João reclamou duas vezes que eu não o escutava mais: o microfone estava mudo de verdade (ouvido.ativo=false em /hud/estado), e o Ouvido descarta todo frame nesse estado — religado por POST /hud/voz. Em paralelo estou compilando o app da BUB (bub-marketplace 1.1.131, Expo SDK 57) para iOS em Release, direto nesta máquina; está na fase dos pods, antes do xcodebuild.
+Voz direta funcionando (Silero VAD, Deepgram, ElevenLabs em streaming), HUD 3D, observador da máquina. Fase 2 começou: n8n removido, saúde do cérebro no boot, nome editável com confirmação.
 
 ## Última conversa
-- canal: cli
-- quando: 14/09/2026 17:01 em MacBookPro
-- tema: me conta em duas frases o que você pode fazer por mim hoje.
+- canal: voice
+- quando: 15/09/2026 07:36 em MacBookPro
+- tema: Tá tudo certo.
 
 ## Em andamento
-- Build iOS Release da BUB rodando em /tmp/bub-ios-build.sh (log em /tmp/bub-ios-build.log, derivedData em /tmp/bub-ios-dd) — sai rodável no simulador; iPhone físico exige conta Apple Developer
-- Descobrir o que desligou o microfone (só o botão do HUD chama POST /hud/voz com ativa=false)
-- Revogar a chave da ElevenLabs que o João colou em texto puro no chat e guardar a nova só no .env
-- Religar o espelho do Notion (NOTION_TOKEN vazio no .env, embora o conector MCP do Notion esteja conectado)
-- Corrigir a URL do MCP Server Trigger do n8n (HTTP 404)
-- Autorizar Banco MCP, Canva e Meta Ads nos conectores do claude.ai (só o João consegue, em sessão interativa)
-- Trabalho da branch feat/voz-direta-hud-3d ainda não commitado
+- fase 2, etapa 2: Córtex (roteador de modelos) + placar
+- confirmar o nome no próximo boot ("Meu nome é Jaime — confirma?")
 
 ## Próximos passos
-1) Terminar o build iOS da BUB e entregar o .app rodável no simulador. 2) João revoga a chave da ElevenLabs exposta e gera outra. 3) Preencher NOTION_TOKEN no .env. 4) Corrigir a URL do MCP Server Trigger do n8n. 5) Autorizar os conectores pendentes no claude.ai. 6) Fechar a branch feat/voz-direta-hud-3d. Só então avanço para a fase 1.
+1) Córtex + placar (docs/FASE-2-JARVIS.md §2.1). 2) NOTION_TOKEN. 3) Permissão de Acessibilidade para o Terminal (títulos de janela). 4) Plano Starter da ElevenLabs para a voz brasileira.
 
 ## Aprendizados recentes
 Quando o João disser que não estou escutando, a primeira coisa a checar é /hud/estado — o campo voz.ativa. Com ouvido.ativo=false o Ouvido descarta todo frame antes do VAD, então não há erro nem sinal no HUD: só silêncio. Perdi dois turnos supondo que fosse transcrição ruim ou mal-entendido do pedido.

@@ -103,7 +103,7 @@ async def hud_estado():
     return {"liberado": jaime.acesso.liberado, "fase": jaime.estado.fase(), "maquina": maquina(),
             "situacao": jaime.estado.secao("Situação agora"), "proximos": jaime.estado.secao("Próximos passos"),
             "apresentacao": jaime.apresentacao, "notion": jaime.notion.ativo, "modelo": settings.model,
-            "voz": _voz_estado(), "conexoes": conexoes.estado(),
+            "voz": _voz_estado(), "conexoes": conexoes.estado(), "nome": jaime.identidade.nome,
             "contexto": {"app": observador.atual[0], "janela": observador.atual[1]}}
 
 def _voz_estado() -> dict:
@@ -154,7 +154,7 @@ async def health():
 @app.post("/ask")
 async def ask(body: dict, x_jaime_token: str | None = Header(default=None)):
     _auth(x_jaime_token)
-    return {"resposta": await jaime.ask(body.get("texto", ""), canal=body.get("canal", "n8n"))}
+    return {"resposta": await jaime.ask(body.get("texto", ""), canal=body.get("canal", "api"))}
 
 @app.post("/webhook/whatsapp")
 async def whatsapp(req: Request, x_jaime_token: str | None = Header(default=None)):

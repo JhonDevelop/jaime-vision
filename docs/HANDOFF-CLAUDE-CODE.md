@@ -23,7 +23,7 @@ Cole:
 > 1. `bash scripts/install.sh` (aceite deps de voz se houver microfone).
 > 2. Crie o `.env` a partir do `.env.example`; me peça ANTHROPIC_API_KEY e NOTION_TOKEN.
 > 3. `python -m pytest -q` — tudo verde.
-> 4. `claude mcp list` — se github/notion/n8n não estiverem autenticados, me oriente a rodar `/mcp`.
+> 4. `claude mcp list` — se github/notion não estiverem autenticados, me oriente a rodar `/mcp`.
 > 5. `python -m jaime hud` — abra o HUD, eu digito 12341234, e o Jaime deve se apresentar.
 > 6. Registre no diário o que ficou pendente e atualize `vault/01-Estado/Estado.md` para a fase 1 se tudo passou.
 

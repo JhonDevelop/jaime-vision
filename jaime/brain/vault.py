@@ -111,6 +111,7 @@ class Vault:
             ("Regras", self.read("00-Jaime/Regras.md")),
             ("Perfil do João", self.read("10-Eu/Perfil.md")),
             ("Projetos", "\n".join(f"- [[{n}]] — {d}" for n, d in self.projetos())),
+            ("Conhecimento (índice)", "\n".join(l for l in self.read("50-Conhecimento/INDEX.md").splitlines() if l.startswith("- "))),
             ("Tarefas abertas", "\n".join(self.tarefas_abertas()[:15])),
             ("Diário de hoje", self.read(self.daily_rel())),
         ]

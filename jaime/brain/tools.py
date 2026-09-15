@@ -8,7 +8,7 @@ from ..hud.events import bus
 def _txt(s: str) -> dict:
     return {"content": [{"type": "text", "text": s}]}
 
-def build_cerebro_server(vault: Vault, estado: Estado | None = None):
+def build_cerebro_server(vault: Vault, estado: Estado | None = None, jaime=None):
     @tool("lembrar", "Salva um fato durável sobre o João ou um projeto numa nota do vault (append).",
           {"nota": str, "texto": str})
     async def lembrar(args):
@@ -62,8 +62,16 @@ def build_cerebro_server(vault: Vault, estado: Estado | None = None):
         bus.emitir("teclado", aberto=True, motivo=(args.get("motivo") or "")[:120])
         return _txt("Teclado aberto no HUD. Diga em uma frase o que ele deve digitar e espere.")
 
+    @tool("renomear", "Propõe trocar o seu próprio nome (o que o mundo vê: HUD, voz, CLAUDE.md, Identidade.md). "
+                      "Só cria a PROPOSTA; ela executa quando o João disser 'confirmo'.", {"novo_nome": str})
+    async def renomear(args):
+        novo = (args.get("novo_nome") or "").strip()
+        if not novo or jaime is None:
+            return _txt("Nome vazio ou orquestrador indisponível.")
+        return _txt(jaime.propor_renomear(novo))
+
     return create_sdk_mcp_server(
-        name="cerebro", version="1.2.0",
+        name="cerebro", version="1.3.0",
         tools=[lembrar, buscar_memoria, ler_nota, registrar_diario, criar_tarefa, tarefas_abertas,
-               ler_estado, atualizar_estado, pedir_teclado],
+               ler_estado, atualizar_estado, pedir_teclado, renomear],
     )

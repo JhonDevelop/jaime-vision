@@ -15,7 +15,9 @@ from ..brain.tools import build_cerebro_server
 from ..brain.notion_sync import NotionSync
 from ..vigia.hooks import Vigia, eh_confirmacao
 from ..vigia.acesso import Acesso, quer_trancar
-from ..voice.escuta import quer_teclado
+from ..voice.escuta import quer_teclado, usar_nome
+from ..identidade import Identidade, quer_renomear, eh_sim
+from ..brain.saude import verificar, gerar_indices, relatorio, resumo_falado
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -37,10 +39,15 @@ class Jaime:
         self.vigia = Vigia()
         self.acesso = Acesso(settings.passphrase_hash, settings.acesso_timeout_min)
         self.notion = NotionSync(settings, self.vault, self.estado)
+        self.identidade = Identidade(settings.vault, settings.root)
         self._client: ClaudeSDKClient | None = None
         self._lock = asyncio.Lock()
         self.canal = "cli"
         self.apresentacao: str = ""
+        self.proposta_renomear: str = ""      # nome proposto, à espera do "confirmo"
+        self.aguardando_nome: bool = False    # boot: "Meu nome é X — confirma?"
+        self.saude: list = []
+        usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
     def _options(self) -> ClaudeAgentOptions:
@@ -50,7 +57,7 @@ class Jaime:
                            "append": system_prompt(self.vault, self.estado, self.canal)},
             setting_sources=["project"],
             agents=carregar_maesters(self.s.root),
-            mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado)},
+            mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -63,16 +70,47 @@ class Jaime:
 
     async def start(self, apresentar: bool = True) -> str:
         nova = self.estado.registrar_maquina()
+        # saúde do cérebro antes de confiar nele; índices entram no contexto inicial
+        self.saude = verificar(self.s.vault, self.s.root)
+        gerar_indices(self.s.vault)
+        if self.saude:
+            self.vault.diario("Saúde do cérebro: " + relatorio(self.saude).replace("\n", " · ")[:400], "Log")
+        bus.emitir("saude", problemas=[str(p) for p in self.saude], erros=sum(p.nivel == "erro" for p in self.saude))
         self._client = ClaudeSDKClient(options=self._options())
         await self._client.connect()
-        self.vault.diario(f"Jaime iniciado em {maquina()['host']}" + (" (máquina nova)" if nova else ""), "Log")
+        self.vault.diario(f"{self.identidade.nome} iniciado em {maquina()['host']}" + (" (máquina nova)" if nova else ""), "Log")
         bus.emitir("estado", fase=self.estado.fase(), situacao=self.estado.secao("Situação agora"),
                    maquina=maquina(), nova_maquina=nova, liberado=self.acesso.liberado)
         if apresentar:
-            self.apresentacao = await self._interno(prompt_apresentacao(nova))
+            self.apresentacao = await self._interno(prompt_apresentacao(nova, self.identidade.nome, resumo_falado(self.saude)))
+            if not self.identidade.confirmado:
+                # primeiro boot (ou depois de renomear): ele confere o próprio nome
+                self.aguardando_nome = True
+                self.apresentacao = f"{self.apresentacao} Meu nome é {self.identidade.nome} — confirma?"
             bus.emitir("apresentacao", texto=self.apresentacao)
         asyncio.create_task(self.notion.tudo())
         return self.apresentacao
+
+    # ── identidade ─────────────────────────────────────
+    def propor_renomear(self, novo: str) -> str:
+        novo = novo.strip().capitalize()
+        if novo.lower() == self.identidade.nome.lower():
+            return f"Já me chamo {novo}."
+        self.proposta_renomear = novo
+        bus.emitir("identidade", nome=self.identidade.nome, msg=f"proposta: renomear para {novo} — diga 'confirmo'")
+        return f"Proposta: passar a me chamar {novo}. Diga 'confirmo' e eu troco em tudo que o mundo vê."
+
+    def _executar_renomear(self) -> str:
+        novo, self.proposta_renomear = self.proposta_renomear, ""
+        antigo = self.identidade.nome
+        alterados = self.identidade.renomear(novo, git=True)
+        usar_nome(self.identidade.variantes())
+        self.aguardando_nome = True
+        self.vault.diario(f"Renomeado: {antigo} → {novo} ({len(alterados)} arquivos; branch chore/renomear-{novo.lower()})", "Decisões")
+        bus.emitir("identidade", nome=novo, msg=f"agora me chamo {novo}")
+        return (f"Pronto: agora me chamo {novo}. Atualizei a identidade, o CLAUDE.md e o .env, em uma branch própria. "
+                f"Para me chamar por voz, diga '{novo}'; se um dia houver wake word treinada, ela precisa ser treinada de novo. "
+                f"Meu nome é {novo} — confirma?")
 
     async def stop(self):
         if self._client:
@@ -137,6 +175,15 @@ class Jaime:
         if quer_teclado(texto):
             bus.emitir("teclado", aberto=True, motivo="você pediu")
             return "Pode escrever."
+        # identidade: "me chama de X" propõe; "confirmo" com proposta pendente executa; "sim" no boot confirma o nome
+        if (novo := quer_renomear(texto)):
+            return self.propor_renomear(novo)
+        if self.proposta_renomear and eh_confirmacao(texto):
+            return self._executar_renomear()
+        if self.aguardando_nome and eh_sim(texto):
+            self.aguardando_nome = False; self.identidade.confirmar()
+            bus.emitir("identidade", nome=self.identidade.nome, msg="nome confirmado")
+            return f"{self.identidade.nome} confirmado. O que fazemos, João?"
         if not self.acesso.liberado:
             if self.acesso.tentar(texto):
                 bus.emitir("acesso", liberado=True)

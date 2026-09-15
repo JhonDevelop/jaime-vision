@@ -6,8 +6,8 @@
  CLI ─────────┐
  voz (wake→STT)┤   ┌──────────────────────────┐   ┌─ Bash / Read / Write (PC, arquivos, código)
  WhatsApp ─────┼──►│  JAIME  (ClaudeSDKClient)│──►├─ mcp__cerebro__*   (vault Obsidian)
- n8n /ask ─────┤   │  persistente, 1 processo │   ├─ mcp__github__*    (repos privados)
- Twilio ───────┘   │  system prompt = CLAUDE.md│   ├─ mcp__notion__* / mcp__n8n__*
+ API /ask ─────┤   │  persistente, 1 processo │   ├─ mcp__github__*    (repos privados)
+ Twilio ───────┘   │  system prompt = CLAUDE.md│   ├─ mcp__notion__*
                    │  + contexto do vault     │   └─ Task → maesters (subagentes)
                    └───────────┬──────────────┘
                                │ hooks PreToolUse

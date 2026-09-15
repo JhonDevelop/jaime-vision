@@ -45,4 +45,4 @@ echo
 echo "✔ Pronto. Preencha o .env (ANTHROPIC_API_KEY no mínimo) e rode:"
 echo "   source .venv/bin/activate && python -m jaime chat"
 echo
-echo "Para autenticar os MCPs remotos (GitHub, Notion, n8n), abra 'claude' nesta pasta e use /mcp."
+echo "Para autenticar os MCPs remotos (GitHub, Notion), abra 'claude' nesta pasta e use /mcp."

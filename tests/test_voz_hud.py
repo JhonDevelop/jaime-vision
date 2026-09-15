@@ -52,13 +52,13 @@ def test_parse_mcp_list():
     saida = """Checking MCP server health…
 
 claude.ai GitHub: https://api.githubcopilot.com/mcp - ✔ Connected
-claude.ai n8n: https://x.app.n8n.cloud/mcp-server/http - ✘ Failed to connect — HTTP 404
+claude.ai Gmail: https://gmailmcp.googleapis.com/mcp/v1 - ✘ Failed to connect — HTTP 404
 claude.ai Notion: https://mcp.notion.com/mcp - ✔ Connected
 claude.ai Canva: https://mcp.canva.com/mcp - ! Needs authentication
 """
     r = parse_mcp_list(saida)
-    assert r["github"]["ligado"] and r["notion"]["ligado"] and not r["n8n"]["ligado"]
-    assert "404" in r["n8n"]["detalhe"] and "canva" not in r
+    assert r["github"]["ligado"] and r["notion"]["ligado"] and not r["gmail"]["ligado"]
+    assert "404" in r["gmail"]["detalhe"] and "canva" not in r
 
 def test_nome_com_erros_da_transcricao():
     assert interpretar_chamada("O jardim está aí?") == ("chamou", "")

@@ -44,11 +44,12 @@ Releia o que aconteceu nos últimos turnos e chame mcp__cerebro__atualizar_estad
 Se a fase do projeto Jaime mudou de fato (ver docs/ROADMAP.md), atualize "Fase" no formato "N — descrição".
 Termine registrando uma linha no diário via registrar_diario (secao "Log") resumindo a reflexão. Responda só "ok"."""
 
-def prompt_apresentacao(nova_maquina: bool) -> str:
+def prompt_apresentacao(nova_maquina: bool, nome: str = "Jaime", saude: str = "") -> str:
     m = maquina()
     onde = (f"pela PRIMEIRA vez neste computador ({m['host']}, {m['os']}, usuário {m['user']})" if nova_maquina
             else f"de novo em {m['host']}")
-    return f"""[boot] Você acabou de ser ligado {onde}. Apresente-se ao João em até 3 frases curtas (vai ser falado em voz alta), em primeira pessoa:
-quem você é, para que foi criado, em que fase está, o que estava fazendo na última conversa e o que precisa
-para operar aqui (chaves faltando, MCPs a autenticar, vault sincronizado ou não). Sem markdown, sem listas.
+    return f"""[boot] Você acabou de ser ligado {onde}. Seu nome é {nome}. Apresente-se ao João em até 3 frases curtas (vai ser falado em voz alta), em primeira pessoa:
+o que estava fazendo na última conversa e o que precisa para operar aqui (chaves faltando, MCPs a autenticar, vault sincronizado ou não).
+Nada de "Olá, sou o {nome}, seu assistente" — ele sabe quem você é. Sem markdown, sem listas.
+{("Antes de tudo, avise: " + saude) if saude else ""}
 {"Depois, registre a máquina nova no diário com registrar_diario." if nova_maquina else ""}"""

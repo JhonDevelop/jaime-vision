@@ -2,7 +2,7 @@
 
 > Cole o bloco abaixo nas **instruções do projeto** no Cowork. Adicione à pasta do projeto: o repositório
 > `Documents/jaime-assist/jaime-assisit` (ou só `cowork/PROJETO-JAIME.md`, `docs/ROADMAP.md` e `vault/`).
-> Conectores úteis: GitHub, Notion, n8n.
+> Conectores úteis: GitHub, Notion.
 
 ---
 

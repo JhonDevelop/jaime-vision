@@ -59,10 +59,22 @@ def _senha():
         print("Não confere."); return 1
     print(f"\nColoque no .env:\nJAIME_PASSPHRASE_HASH={hash_senha(s1)}")
 
+def _cerebro(acao: str) -> int:
+    """`jaime cerebro check`: saúde do vault + índices. Código de saída 1 se houver erro."""
+    from .brain.saude import verificar, gerar_indices, relatorio
+    if acao != "check":
+        print("uso: python -m jaime cerebro check"); return 2
+    probs = verificar(settings.vault, settings.root)
+    print(relatorio(probs))
+    print("índices:", ", ".join(gerar_indices(settings.vault)))
+    return 1 if any(p.nivel == "erro" for p in probs) else 0
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha"])
-    m = ap.parse_args(argv).modo
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro"])
+    ap.add_argument("acao", nargs="?", default="check")
+    args = ap.parse_args(argv); m = args.modo
+    if m == "cerebro": return _cerebro(args.acao)
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
     elif m == "hud": _serve(abrir_hud=True)

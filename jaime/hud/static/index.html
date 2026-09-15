@@ -89,7 +89,7 @@
 <div class="vinheta"></div>
 
 <header>
-  <div class="brand"><h1>JAIME</h1><small>assistente operacional</small></div>
+  <div class="brand"><h1 id="nome">JAIME</h1><small>assistente operacional</small></div>
   <div class="chips">
     <span class="chip"><i class="dot" id="dot"></i><span id="acesso">trancado</span></span>
     <span class="chip" id="ctxChip" title="o que você está fazendo agora">você em<b id="ctx">—</b></span>
@@ -227,7 +227,7 @@ anel2.rotation.x=Math.PI/2;scene.add(anel2);
 const NOS=[
   {id:'vault',nome:'Obsidian'},{id:'maquina',nome:'Máquina'},{id:'voz',nome:'Voz'},{id:'web',nome:'Web'},
   {id:'github',nome:'GitHub'},{id:'notion',nome:'Notion'},{id:'gmail',nome:'Gmail'},{id:'drive',nome:'Drive'},
-  {id:'n8n',nome:'n8n'},{id:'whatsapp',nome:'WhatsApp'},
+  {id:'whatsapp',nome:'WhatsApp'},
 ];
 const orbita=new THREE.Group();orbita.rotation.x=0.36;orbita.rotation.z=-0.12;scene.add(orbita);
 const nos={};
@@ -252,7 +252,7 @@ function pulsar(id,cor=0x4fd8ff){const n=nos[id];if(!n)return;n.pulso=1;
   const m=new THREE.Mesh(pacoteGeo,new THREE.MeshBasicMaterial({color:cor}));orbita.add(m);n.pacotes.push({m,t:0,v:0.9+Math.random()*0.5,ida:Math.random()<.5});}
 function noDaFerramenta(f){f=(f||'').toLowerCase();
   if(f.startsWith('mcp__cerebro'))return 'vault';if(f.includes('github'))return 'github';if(f.includes('notion'))return 'notion';
-  if(f.includes('gmail'))return 'gmail';if(f.includes('drive'))return 'drive';if(f.includes('n8n'))return 'n8n';if(f.includes('whatsapp'))return 'whatsapp';
+  if(f.includes('gmail'))return 'gmail';if(f.includes('drive'))return 'drive';if(f.includes('whatsapp'))return 'whatsapp';
   if(f.startsWith('web'))return 'web';if(['bash','write','edit','multiedit','read','glob','grep','task'].includes(f))return 'maquina';return null;}
 
 // ── animação ──────────────────────────────────────────────────────────────
@@ -358,6 +358,8 @@ function ligarStream(){
         $('nivel-i').style.width=(UI.nivel*100)+'%';$('nivel-i').className=UI.gravando?'grav':'';
         if(UI.liberado&&!UI.falando&&!UI.pensando)setVoz(UI.gravando?'gravando':(UI.micAtivo?(UI.janelaAtiva?'ativo':'ouvindo'):'mudo'));break;
       case 'contexto': $('ctx').textContent=(e.app||'—')+(e.janela?' · '+e.janela.slice(0,38):'');$('ctxChip').title=e.janela||'';break;
+      case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
+      case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
       case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
       case 'raciocinio': feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
@@ -365,7 +367,7 @@ function ligarStream(){
       case 'resultado': feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);break;
       case 'acesso': setAcesso(e.liberado);if(!e.liberado&&tecladoAberto()){$('tecSenha').classList.add('shake');setTimeout(()=>$('tecSenha').classList.remove('shake'),400);}
         if(e.liberado&&tecladoAberto())fecharTeclado();break;
-      case 'teclado': if(e.aberto&&!tecladoAberto())abrirTeclado(e.motivo?('Jaime pede: '+e.motivo):null);break;
+      case 'teclado': if(e.aberto&&!tecladoAberto())abrirTeclado(e.motivo?((UI.nome||'Jaime')+' pede: '+e.motivo):null);break;
       case 'conexoes': if(e.nos)for(const id in e.nos)ligarNo(id,!!e.nos[id].ligado,e.nos[id].detalhe);if(e.erro)aviso('conexões: '+e.erro);break;
     }};
   es.onerror=()=>{$('estadoVoz').textContent='reconectando…';es.close();setTimeout(ligarStream,2000);};
@@ -373,7 +375,8 @@ function ligarStream(){
 ligarStream();
 
 // ── estado inicial ────────────────────────────────────────────────────────
-function carregarEstado(){fetch('/hud/estado').then(r=>r.json()).then(s=>{
+function aplicarNome(n){if(!n)return;UI.nome=n;$('nome').textContent=n.toUpperCase();document.title=n.toUpperCase();ROTULO.ouvindo='ouvindo · diga "'+n+'" para falar comigo';}
+function carregarEstado(){fetch('/hud/estado').then(r=>r.json()).then(s=>{aplicarNome(s.nome);
   $('maq').textContent=s.maquina.host;$('modelo').textContent=s.modelo;
   $('sit').textContent=s.situacao||'…';$('prox').textContent=s.proximos||'';setAcesso(s.liberado);
   if(s.voz){UI.micAtivo=!!s.voz.ativa&&!!s.voz.disponivel;$('btMic').classList.toggle('on',UI.micAtivo);if(s.voz.disponivel===false&&s.voz.motivo&&s.voz.motivo!=='iniciando'){$('btMic').classList.add('alerta');}}

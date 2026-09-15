@@ -5,7 +5,7 @@ Assistente pessoal e operacional com voz, memória própria (vault Obsidian) e a
 ```
 você fala ──► ouvido (Silero VAD + STT, ativação por "Jaime") ──► JAIME (orquestrador) ──► maesters ──► ferramentas
                                               │  cérebro: vault/ (Obsidian)      (shell, git, MCPs,
-                                              │  vigia: confirmações            n8n, WhatsApp, agenda)
+                                              │  vigia: confirmações            WhatsApp, agenda)
                                               └──► voz (TTS) ──► você
 ```
 
@@ -21,7 +21,7 @@ você fala ──► ouvido (Silero VAD + STT, ativação por "Jaime") ──►
 | **Estado** | `jaime/brain/estado.py` + `vault/01-Estado/` | Autoconsciência: fase, situação, última conversa, máquinas; reescrito pelo próprio Jaime. |
 | **Espelho** | `jaime/brain/notion_sync.py` | Cérebro compartilhado no Notion (Estado, Diário, Tarefas, Conversas). |
 | **Voz** | `jaime/voice/` | Silero VAD → Whisper/Deepgram (STT) → ativação por "Jaime" → ElevenLabs em PCM streaming (TTS). Ver `docs/VOZ.md`. |
-| **Canais** | `jaime/channels/` + `jaime/server.py` | CLI, WhatsApp (Evolution API / Meta), telefone (Twilio), webhooks do n8n. |
+| **Canais** | `jaime/channels/` + `jaime/server.py` | CLI, HUD, WhatsApp (Evolution API / Meta), telefone (Twilio), `/ask` para integrações. |
 
 ## Começar em 5 minutos
 
@@ -32,7 +32,7 @@ cp .env.example .env             # preencha ANTHROPIC_API_KEY
 python -m jaime chat             # conversa por texto
 python -m jaime voice            # modo voz (precisa das deps de voz)
 python -m jaime hud              # interface Jarvis (local) + apresentação + palavra-passe
-python -m jaime serve            # API + webhooks (WhatsApp, n8n)
+python -m jaime serve            # API + webhooks (WhatsApp)
 ```
 
 Abra a pasta `vault/` no Obsidian. É o cérebro do Jaime — edite as notas e ele passa a agir diferente.

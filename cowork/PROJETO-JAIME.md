@@ -10,7 +10,7 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 ## Pilares
 1. **Cérebro** — vault Obsidian local (fonte primária) + espelho no Notion (compartilhado entre máquinas e celular).
 2. **Autoconsciência** — `01-Estado/Estado.md` reescrito por ele mesmo; apresentação ao ligar em máquina nova.
-3. **Mãos** — Agent SDK com shell, arquivos, git, MCPs (GitHub, Notion, n8n), computer use quando não houver API.
+3. **Mãos** — Agent SDK com shell, arquivos, git, MCPs (GitHub, Notion), computer use quando não houver API.
 4. **Voz e presença** — wake word, STT, TTS, HUD estilo Jarvis com monitor da máquina e raciocínio visível.
 5. **Segurança** — local por padrão, palavra-passe falada/digitada, Vigia para ações irreversíveis.
 
@@ -26,19 +26,23 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F7 | Reflexão automática a cada 6 turnos → Estado | funcional | feito |
 | F8 | HUD: anéis, monitor, raciocínio, produção, conversa | funcional | feito (v1 visual) |
 | F9 | Espelho Notion: Estado, Diário, Tarefas, Conversas | funcional | feito (precisa NOTION_TOKEN) |
-| F10 | MCPs GitHub/Notion/n8n autenticados no SDK | funcional | pendente (`/mcp`) |
+| F10 | MCPs GitHub/Notion autenticados no SDK | funcional | feito (14/09) |
 | F11 | Voz local completa (wake → STT → TTS) | funcional | esqueleto; calibrar |
-| F12 | Agenda via n8n (Google Calendar) | funcional | pendente |
+| F12 | Agenda (scheduler próprio + Google Calendar) | funcional | fase 2, etapa 5/8 |
 | F13 | WhatsApp (Evolution API) só para o dono | funcional | esqueleto |
 | F14 | Ligações (Twilio) | funcional | esqueleto |
-| F15 | Fechamento do dia automático (cron n8n → /ask "fecha o dia") | ideal | pendente |
+| F15 | Fechamento do dia automático (scheduler → "fecha o dia") | ideal | fase 2, etapa 5 |
 | F16 | Busca semântica no vault (FTS5/embeddings) quando passar de 1k notas | ideal | pendente |
 | F17 | HUD: painel por maester (quem está trabalhando em quê) | ideal | pendente |
 | F18 | Modo "sombra": Jaime observa a tela e sugere sem agir | ideal | pendente |
 | F19 | Autoinstalação: `jaime bootstrap` em máquina limpa | ideal | pendente |
 | F20 | Jaime propõe melhorias semanais em si mesmo (PR + "confirmo") | estratégica | pendente |
 | F21 | Camada de negócio: métricas do BUB/estamparia no HUD | estratégica | pendente |
-| F22 | Delegação longa: tarefas de horas com checkpoints e relatório | estratégica | pendente |
+| F22 | Delegação longa: tarefas de horas com checkpoints e relatório | estratégica | fase 2, etapa 12 |
+| F23 | Saúde do cérebro (`jaime cerebro check`) + índices gerados por código | funcional | feito (15/09) |
+| F24 | Identidade editável: nome no frontmatter, "me chama de X" + confirmo, confirmação no boot | funcional | feito (15/09) |
+| F25 | Voz direta: Silero VAD, Deepgram, ativação por nome, fala em streaming, emoção | funcional | feito (14/09) |
+| F26 | Observador: contexto da tela em cada fala; oferta de ajuda quando trava | funcional | feito (14/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -52,4 +56,6 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 - Cada marco fechado → linha em `vault/20-Projetos/Jaime.md` → "Fase" no Estado.
 
 ## Fase atual
-**0 → 1.** Esqueleto completo; falta o primeiro boot real na máquina do João, MCPs autenticados e NOTION_TOKEN.
+**1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
+em andamento: etapa 1 (limpeza, saúde do cérebro, identidade) fechada em 15/09; próxima é a etapa 2 (Córtex + placar).
+n8n saiu do projeto — automações viram código nosso.

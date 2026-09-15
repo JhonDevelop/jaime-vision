@@ -35,8 +35,13 @@ MULETAS = ["Deixa eu ver…", "Só um segundo.", "Hmm… deixa eu olhar isso.", 
 LIXO_WHISPER = re.compile(r"(legendas? pela comunidade|amara\.org|obrigad[oa] por assistir|tchau tchau|^\W*$|^\.+$)", re.I)
 PEDIDOS_TECLADO = {"teclado", "abre o teclado", "abrir teclado", "deixa eu escrever", "quero escrever",
                    "vou escrever", "deixa eu digitar", "quero digitar"}
-# como o Whisper costuma escrever "Jaime"
+# o nome (e como o STT costuma escrevê-lo) vem de vault/00-Jaime/Identidade.md — ver jaime/identidade.py
 NOME_RX = re.compile(r"\b(jaime|jayme|jaimi|jaimy|jamie|jaine|jaim|jaimes|jaimin|jardim|gênio|genio|jay me)\b[,.!?…\s]*", re.I)
+
+def usar_nome(variantes: list[str]) -> None:
+    """Recompila a detecção do nome (chamado no boot e após renomear)."""
+    global NOME_RX
+    NOME_RX = re.compile(r"\b(" + "|".join(re.escape(v) for v in variantes) + r")\b[,.!?…\s]*", re.I)
 CHAMADA_RX = re.compile(r"^(ô|oi|ei|hey|olá|ola|e aí|eai|alô|alo|fala)[,\s]*$|^(você\s+)?(tá|ta|está|esta)\s+a[íi]\??$|^(me\s+)?(ouve|escuta|ouvindo|escutando)\??$|^acorda\??$", re.I)
 
 def quer_teclado(texto: str) -> bool:
@@ -210,6 +215,8 @@ class Ouvido:
             if decisao == "chamou":
                 bus.emitir("ouvido", texto=texto, ignorado=False)
                 await asyncio.to_thread(self._falar, "Estou aqui, João." if self.jaime.acesso.liberado else "Estou aqui. Palavra-passe, por favor.")
+                if getattr(self.jaime, "aguardando_nome", False):
+                    await asyncio.to_thread(self._falar, f"Meu nome é {self.jaime.identidade.nome} — confirma?")
                 return
             # trancado: a palavra-passe pode vir sem o nome
             texto = limpo if decisao == "pediu" else texto

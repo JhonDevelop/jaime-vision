@@ -7,7 +7,7 @@ import asyncio, re, time
 from ..hud.events import bus
 
 # nome no `claude mcp list` → id do nó no HUD
-MCP_NOS = {"github": "github", "notion": "notion", "n8n": "n8n", "gmail": "gmail",
+MCP_NOS = {"github": "github", "notion": "notion", "gmail": "gmail",
            "google drive": "drive", "figma": "figma", "postman": "postman"}
 INTERVALO_S = 600
 
@@ -27,7 +27,6 @@ class Conexoes:
             "whatsapp": {"nome": "WhatsApp", "ligado": bool(s.evolution_url and s.evolution_key), "detalhe": s.evolution_instance},
             "github":   {"nome": "GitHub", "ligado": False, "detalhe": "mcp"},
             "gmail":    {"nome": "Gmail", "ligado": False, "detalhe": "mcp"},
-            "n8n":      {"nome": "n8n", "ligado": False, "detalhe": "mcp"},
             "drive":    {"nome": "Drive", "ligado": False, "detalhe": "mcp"},
         }
         for no, info in self.mcps.items():

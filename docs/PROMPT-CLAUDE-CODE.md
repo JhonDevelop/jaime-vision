@@ -13,7 +13,7 @@ Execute em ordem, mostrando o comando antes de rodar. Só me pergunte o que não
 2. `bash scripts/install.sh` — aceite as dependências de voz se houver microfone. Se o CLI `claude` não estiver no PATH para o SDK, resolva.
 3. Crie `.env` a partir de `.env.example`. Peça-me `ANTHROPIC_API_KEY` e `NOTION_TOKEN`; deixe os IDs do Notion como estão. Nunca imprima os valores.
 4. `python -m pytest -q` — tudo verde. Se algo quebrar por diferença de versão do `claude-agent-sdk`, corrija em `jaime/orchestrator/jaime.py` (nomes de classes/opções), rode de novo e me explique o que mudou em uma linha.
-5. `claude mcp list` — se `github`, `notion` ou `n8n` não estiverem autenticados, diga-me exatamente o que digitar no `/mcp`.
+5. `claude mcp list` — se `github` ou `notion` não estiverem autenticados, diga-me exatamente o que digitar no `/mcp`.
 6. `python -m jaime hud` em segundo plano. Eu abro o HUD, digito a palavra-passe e você confirma no log que: o acesso liberou, o Jaime se apresentou, a máquina foi registrada em `vault/01-Estado/Maquinas.md` e o Notion sincronizou (ou me diz por que não).
 7. Feche a sessão: `registrar_diario` com o que ficou pendente; se tudo passou, atualize `vault/01-Estado/Estado.md` para "Fase: 1 — operando localmente"; commit em branch `chore/primeiro-boot` e me pergunte antes de dar push.
 
@@ -23,7 +23,7 @@ Regras: trabalhe em branch; nunca edite `vault/00-Jaime/`; ações do Vigia espe
 
 ## 2. Sessão de trabalho — implementar um item do backlog
 
-Você é o **maester-dev** com apoio do **maester-jaime**. Vamos implementar **[F-número e nome, ex.: F12 — Agenda via n8n]** do `cowork/PROJETO-JAIME.md`.
+Você é o **maester-dev** com apoio do **maester-jaime**. Vamos implementar **[F-número e nome, ex.: F12 — Agenda]** do `cowork/PROJETO-JAIME.md`.
 
 Antes de codar: leia a funcionalidade, o `docs/ARQUITETURA.md` e o `vault/50-Conhecimento/Checklist-Producao.md`. Proponha em até 8 linhas: arquivos que vão mudar, interface (funções/rotas/ferramentas MCP), como testar. Espere meu "ok".
 
