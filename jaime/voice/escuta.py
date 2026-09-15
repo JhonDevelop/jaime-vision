@@ -343,8 +343,9 @@ class Ouvido:
                 await asyncio.to_thread(self._falar, "Certo, João. Estou aqui se precisar."); return
             self.ativo_ate = time.time() + self.s.janela_ativa_s
             if decisao == "chamou":
-                # "Jaime, está aí?" liga a conversa até o João dispensar ("encerrado", "pode descansar"…)
-                self.ativo_ate = float("inf")
+                # "Jaime, está aí?" liga a conversa até o João dispensar ("encerrado", "pode descansar"…);
+                # enquanto trancado, dura apenas uma janela (25 s) para dar a senha, nunca infinito
+                self.ativo_ate = float("inf") if self.jaime.acesso.liberado else time.time() + self.s.janela_ativa_s
                 bus.emitir("ouvido", texto=texto, ignorado=False); bus.emitir("voz", estado="ouvindo", falando=False, ativo=True)
                 await asyncio.to_thread(self._falar, "Estou aqui, senhor." if self.jaime.acesso.liberado else "Estou aqui. Palavra-passe, por favor.")
                 if self.jaime.acesso.liberado and (aviso := self.jaime.avisos_do_dia()):
