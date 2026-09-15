@@ -167,8 +167,12 @@ class Ouvido:
         self._tts = TTS(self.s)
         self._vad = VAD()
         self._stt = STT(self.s)   # Whisper local: baixa o modelo na primeira vez
-        # quem fala (resemblyzer/torch): carga de ~1 min no Intel — em segundo plano, o ouvido não espera
+        # quem fala (resemblyzer/torch): carga de ~1 min no Intel — em segundo plano, o ouvido não espera.
+        # JAIME_FALANTES=off desliga (torch no mesmo processo do onnxruntime deu segfault em 15/09; ver falantes_worker)
         self.falantes = None
+        import os
+        if os.environ.get("JAIME_FALANTES", "off") == "off":
+            return
         def carregar_falantes():
             try:
                 from .falantes import Falantes

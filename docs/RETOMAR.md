@@ -15,7 +15,7 @@
   "essa é a voz do Gabriel" → perfil do Gabriel; "quem está falando?". Palavra-passe, "confirmo", renomear e tranca só na
   voz do João quando o perfil dele existe; o Gabriel é atendido pelo nome como sócio, sem o irreversível/privado.
   Dependências fixadas: numpy 1.26.4, scipy 1.13.1, torch 2.2.2 (último build para Mac Intel), librosa, resemblyzer
-  (shim `np.long`). O encoder carrega em segundo plano (~1 min).
+  (shim `np.long`). **O encoder roda num processo separado** (`falantes_worker.py`): torch no mesmo processo do onnxruntime segfaultava o serviço em loop (24 crash reports em 15/09) — `JAIME_FALANTES=off` desliga.
 - `python -m jaime permissoes`: pede/checa Microfone, Câmera, Tela, Acessibilidade, Automação, Acesso Total ao Disco.
 - Docs novos: `REMOTO.md` (Tailscale: um só Jaime, acesso por aparelho, Mac sempre ligado), `SAUDE-PASSOS.md`
   (passos/sono/FC via Atalhos do iPhone → `/ask`).

@@ -45,23 +45,31 @@ class Falantes:
 
     # ── modelo ────────────────────────────────────────
     def _encoder(self):
+        """Encoder num PROCESSO separado (falantes_worker): torch junto do onnxruntime segfaultava o servidor."""
         if self._enc is None:
-            import numpy as np
-            if not hasattr(np, "long"):
-                np.long = int          # resemblyzer 0.1.4 ainda usa np.long (sumiu no numpy 1.24)
-            from resemblyzer import VoiceEncoder
-            self._enc = VoiceEncoder("cpu", verbose=False)
+            import subprocess, sys, json, threading
+            proc = subprocess.Popen([sys.executable, "-m", "jaime.voice.falantes_worker"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, text=True, bufsize=1)
+            pronto = proc.stdout.readline()               # {"ok": true, "pronto": true} depois de carregar o modelo
+            if not pronto or not json.loads(pronto).get("ok"):
+                raise RuntimeError("worker de voz não subiu")
+            lock = threading.Lock()
+            def pedir(req: dict) -> dict:
+                with lock:
+                    proc.stdin.write(json.dumps(req) + "\n"); proc.stdin.flush()
+                    return json.loads(proc.stdout.readline() or '{"ok": false, "erro": "worker caiu"}')
+            self._enc = pedir; self._proc = proc
         return self._enc
 
     def embedding(self, pcm16: bytes, sr: int = 16000):
-        import numpy as np
+        import base64, numpy as np
         wav = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
         if len(wav) < MIN_S * sr:
             return None
         enc = self._encoder()
-        if hasattr(enc, "embed_utterance"):
-            from resemblyzer import preprocess_wav
-            return np.asarray(enc.embed_utterance(preprocess_wav(wav, source_sr=sr)), dtype=np.float32)
+        if getattr(enc, "__name__", "") == "pedir":
+            r = enc({"cmd": "embed", "pcm": base64.b64encode(pcm16).decode(), "sr": sr})
+            return np.asarray(r["vetor"], dtype=np.float32) if r.get("ok") else None
         return np.asarray(enc(wav), dtype=np.float32)     # dublê de teste: função wav → vetor
 
     # ── perfis ────────────────────────────────────────
