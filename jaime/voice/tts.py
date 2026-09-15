@@ -1,4 +1,4 @@
-"""Fala: ElevenLabs → PCM → placa de som. Feito para não engasgar.
+"""Fala: ElevenLabs/OpenAI → PCM → placa de som. Feito para não engasgar — e para calar em < 100 ms.
 
 Por que é assim (medido nesta máquina, 14/09/2026):
 - A ElevenLabs não entrega o áudio em fluxo contínuo: espera ~0,3 s e despeja a frase inteira em
@@ -7,15 +7,17 @@ Por que é assim (medido nesta máquina, 14/09/2026):
 - O que realmente travava a conversa eram as pausas ENTRE frases: cada uma abria uma requisição nova
   e o João ouvia ~0,5 s de silêncio a cada ponto final. Agora um sintetizador vai na frente,
   preparando as próximas frases enquanto a atual toca — a fala sai emendada.
-- A saída é UM stream de saída aberto para a resposta inteira, com escrita bloqueante. Medido:
-  `afplay` cobrava ~1,1 s por frase só para abrir e fechar o aparelho — voltava o efeito picotado.
-  O stream persistente custa 0,09 s uma vez e emenda as frases sem folga nenhuma.
+- A saída é UM stream de saída aberto para a resposta inteira, com escrita em blocos de ~100 ms:
+  assim `parar()` (barge-in) corta no meio da frase em < 100 ms. `afplay` fica de reserva.
 - O PCM é reamostrado aqui para a taxa nativa do aparelho (24 kHz → 44,1 kHz), em vez de deixar a
-  conversão para o PortAudio — é de lá que vinham os estalos. `afplay` fica de reserva.
+  conversão para o PortAudio — é de lá que vinham os estalos.
 
-Ordem de tentativa: ElevenLabs → `say` do macOS em pt-BR → texto no terminal. Nunca fica mudo em silêncio.
-`voz: falando=true` sai quando a primeira frase começa e só volta a false quando a fila esvazia —
-o cérebro do HUD pulsa durante a resposta toda, não a cada ponto final."""
+Fase 3 (docs/FASE-3-TEMPO-REAL.md): `pre_sintetizar()` prepara a 1ª frase enquanto o João ainda fala,
+`tocar_pronto()` toca esse cache em ~0 ms, `parar()` mata tudo (barge-in), `velocidade` 1.15× por padrão
+(JAIME_VOZ_VELOCIDADE) e `t_inicio_audio` marca quando a resposta começou a soar (métrica de latência).
+
+Ordem de tentativa: ElevenLabs → OpenAI gpt-4o-mini-tts → `say` do macOS em pt-BR → texto no terminal. Nunca fica mudo.
+`voz: falando=true` sai quando a primeira frase começa e só volta a false quando a fila esvazia."""
 from __future__ import annotations
 import os, queue, re, shutil, subprocess, tempfile, threading, time, wave
 from ..config import Settings
@@ -24,6 +26,7 @@ from ..hud.events import bus
 PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100 é só Pro)
 VOZ_PADRAO = "JBFqnCBsd6RMkjVDRZzb"  # premade (George) — fala pt-BR com sotaque; troque em ELEVENLABS_VOICE_ID
 ADIANTAR = 2                         # quantas frases o sintetizador prepara à frente da que está tocando
+BLOCO_S = 0.1                        # escrita na placa em blocos de 100 ms: é o tempo máximo para calar
 
 def limpar_para_fala(texto: str) -> str:
     """O modelo às vezes manda markdown mesmo por voz; o TTS leria os símbolos. Tira tudo que não se fala."""
@@ -50,6 +53,10 @@ class TTS:
         self.ajustes: dict | None = None   # {"stability", "style"} vindos da prosódia (humor); None = .env
         self.instrucoes: str = ""          # instrução de estilo (prosódia) para o gpt-4o-mini-tts
         self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
+        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.15"))
+        self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
+        self.t_fim_audio = 0.0
+        self.interrompida = False    # a última fala foi cortada por parar()
         self._openai = None
         if s.openai_key:
             from openai import OpenAI
@@ -62,22 +69,69 @@ class TTS:
         self._prontos: queue.Queue = queue.Queue(maxsize=ADIANTAR)
         self._pendentes = 0
         self._cond = threading.Condition()
+        self._geracao = 0            # parar() avança a geração: itens antigos são descartados
+        self._parando = threading.Event()
         threading.Thread(target=self._sintetizador, daemon=True).start()
         threading.Thread(target=self._reprodutor, daemon=True).start()
 
     # ── API ───────────────────────────────────────────────
+    def _preparar(self, texto: str) -> str:
+        from .persona import aplicar as persona
+        return persona(limpar_para_fala(texto))
+
     def enfileirar(self, texto: str) -> None:
         """Manda falar sem esperar. Use durante a resposta em fluxo: cada frase entra assim que fica
         pronta e o sintetizador já vai preparando a seguinte."""
-        from .persona import aplicar as persona
-        texto = persona(limpar_para_fala(texto))
+        texto = self._preparar(texto)
         if not texto:
             return
         with self._cond:
             if self._pendentes == 0:
+                self.t_inicio_audio = 0.0; self.interrompida = False
                 bus.emitir("voz", falando=True, estado="falando", texto=texto)
             self._pendentes += 1
-        self._pedidos.put(texto)
+            g = self._geracao
+        self._pedidos.put((g, texto))
+
+    def pre_sintetizar(self, texto: str) -> bytes | None:
+        """Sintetiza AGORA, sem tocar (rascunho do antecipador). Devolve o PCM ou None se nenhum motor respondeu."""
+        texto = self._preparar(texto)
+        if not texto:
+            return None
+        return self._sintetizar(texto, guardar_anterior=False)
+
+    def tocar_pronto(self, texto: str, pcm: bytes | None) -> None:
+        """Toca um áudio já sintetizado (cache do antecipador) na frente de tudo."""
+        texto = self._preparar(texto) or texto
+        with self._cond:
+            if self._pendentes == 0:
+                self.t_inicio_audio = 0.0; self.interrompida = False
+                bus.emitir("voz", falando=True, estado="falando", texto=texto)
+            self._pendentes += 1
+            g = self._geracao
+        self._anterior = texto
+        self._prontos.put((g, texto, pcm))
+
+    def parar(self) -> int:
+        """Barge-in: cala em < 100 ms. Esvazia as filas, corta o bloco em curso e fecha o aparelho.
+        Devolve quantas frases ficaram por dizer."""
+        with self._cond:
+            self._geracao += 1
+            restantes = self._pendentes
+            self._parando.set()
+            for q in (self._pedidos, self._prontos):
+                while True:
+                    try: q.get_nowait()
+                    except queue.Empty: break
+            self._pendentes = 0
+            self.interrompida = restantes > 0
+            self._cond.notify_all()
+        self._fechar_stream()
+        self._parando.clear()
+        self._anterior = ""
+        if restantes:
+            bus.emitir("voz", falando=False, estado="ouvindo", interrompida=True)
+        return restantes
 
     def aguardar(self, timeout: float = 300) -> None:
         """Bloqueia até a fila esvaziar."""
@@ -95,33 +149,45 @@ class TTS:
             return self._pendentes > 0
 
     # ── pipeline ──────────────────────────────────────────
+    def _sintetizar(self, texto: str, guardar_anterior: bool = True) -> bytes | None:
+        pcm = None
+        # 3 falhas seguidas desligam a ElevenLabs por 10 min (cota, rede); depois tenta de novo sozinho
+        if self._falhas >= 3 and time.time() - self._ultima_falha > 600:
+            self._falhas = 0
+        usar_eleven = self._client and self._falhas < 3 and self.motor in ("auto", "elevenlabs")
+        if usar_eleven:
+            try:
+                pcm = self._elevenlabs(texto, guardar_anterior)
+                self._falhas = 0
+            except Exception as e:
+                self._falhas += 1; self._ultima_falha = time.time()
+                print(f"⚠ ElevenLabs falhou ({type(e).__name__}: {str(e)[:80]}); tentando OpenAI/voz local")
+        if pcm is None and self._openai and self.motor in ("auto", "openai"):
+            try:
+                pcm = self._openai_tts(texto)
+            except Exception as e:
+                print(f"⚠ OpenAI TTS falhou ({type(e).__name__}: {str(e)[:80]}); usando a voz local")
+        return pcm
+
     def _sintetizador(self) -> None:
         """Vai na frente: busca o áudio da próxima frase enquanto a atual ainda toca."""
         while True:
-            texto = self._pedidos.get()
-            pcm = None
-            # 3 falhas seguidas desligam a ElevenLabs por 10 min (cota, rede); depois tenta de novo sozinho
-            if self._falhas >= 3 and time.time() - self._ultima_falha > 600:
-                self._falhas = 0
-            usar_eleven = self._client and self._falhas < 3 and self.motor in ("auto", "elevenlabs")
-            if usar_eleven:
-                try:
-                    pcm = self._elevenlabs(texto)
-                    self._falhas = 0
-                except Exception as e:
-                    self._falhas += 1; self._ultima_falha = time.time()
-                    print(f"⚠ ElevenLabs falhou ({type(e).__name__}: {str(e)[:80]}); tentando OpenAI/voz local")
-            if pcm is None and self._openai and self.motor in ("auto", "openai"):
-                try:
-                    pcm = self._openai_tts(texto)
-                except Exception as e:
-                    print(f"⚠ OpenAI TTS falhou ({type(e).__name__}: {str(e)[:80]}); usando a voz local")
-            self._prontos.put((texto, pcm))
+            g, texto = self._pedidos.get()
+            if g != self._geracao:
+                continue                        # parar() passou por aqui: frase descartada
+            pcm = self._sintetizar(texto)
+            if g != self._geracao:
+                continue
+            self._prontos.put((g, texto, pcm))
 
     def _reprodutor(self) -> None:
         while True:
-            texto, pcm = self._prontos.get()
+            g, texto, pcm = self._prontos.get()
+            if g != self._geracao:
+                continue
             try:
+                if not self.t_inicio_audio:
+                    self.t_inicio_audio = time.time()
                 if pcm:
                     self._tocar(pcm)
                 elif not self._say_nativo(texto):
@@ -130,23 +196,29 @@ class TTS:
                 print(f"⚠ áudio falhou ({type(e).__name__}); {texto}")
             finally:
                 with self._cond:
-                    self._pendentes -= 1
+                    if g == self._geracao and self._pendentes > 0:
+                        self._pendentes -= 1
                     vazio = self._pendentes == 0
                     self._cond.notify_all()
-                if vazio:
+                if vazio and g == self._geracao:
+                    self.t_fim_audio = time.time()
                     self._fechar_stream()   # libera o aparelho entre uma resposta e outra
                     bus.emitir("voz", falando=False, estado="ouvindo")
 
     # ── saídas ────────────────────────────────────────────
-    def _elevenlabs(self, texto: str) -> bytes:
+    def _elevenlabs(self, texto: str, guardar_anterior: bool = True) -> bytes:
         from elevenlabs import VoiceSettings
         # Emoção: estabilidade baixa e "style" alto deixam a voz seguir a pontuação — exclamação sobe,
         # reticências hesitam, pergunta entoa. O prompt do Jaime escreve pensando nisso quando fala.
         a = self.ajustes or {}
-        ajustes = VoiceSettings(stability=float(a.get("stability", os.environ.get("JAIME_VOZ_ESTABILIDADE", "0.5"))),
-                                similarity_boost=0.8,
-                                style=float(a.get("style", os.environ.get("JAIME_VOZ_ESTILO", "0.3"))),
-                                use_speaker_boost=True)
+        kw = dict(stability=float(a.get("stability", os.environ.get("JAIME_VOZ_ESTABILIDADE", "0.5"))),
+                  similarity_boost=0.8,
+                  style=float(a.get("style", os.environ.get("JAIME_VOZ_ESTILO", "0.3"))),
+                  use_speaker_boost=True)
+        try:
+            ajustes = VoiceSettings(speed=self.velocidade, **kw)
+        except TypeError:                       # SDK antigo sem `speed`
+            ajustes = VoiceSettings(**kw)
         fluxo = self._client.text_to_speech.stream(
             text=texto, voice_id=self.s.elevenlabs_voice or VOZ_PADRAO,
             model_id=os.environ.get("JAIME_TTS_MODELO", "eleven_flash_v2_5"),   # flash: menor latência
@@ -154,7 +226,8 @@ class TTS:
             optimize_streaming_latency=3,   # ~0,1 s a menos até o primeiro byte
             previous_text=self._anterior[-300:] or None,   # continuidade de entonação entre frases
         )
-        self._anterior = texto
+        if guardar_anterior:
+            self._anterior = texto
         return b"".join(c for c in fluxo if c)
 
     def _openai_tts(self, texto: str) -> bytes:
@@ -165,13 +238,22 @@ class TTS:
                               "leve textura de assistente de inteligência artificial — um mordomo britânico falando português.")
         with self._openai.audio.speech.with_streaming_response.create(
                 model=os.environ.get("JAIME_OPENAI_TTS_MODELO", "gpt-4o-mini-tts"), voice=os.environ.get("JAIME_OPENAI_VOZ", "onyx"),
-                input=texto, instructions=(base + " " + self.instrucoes).strip(), response_format="pcm") as resp:
+                input=texto, instructions=(base + " " + self.instrucoes).strip(), response_format="pcm",
+                speed=self.velocidade) as resp:
             return b"".join(resp.iter_bytes())
 
     def _tocar(self, pcm: bytes) -> None:
         try:
-            self._abrir_stream().write(self._na_taxa_do_aparelho(pcm))
+            dados = self._na_taxa_do_aparelho(pcm)
+            bloco = int(self._taxa * BLOCO_S) * 2          # bytes por 100 ms (int16 mono)
+            st = self._abrir_stream()
+            for i in range(0, len(dados), bloco):
+                if self._parando.is_set():
+                    return                                  # barge-in: cala no próximo bloco
+                st.write(dados[i:i + bloco])
         except Exception as e:
+            if self._parando.is_set():
+                return
             print(f"⚠ placa de som falhou ({type(e).__name__}); tocando pelo afplay")
             self._fechar_stream()
             self._tocar_afplay(pcm)
@@ -189,7 +271,7 @@ class TTS:
     def _fechar_stream(self) -> None:
         st, self._stream = self._stream, None
         if st is not None:
-            try: st.stop(); st.close()
+            try: st.abort() if self._parando.is_set() else st.stop(); st.close()
             except Exception: pass
 
     def _na_taxa_do_aparelho(self, pcm: bytes) -> bytes:
@@ -223,6 +305,6 @@ class TTS:
         if not shutil.which("say"):
             return False
         # Eddy é masculina pt-BR; a Luciana (feminina) era o padrão antigo — o João estranhou "voz feminina às vezes"
-        subprocess.run(["say", "-v", os.environ.get("JAIME_SAY_VOZ", "Eddy (Português (Brasil))"), "-r", "185", texto],
+        subprocess.run(["say", "-v", os.environ.get("JAIME_SAY_VOZ", "Eddy (Português (Brasil))"), "-r", str(int(185 * self.velocidade)), texto],
                        check=False, stderr=subprocess.DEVNULL)
         return True

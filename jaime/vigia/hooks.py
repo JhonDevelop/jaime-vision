@@ -2,31 +2,39 @@
 
 Mecânica: o hook PreToolUse nega a ação e explica que precisa de "confirmo".
 Quando o João diz "confirmo", o orquestrador chama `vigia.armar()` e a próxima
-ação perigosa (dentro de ARMED_SECONDS) passa. Uma confirmação = uma ação."""
+ação perigosa (dentro de ARMED_SECONDS) passa. Uma confirmação = uma ação.
+
+Princípio (15/09/2026): o Vigia segura só o IRREVERSÍVEL — enviar, pagar, apagar,
+push em main, sudo, e o próprio Vigia. Ver a tela, clicar, digitar, mover arquivo,
+editar o próprio código e o .env são autonomia do Jaime (o git e o backup desfazem)."""
 from __future__ import annotations
 import re, time
 from claude_agent_sdk import HookMatcher
 
-ARMED_SECONDS = 120
+ARMED_SECONDS = 300
 
 BASH_PERIGOSO = [
     r"\brm\s+-[a-z]*r[a-z]*f", r"\brm\s+-[a-z]*f[a-z]*r", r"\bsudo\b", r"\bmkfs", r">\s*/dev/",
     r"git\s+push\b.*(--force|-f\b)", r"git\s+push\b(?!.*origin\s+(feat|fix|chore|dev)\S*)",
     r"git\s+reset\s+--hard", r"curl[^|]*\|\s*(ba)?sh", r"\bDROP\s+TABLE\b", r"\bTRUNCATE\b",
-    r"\bshutdown\b", r"\breboot\b", r"\bkillall\b", r"\bchmod\s+-R\s+777",
+    r"\bshutdown\b", r"\breboot\b", r"\bchmod\s+-R\s+777",
 ]
-TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete|mover|renomear|apagar|enviar|email_enviar|tela_clicar|tela_digitar|tela_tecla)", re.I)
-# browser: clicar em enviar/comprar/pagar/confirmar/assinar (texto ou seletor de submit) espera o "confirmo"
-CLIQUE_IRREVERSIVEL = re.compile(r"(submit|enviar|comprar|finalizar|pagar|pagamento|confirmar|assinar|contratar|checkout|publicar|postar|excluir|apagar|deletar|delete|buy|pay|purchase|send)", re.I)
-CAMINHOS_PROTEGIDOS = re.compile(r"(^|/)(\.env|vault/00-Jaime/)")
-# o próprio código do Jaime: editar exige "confirmo" (e só vale depois de reiniciar o servidor)
-CODIGO_PROPRIO = re.compile(r"(^|/)jaime-vision/(jaime|tests)/.+\.py$|^(jaime|tests)/.+\.py$")
+# só o que sai da máquina ou some: enviar, responder, encaminhar, PR/merge, apagar
+TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete|apagar|enviar|email_enviar)", re.I)
+# browser: clicar em enviar/comprar/pagar/assinar/publicar/excluir espera o "confirmo" (submit/confirmar genéricos são livres)
+CLIQUE_IRREVERSIVEL = re.compile(r"(enviar|comprar|finalizar|pagar|pagamento|assinar|contratar|checkout|publicar|postar|excluir|apagar|deletar|delete|buy|pay|purchase|send)", re.I)
+# identidade e regras: só o João edita, nunca o Jaime
+CAMINHOS_INTOCAVEIS = re.compile(r"(^|/)vault/00-Jaime/")
+# .env: pode, mas com "confirmo" (segredos; o Jaime nunca mostra o conteúdo)
+CAMINHOS_COM_CONFIRMO = re.compile(r"(^|/)\.env$")
+# o próprio Vigia: editar exige "confirmo" (ele não se desarma sozinho); o resto de jaime/ é livre, e só vale após reiniciar
+VIGIA_PROPRIO = re.compile(r"(^|/)jaime/vigia/.+\.py$")
 
 class Vigia:
     def __init__(self):
         self._armado_ate = 0.0
         self.ultima_bloqueada: str | None = None
-        # sessão de visão contínua iniciada explicitamente pelo João: ações de tela ficam liberadas enquanto durar
+        # mantido por compatibilidade (sessão de visão contínua); ações de tela já são livres
         self.sessao_livre = lambda: False
 
     def armar(self):
@@ -56,14 +64,14 @@ class Vigia:
                 return {} if self._consome() else self._negar(f"comando perigoso: {cmd[:80]}")
         elif nome in ("Write", "Edit", "MultiEdit"):
             alvo = args.get("file_path", "")
-            if CAMINHOS_PROTEGIDOS.search(alvo):
-                return self._negar(f"arquivo protegido: {alvo}")
-            if CODIGO_PROPRIO.search(alvo):
-                return {} if self._consome() else self._negar(f"isso é o seu próprio código ({alvo.split('/')[-1]}); mudança precisa de 'confirmo' e de reiniciar o servidor")
+            if CAMINHOS_INTOCAVEIS.search(alvo):
+                return self._negar(f"arquivo só do João: {alvo}")
+            if CAMINHOS_COM_CONFIRMO.search(alvo):
+                return {} if self._consome() else self._negar(f"segredos em {alvo.split('/')[-1]}; mudança precisa de 'confirmo'")
+            if VIGIA_PROPRIO.search(alvo):
+                return {} if self._consome() else self._negar(f"isso é o Vigia ({alvo.split('/')[-1]}); mudança precisa de 'confirmo' e de reiniciar o servidor")
         elif nome == "mcp__maos__clicar" and CLIQUE_IRREVERSIVEL.search(str(args.get("alvo", ""))):
             return {} if self._consome() else self._negar(f"clique irreversível no browser: {str(args.get('alvo'))[:60]}")
-        elif nome.startswith("mcp__tela__tela_") and nome != "mcp__tela__tela_capturar" and self.sessao_livre():
-            return {}
         elif TOOLS_DE_ENVIO.match(nome):
             return {} if self._consome() else self._negar(f"ação externa: {nome}")
         return {}

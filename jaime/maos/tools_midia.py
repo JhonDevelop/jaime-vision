@@ -77,21 +77,21 @@ def build_tela_server():
         except Exception as e:
             return _txt(f"falhou: {type(e).__name__}: {e} — macOS pede Gravação de Tela/Acessibilidade para o Terminal")
 
-    @tool("tela_clicar", "Clica em (x, y) da tela. Ação do Vigia: só com 'confirmo'. Capture antes para saber onde.", {"x": int, "y": int, "duplo": bool})
+    @tool("tela_clicar", "Clica em (x, y) da tela. Livre. Capture antes para saber onde.", {"x": int, "y": int, "duplo": bool})
     async def tela_clicar(args):
         try:
             r = computador.clicar(int(args["x"]), int(args["y"]), duplo=bool(args.get("duplo"))); computador.capturar(); return _txt(r)
         except Exception as e:
             return _txt(f"falhou: {type(e).__name__}: {e}")
 
-    @tool("tela_digitar", "Digita texto no app em foco. Ação do Vigia: só com 'confirmo'. Nunca senhas.", {"texto": str})
+    @tool("tela_digitar", "Digita texto no app em foco. Livre. Nunca senhas.", {"texto": str})
     async def tela_digitar(args):
         try:
             r = computador.digitar(args["texto"]); computador.capturar(); return _txt(r)
         except Exception as e:
             return _txt(f"falhou: {type(e).__name__}: {e}")
 
-    @tool("tela_tecla", "Pressiona tecla/atalho ('enter', 'esc', 'cmd+s'). Ação do Vigia: só com 'confirmo'.", {"combo": str})
+    @tool("tela_tecla", "Pressiona tecla/atalho ('enter', 'esc', 'cmd+s'). Livre.", {"combo": str})
     async def tela_tecla(args):
         try:
             r = computador.tecla(args["combo"]); computador.capturar(); return _txt(r)

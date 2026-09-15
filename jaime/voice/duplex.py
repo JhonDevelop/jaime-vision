@@ -1,0 +1,280 @@
+"""Ouvido full-duplex — escuta enquanto pensa, pensa enquanto o João fala, cala quando ele abre a boca.
+(docs/FASE-3-TEMPO-REAL.md §2; ligado com JAIME_VOZ_MODO=duplex, o padrão.)
+
+microfone ─► Silero VAD ─► frames vão AO VIVO para o STT em streaming (stt_stream.py) ─► transcrição viva no HUD
+                │                                              │ a cada ~500 ms de texto novo
+                │                                              ▼
+                │                                       Antecipador ─► frase_fechou? (fim de turno semântico)
+                │                                                   ─► rascunho ≥ 0.8 → tts.pre_sintetizar (cache)
+                ▼
+         DetectorFim: 450 ms de silêncio se a frase fechou · 700 ms sem parecer · 1200 ms se "ainda vai continuar"
+                │ fim
+                ▼
+         texto final ─► antecipação ainda bate? ─► toca o cache (~0 ms) ─► Jaime completa em streaming ─► TTS
+                                                                                     ▲
+         BARGE-IN: voz do João (VAD alto + acima do eco medido) durante a fala dele ──┘ tts.parar() em < 100 ms
+
+Sem cancelamento de eco, o microfone ouve a própria voz do Jaime: o barge-in só dispara quando a voz do João
+passa bem acima do nível de eco medido no começo de cada fala dele (JAIME_BARGE_IN=on|off|fone; "fone" = sem
+guarda de eco, para quem usa fone de ouvido)."""
+from __future__ import annotations
+import asyncio, os, time
+from collections import deque
+from ..hud.events import bus
+from .escuta import (Ouvido, SR, FRAME, FRAME_MS, PRE_ROLL_MS, VAD_INICIO, VAD_FIM, MIN_FALA_MS, MAX_FALA_S, LIXO_WHISPER)
+from .antecipador import Antecipador, Antecipacao, modelo_openai
+from . import stt_stream
+
+SILENCIO_FECHOU_MS = 450      # antecipador diz que a frase fechou
+SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
+SILENCIO_ABERTO_MS = 1200     # antecipador diz que o João ainda vai continuar ("…e também")
+BARGE_IN_PROB = 0.85          # VAD mais exigente enquanto o Jaime fala
+BARGE_IN_MS = 200             # voz contínua necessária para cortar
+BARGE_IN_ECO_X = 2.5          # RMS do João precisa ser 2,5× o eco medido (sem AEC)
+
+class DetectorFim:
+    """Fim de turno = silêncio (VAD) + critério semântico. Máquina de estados pura, testável.
+    `alimentar(prob)` devolve "inicio" quando a fala começa, "fim" quando o turno termina, "curto" quando
+    terminou mas era ruído, ou None. `frase_fechou` (True/False/None) vem do antecipador e muda o limiar."""
+    def __init__(self, fechou_ms: int = SILENCIO_FECHOU_MS, incerto_ms: int = SILENCIO_INCERTO_MS, aberto_ms: int = SILENCIO_ABERTO_MS,
+                 min_fala_ms: int = MIN_FALA_MS, max_s: float = MAX_FALA_S, frame_ms: int = FRAME_MS,
+                 inicio: float = VAD_INICIO, fim: float = VAD_FIM):
+        self.fechou_ms, self.incerto_ms, self.aberto_ms = fechou_ms, incerto_ms, aberto_ms
+        self.min_fala_ms, self.max_s, self.frame_ms, self.inicio, self.fim = min_fala_ms, max_s, frame_ms, inicio, fim
+        self.frase_fechou: bool | None = None
+        self.falando = False
+        self._ms_voz = self._ms_sil = self._ms_total = 0
+        self.t_inicio = 0.0
+        self.t_ultima_voz = 0.0
+
+    @property
+    def limite_ms(self) -> int:
+        return self.fechou_ms if self.frase_fechou is True else (self.aberto_ms if self.frase_fechou is False else self.incerto_ms)
+
+    @property
+    def silencio_ms(self) -> int:
+        return self._ms_sil
+
+    @property
+    def duracao_ms(self) -> int:
+        return self._ms_total
+
+    def alimentar(self, prob: float, agora: float | None = None) -> str | None:
+        agora = time.time() if agora is None else agora
+        if not self.falando:
+            if prob < self.inicio:
+                return None
+            self.falando = True
+            self._ms_voz = self._ms_sil = self._ms_total = 0
+            self.frase_fechou = None
+            self.t_inicio = self.t_ultima_voz = agora
+            self._ms_voz += self.frame_ms; self._ms_total += self.frame_ms
+            return "inicio"
+        self._ms_total += self.frame_ms
+        if prob >= self.fim:
+            self._ms_voz += self.frame_ms; self._ms_sil = 0; self.t_ultima_voz = agora
+        else:
+            self._ms_sil += self.frame_ms
+        if self._ms_sil >= self.limite_ms or self._ms_total >= self.max_s * 1000:
+            self.falando = False
+            return "fim" if self._ms_voz >= self.min_fala_ms else "curto"
+        return None
+
+    def cancelar(self) -> None:
+        self.falando = False; self._ms_voz = self._ms_sil = self._ms_total = 0; self.frase_fechou = None
+
+class OuvidoDuplex(Ouvido):
+    """Mesmo contrato do Ouvido (start/stop/falar/ativo/mudo/ocupado), com STT em streaming, antecipador,
+    fim de turno semântico e barge-in. `fluxo` e `antecipador` são injetáveis (testes)."""
+    def __init__(self, jaime, s, loop: asyncio.AbstractEventLoop | None = None, fluxo=None, antecipador=None):
+        super().__init__(jaime, s, loop)
+        self.det = DetectorFim()
+        self.fluxo = fluxo
+        self.antecipador = antecipador
+        self.barge_in = os.environ.get("JAIME_BARGE_IN", "on").lower()
+        self.interrompido = False
+        self._fila_audio: asyncio.Queue | None = None
+        self._lock_turno = asyncio.Lock()
+        self._pre: deque = deque(maxlen=max(1, PRE_ROLL_MS // FRAME_MS))
+        self._pcm_turno = bytearray()
+        self._parcial_texto = ""
+        self._t_fim_fala = 0.0
+        self._t_texto = 0.0
+        self._barge_ms = 0
+        self._eco_rms = 0.0
+        self._eco_amostras = 0
+        self.turnos = 0
+
+    # ── carga ────────────────────────────────────────────
+    def _carregar(self):
+        super()._carregar()
+        if self.fluxo is None:
+            local = (lambda pcm, sr: self._stt._whisper_sync(pcm)) if getattr(self._stt, "_whisper", None) else None
+            self.fluxo = stt_stream.escolher(self.s, transcritor_local=local)
+        if self.antecipador is None:
+            fn = None
+            if getattr(self.s, "openai_key", ""):
+                try:
+                    from openai import AsyncOpenAI
+                    fn = modelo_openai(AsyncOpenAI(api_key=self.s.openai_key), os.environ.get("JAIME_ANTECIPADOR_MODEL", getattr(self.s, "openai_model_rapido", "gpt-5.6-luna")))
+                except Exception:
+                    fn = None
+            self.antecipador = Antecipador(fn)
+        self.fluxo.on_parcial = self._parcial
+
+    def _garantir_fila(self) -> asyncio.Queue:
+        if self._fila_audio is None:
+            self._fila_audio = asyncio.Queue()
+        return self._fila_audio
+
+    # ── microfone (thread) ───────────────────────────────
+    def _rodar(self):
+        try:
+            import numpy as np, sounddevice as sd
+            self._carregar()
+            asyncio.run_coroutine_threadsafe(self._consumir(), self.loop)
+        except Exception as e:
+            self.erro = f"{type(e).__name__}: {e}"
+            bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False); return
+        ultimo_nivel = 0.0
+        try:
+            with sd.RawInputStream(samplerate=SR, blocksize=FRAME, dtype="int16", channels=1) as mic:
+                bus.emitir("voz", estado="ouvindo", falando=False, ativacao=self.s.ativacao, nome=self.s.nome, modo="duplex",
+                           stt=getattr(self.fluxo, "nome", "?"), barge_in=self.barge_in)
+                while not self._parar.is_set():
+                    frame, _ = mic.read(FRAME)
+                    frame = bytes(frame)
+                    pcm = np.frombuffer(frame, dtype=np.int16)
+                    if not self.ativo:
+                        self.det.cancelar(); self._vad._janela.clear(); continue
+                    prob = self._vad.prob(pcm)
+                    rms = float(np.sqrt(np.mean(pcm.astype(np.float32) ** 2)))
+                    agora = time.time()
+                    if agora - ultimo_nivel > 0.1:
+                        ultimo_nivel = agora
+                        bus.emitir("escuta", nivel=round(min(1.0, rms / 2500), 3), voz=round(prob, 2),
+                                   gravando=self.det.falando, janela_ativa=self.janela_ativa)
+                    if self.mudo:
+                        self._barge(prob, rms, frame); continue
+                    self._alimentar(prob, frame)
+        except Exception as e:
+            self.erro = f"{type(e).__name__}: {e}"
+            bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
+
+    def _alimentar(self, prob: float, frame: bytes, agora: float | None = None) -> str | None:
+        """Um frame do microfone com a probabilidade de voz. Pode ser chamado de qualquer thread."""
+        ev = self.det.alimentar(prob, agora)
+        if ev == "inicio":
+            self._pcm_turno = bytearray(); self._parcial_texto = ""; self.cache_audio = None
+            if self.antecipador: self.antecipador.limpar()
+            self._t_fim_fala = 0.0
+            for f in self._pre:
+                self._pcm_turno += f; self._enviar(f)
+            self._pre.clear()
+        if self.det.falando or ev in ("fim", "curto"):
+            self._pcm_turno += frame; self._enviar(frame)
+        else:
+            self._pre.append(frame)
+        if ev == "fim":
+            self._t_fim_fala = time.time() if agora is None else agora
+            self._enviar(None)
+        elif ev == "curto":
+            self._enviar(b"")
+        return ev
+
+    def _enviar(self, item) -> None:
+        fila = self._garantir_fila()
+        try:
+            self.loop.call_soon_threadsafe(fila.put_nowait, item)
+        except RuntimeError:
+            fila.put_nowait(item)
+
+    def _barge(self, prob: float, rms: float, frame: bytes) -> bool:
+        """Enquanto o Jaime fala: o João falou por cima? Mede o eco no começo e exige voz bem acima dele."""
+        if self.barge_in == "off" or not self._tts:
+            return False
+        if self._eco_amostras < 10:                       # ~320 ms iniciais de cada fala: calibra o eco
+            self._eco_rms = (self._eco_rms * self._eco_amostras + rms) / (self._eco_amostras + 1); self._eco_amostras += 1
+            return False
+        acima_do_eco = self.barge_in == "fone" or rms >= BARGE_IN_ECO_X * max(self._eco_rms, 80.0)
+        if prob >= BARGE_IN_PROB and acima_do_eco:
+            self._barge_ms += FRAME_MS
+        else:
+            self._barge_ms = max(0, self._barge_ms - FRAME_MS)
+        if self._barge_ms < BARGE_IN_MS:
+            return False
+        self._barge_ms = 0
+        restantes = self._tts.parar()
+        self.interrompido = True
+        self.mudo = False
+        bus.emitir("voz", estado="interrompido", falando=False, restantes=restantes)
+        self.det.cancelar(); self._alimentar(prob, frame)
+        return True
+
+    # ── STT / antecipação (loop) ─────────────────────────
+    async def _consumir(self):
+        fila = self._garantir_fila()
+        try:
+            if self.fluxo and not self.fluxo.conectado:
+                await self.fluxo.iniciar()
+        except Exception as e:
+            self.erro = f"STT streaming: {type(e).__name__}: {e}"
+            bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
+        while not self._parar.is_set():
+            item = await fila.get()
+            try:
+                if item is None:
+                    texto = (await self.fluxo.finalizar()).strip()
+                    self._t_texto = time.time()
+                    bus.emitir("transcricao_viva", texto=texto, final=True)
+                    pcm = bytes(self._pcm_turno)
+                    asyncio.create_task(self._turno(texto, pcm, self._t_fim_fala, self._t_texto))
+                elif item == b"":
+                    await self.fluxo.finalizar()
+                    if self.antecipador: self.antecipador.limpar()
+                else:
+                    if self.fluxo and not self.fluxo.conectado:
+                        try: await self.fluxo.iniciar()
+                        except Exception: pass
+                    await self.fluxo.enviar(item)
+            except Exception as e:
+                bus.emitir("voz", estado="erro", erro=f"duplex: {type(e).__name__}: {e}"[:200], falando=False)
+
+    def _parcial(self, texto: str) -> None:
+        self._parcial_texto = texto
+        bus.emitir("transcricao_viva", texto=texto, final=False)
+        if self.antecipador and self.antecipador.pode_avaliar(texto):
+            try:
+                self.loop.create_task(self._antecipar(texto))
+            except RuntimeError:
+                asyncio.run_coroutine_threadsafe(self._antecipar(texto), self.loop)
+
+    async def _antecipar(self, texto: str) -> Antecipacao | None:
+        a = await self.antecipador.avaliar(texto)
+        if not a:
+            return None
+        # o parecer só vale se o texto não cresceu enquanto o modelo pensava
+        self.det.frase_fechou = a.frase_fechou if a.texto == self._parcial_texto.strip() else None
+        bus.emitir("antecipacao", intencao=a.intencao, completude=a.completude, fechou=a.frase_fechou,
+                   rascunho=a.rascunho, origem=a.origem, latencia=round(a.latencia_s, 2))
+        if a.especulavel and self._tts and (not self.cache_audio or self.cache_audio[0] != a.rascunho):
+            pcm = await asyncio.to_thread(self._tts.pre_sintetizar, a.rascunho)
+            if self.antecipador.ultima is a:          # ainda é a antecipação vigente
+                self.cache_audio = (a.rascunho, pcm)
+        return a
+
+    async def _turno(self, texto: str, pcm: bytes, t_fim_fala: float, t_texto: float):
+        async with self._lock_turno:
+            self.ocupado = True
+            try:
+                if len(texto) < 3 or LIXO_WHISPER.search(texto):
+                    return
+                self.turnos += 1
+                antecip = self.antecipador.confere(texto) if self.antecipador else None
+                self._eco_rms = 0.0; self._eco_amostras = 0; self._barge_ms = 0; self.interrompido = False
+                await self._tratar_texto(texto, pcm, antecipacao=antecip, t_fim_fala=t_fim_fala, t_texto=t_texto)
+            except Exception as e:
+                bus.emitir("voz", estado="erro", erro=f"{type(e).__name__}: {e}"[:200], falando=False)
+            finally:
+                self.ocupado = False
+                bus.emitir("voz", estado="ouvindo", falando=False)

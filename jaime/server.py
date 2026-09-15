@@ -41,7 +41,12 @@ async def lifespan(app: FastAPI):
             asyncio.get_running_loop().call_later(3, ouvido.falar, jaime.apresentacao)
     elif settings.voz != "off":
         # o microfone vive no servidor: abrir o HUD já é estar ouvindo
-        ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
+        # fase 3: `duplex` (padrão) = STT em streaming + antecipador + barge-in; `pipeline` = turno a turno
+        if settings.voz_modo == "duplex":
+            from .voice.duplex import OuvidoDuplex
+            ouvido = OuvidoDuplex(jaime, settings, asyncio.get_running_loop())
+        else:
+            ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
         ouvido.observador = observador; observador.ouvido = ouvido
         ouvido.start()
         if jaime.apresentacao:

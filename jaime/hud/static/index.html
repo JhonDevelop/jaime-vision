@@ -66,6 +66,8 @@
   #voce.some{opacity:0}
   #voce::before{content:"você · ";color:var(--am);letter-spacing:.12em;font-size:10.5px;text-transform:uppercase}
   #voce.ign{opacity:.45;font-style:italic}#voce.ign::before{content:"ouvi (não era comigo) · ";color:var(--mu)}
+  #voce.viva{color:var(--tx)}#voce.viva::before{content:"você (ao vivo) · ";color:var(--am)}#voce.viva::after{content:" ▍";animation:pisca 1s steps(2) infinite}
+  @keyframes pisca{to{opacity:0}}
   #nivel{width:180px;height:2px;margin:14px auto 0;background:rgba(79,216,255,.12);border-radius:1px;overflow:hidden}
   #nivel i{display:block;height:100%;width:0;background:var(--cy);transition:width .08s linear}
   #nivel i.grav{background:var(--am)}
@@ -491,7 +493,10 @@ function ligarStream(){
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);break;
       case 'falante': UI.falante=e.nome;$('voce').dataset.quem=e.nome;break;
-      case 'ouvido': if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
+      case 'ouvido': $('voce').classList.remove('viva');if(e.ignorado)mostrarVoce(e.texto,true);else mostrarVoce(e.texto);break;
+      case 'transcricao_viva': if(e.final){$('voce').classList.remove('viva');}else{mostrarVoce(e.texto);$('voce').classList.add('viva');}break;
+      case 'antecipacao': if(e.usado)feed($('rac'),`<span class="f">antecipado</span><span class="a">${esc(e.rascunho||'')}</span>`);else if(e.completude!=null)feed($('rac'),`<span class="f">antecipador</span><span class="a">${esc(e.intencao||'')} · ${Math.round((e.completude||0)*100)}%${e.fechou?' · fechou':''}${e.rascunho?' · «'+esc(e.rascunho)+'»':''} · ${esc(e.origem||'')}</span>`);break;
+      case 'latencia': feed($('rac'),`<span class="f">latência</span><span class="a">fala→texto ${e.fala_texto??'—'} s · texto→1ª frase ${e.texto_frase??'—'} s · fala→1ª frase ${e.fala_frase??'—'} s${e.antecipado?' · antecipado':''}</span>`);break;
       case 'raciocinio': registrarPensamento(e.ferramenta?(e.ferramenta+' '+(e.alvo||'')):(e.texto||''),e.ferramenta==='memória'?(e.alvo||'').split('; ')[0]:'');feed($('rac'),e.ferramenta?`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`:`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
       case 'producao': linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n);}

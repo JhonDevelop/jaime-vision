@@ -67,11 +67,11 @@ def test_visao_kill_switch_e_limite(tmp_path):
 async def _async(x):
     return x
 
-def test_vigia_libera_tela_so_com_sessao_de_visao_ativa():
+def test_vigia_libera_tela_com_ou_sem_sessao_de_visao():
     v = Vigia()
     h = lambda: asyncio.run(v.pre_tool_use({"tool_name": "mcp__tela__tela_clicar", "tool_input": {"x": 1, "y": 1}}, None, None))
-    assert h().get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    assert h() == {}
     v.sessao_livre = lambda: True
     assert h() == {}
     v.sessao_livre = lambda: False
-    assert h().get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    assert h() == {}
