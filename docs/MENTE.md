@@ -77,7 +77,7 @@
   tarde, gerar rascunho heurístico local para as intenções mais comuns (abrir app, hora, clima, "está aí") e
   pré-sintetizar só esses. Validar: `antecipados ≥ 5/10` no `voz latencia`; `usado=True` no diário em falas curtas.
 
-#### M-05 · Notion 404 em toda sincronização
+#### M-05 · Notion 404 em toda sincronização — **CORRIGIDO** (1ª, 3ª e depois 1×/h com contagem)
 - Não é código: página não compartilhada com a integração. Proposta: depois de 3 falhas iguais seguidas, silenciar
   o log por 1 h e registrar 1 linha no diário ("espelho parado: compartilhe a página com a integração"). Validar: log limpo.
 
@@ -92,15 +92,16 @@
 | 2 | M-02 tranca/senha por voz | irritação diária | pronto, aguardando merge |
 | 3 | M-04 antecipador | meta 700 ms | a medir |
 | 4 | M-03 TTS 1º byte | meta 700 ms | depende de chave |
-| 5 | M-05 Notion ruído no log | observabilidade | pequeno |
+| 5 | M-05 Notion ruído no log | observabilidade | pronto |
 | 6 | M-06 FutureWarning | cosmético | pronto |
 | 7 | M-07 telemetria vazia | estudo dirigido | observar |
 | 8 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
 ### Observações para o Cérebro Principal
-- O log só mostra `🎙 você ›` e erros; as respostas do Jaime não aparecem — para observar, seria bom logar `🔈 jaime ›` (1 linha, truncada) e a latência. Proposta pequena, faço em seguida se ninguém objetar.
+- **Feito**: o log agora tem uma linha `🔈 jaime ›` por resposta (🔒 quando trancado). Antes só aparecia o que o João disse.
 - A palavra-passe em uso ainda parece ser a padrão do `.env.example` (ouvida no log). Sugerir ao João trocar com `python -m jaime senha`.
 
 ## Ciclos
 - 14:10 — leitura inicial; serviço caído detectado; Cérebro avisado; M-01 corrigido e commitado (10ff5ea).
 - 14:45 — M-02 implementado (3 zonas + EMA + amostras; silêncio trancado; senha digitada sem voz) e M-06; 187 testes; Cérebro avisado.
+- 15:05 — serviço voltou às 14:10 (Cérebro, JAIME_BARGE_IN=off). No log pós-reinício o João repete a senha 3× e pede a interface 3× sem ser atendido — é o M-02; merge urgente. Commitados: `🔈 jaime ›` no log e M-05 (Notion).
