@@ -95,7 +95,32 @@
   rascunho «…» sem áudio a tempo | nenhuma`; e `antecipado` agora significa que o cache tocou de fato.
 - Validar: depois do merge, cada turno de voz no diário traz o motivo; contar "usada" por dia.
 
-#### M-08 · Frases fixas sintetizadas uma vez (delegado ao Codex às 15:45)
+#### M-11 · Fim de turno corta o João no meio — **CORRIGIDO (bf538e3, já na main)**
+- Diário 14:20 «…parabéns mas eu preciso» e 14:22 «você sabe sobre o meu» → "Fala truncada". A heurística marcava `frase_fechou`
+  para qualquer parcial de 3+ palavras sem conjunção no fim → turno em 450 ms. Agora: 450 ms só com pontuação ou pedido
+  reconhecido; finais em aberto ganham verbos/preposições que pedem complemento; frase claramente aberta espera 1,5 s.
+- Validar: sumir "Fala truncada"/"Não peguei o final" em falas com pausa de pensamento.
+
+#### M-12 · Áudio do Jaime cortado antes do fim (14:23, 1 ocorrência) — observar
+- «Você não terminou de falar.» após resposta de 2 frases; barge-in OFF; sem "⚠ placa de som". Hipóteses: `st.stop()` sem
+  drenar; 2ª frase enfileirada depois de `vazio`; TTS streaming da OpenAI encerrando cedo. Se repetir, instrumentar `_reprodutor`.
+
+#### M-13 · Vigília 18:04: ainda 0/10 — **causa achada e corrigida em feat/mente**
+- O código no ar já gera rascunho para "abre o Finder"/"dólar"/"clima" (testado no checkout do serviço). As ~35 linhas
+  "sem rascunho" ao vivo são conversa livre ("Pode encerrar então", "tem 3 cérebros") — correto. O 0/10 do `voz latencia`
+  vem de `esperar=True`: o parecer do modelo (completude 0,5, rascunho vazio) **substituía** o da heurística em `_refinar`.
+  Ao vivo o mesmo bug apagaria o cache nos turnos longos. Corrigido: rascunho do modelo quando existe, senão o local.
+- Validar: `voz latencia` → antecipados ≥ 7/10 (abre o Finder, tempo, lembrete, tarefa, dólar, resumo, site da Oldsen;
+  "está aí", "que horas são" e "agenda" ficam de fora por desenho).
+- Também às 18:06–18:08: texto→1ª frase 7,6–9,5 s **sem ferramenta** ("Quais são suas últimas funções", "sala do futuro"):
+  é o tempo até o 1º token do modelo em perguntas reflexivas — a muleta não entra sem ferramenta. Candidato M-14: muleta
+  também quando o 1º token demora > 2,5 s, ou modelo rápido no roteador para "conversa".
+
+#### M-15 · Rotina "fecha o dia" 18:00 não disparou (Vigília) — em investigação
+- Zero "Rotina disparada" no diário de hoje (nem a das 13:00). `parse_rotinas` + `CronTrigger` calculam os próximos disparos
+  certos (18:00 amanhã, 22:00 hoje) → o problema é o scheduler não estar rodando/armado no serviço, não o arquivo.
+
+#### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
   consultado em `enfileirar`/`tocar_pronto`, faz essas responderem em ~150 ms. Candidato a delegar ao Codex.
@@ -118,8 +143,11 @@
 | 5 | M-05 Notion ruído no log | observabilidade | pronto |
 | 6 | M-06 FutureWarning | cosmético | pronto |
 | 7 | M-07 telemetria vazia | estudo dirigido | resolvido (acumulando) |
-| 7b | M-09 muleta tardia | 4,5 s → ~2 s com ferramenta | pronto, aguardando merge |
-| 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | proposta (Codex) |
+| 7b | M-09 muleta tardia | 4,5 s → ~2 s com ferramenta | mergeado |
+| 7c | M-11 corta o João no meio | irritação diária | mergeado |
+| 7d | M-13 modelo apaga rascunho local | 0/10 no voz latencia | pronto, aguardando merge |
+| 7e | M-15 rotinas não disparam | etapa 8 | investigando |
+| 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
 ### Observações para o Cérebro Principal
@@ -133,3 +161,4 @@
 - 15:35 — Cérebro mergeou os 5 commits na main (194 testes, serviço no ar com barge-in ligado). `git merge main` feito. M-04 medido e corrigido com rascunho local (commits WIP + testes); 200 testes.
 - 15:55 — M-09 (muleta logo após a ferramenta) commitado; 205 testes. M-08 aguardando o Codex.
 - 16:05 — Vigília reportou etapas 2 e 5 falhando (mesma leitura: 0/10, TTS OpenAI). Respondi; M-10 (motivo da antecipação no diário) commitado; 206 testes.
+- 18:15 — retomada após pausa. Cérebro mergeou M-09/M-10/M-11 e o M-08 do Codex. Vigília: 0/10 persiste → causa era o modelo apagando o rascunho local em `_refinar`; corrigido (216 testes). Rotinas do dia nunca dispararam (M-15) — investigando.
