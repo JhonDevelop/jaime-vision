@@ -22,6 +22,7 @@ from __future__ import annotations
 import os, queue, re, shutil, subprocess, tempfile, threading, time, wave
 from ..config import Settings
 from ..hud.events import bus
+from .cache_frases import CacheFrases
 
 PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100 é só Pro)
 VOZ_PADRAO = "JBFqnCBsd6RMkjVDRZzb"  # premade (George) — fala pt-BR com sotaque; troque em ELEVENLABS_VOICE_ID
@@ -61,6 +62,8 @@ class TTS:
         # Recebe PCM mono int16 a 24 kHz imediatamente antes de cada bloco ir
         # para a placa. É opcional para não alterar os chamadores existentes.
         self.ao_tocar = ao_tocar
+        self._cache_frases = CacheFrases(motor=self.motor, voz=self._voz_cache(), velocidade=self.velocidade,
+                                         instrucoes=self.instrucoes)
         if s.openai_key:
             from openai import OpenAI
             self._openai = OpenAI(api_key=s.openai_key)
@@ -85,6 +88,39 @@ class TTS:
         from .persona import aplicar as persona
         return persona(limpar_para_fala(texto))
 
+    def _voz_cache(self) -> str:
+        """Inclui as duas vozes possíveis quando o motor automático escolhe o provedor."""
+        eleven = getattr(self.s, "elevenlabs_voice", "") or VOZ_PADRAO
+        openai = os.environ.get("JAIME_OPENAI_VOZ", "onyx")
+        return openai if self.motor == "openai" else (eleven if self.motor == "elevenlabs" else f"{eleven}|{openai}")
+
+    def _cache_atualizar(self) -> None:
+        self._cache_frases.configurar(motor=self.motor, voz=self._voz_cache(), velocidade=self.velocidade,
+                                      instrucoes=self.instrucoes)
+
+    def _sintetizar_com_cache(self, texto: str, *, guardar_anterior: bool = True, streaming: bool = False):
+        self._cache_atualizar()
+        if pcm := self._cache_frases.get(texto):
+            return pcm
+        pcm = self._sintetizar(texto, guardar_anterior=guardar_anterior, streaming=streaming)
+        if pcm is None:
+            return None
+        if not streaming or isinstance(pcm, (bytes, bytearray)):
+            self._cache_frases.put(texto, pcm)
+            return pcm
+        return self._acumular_para_cache(texto, pcm)
+
+    def _acumular_para_cache(self, texto: str, blocos):
+        """Grava depois do último bloco em thread própria: a placa nunca espera o disco."""
+        def fluxo():
+            pcm = bytearray()
+            for bloco in blocos:
+                pcm += bloco
+                yield bloco
+            if pcm:
+                threading.Thread(target=self._cache_frases.put, args=(texto, bytes(pcm)), daemon=True).start()
+        return fluxo()
+
     def enfileirar(self, texto: str) -> None:
         """Manda falar sem esperar. Use durante a resposta em fluxo: cada frase entra assim que fica
         pronta e o sintetizador já vai preparando a seguinte."""
@@ -104,7 +140,7 @@ class TTS:
         texto = self._preparar(texto)
         if not texto:
             return None
-        return self._sintetizar(texto, guardar_anterior=False)
+        return self._sintetizar_com_cache(texto, guardar_anterior=False)
 
     def tocar_pronto(self, texto: str, pcm: bytes | None) -> None:
         """Toca um áudio já sintetizado (cache do antecipador) na frente de tudo."""
@@ -208,7 +244,7 @@ class TTS:
             g, texto = self._pedidos.get()
             if g != self._geracao:
                 continue                        # parar() passou por aqui: frase descartada
-            pcm = self._sintetizar(texto, streaming=True)
+            pcm = self._sintetizar_com_cache(texto, streaming=True)
             if g != self._geracao:
                 continue
             self._prontos.put((g, texto, pcm))
