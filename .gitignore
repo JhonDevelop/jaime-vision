@@ -29,3 +29,6 @@ vault/.obsidian/cache
 vault/.placar.json
 
 # cérebro de estudo: sandbox fica fora do repo (/tmp/jaime-lab)
+
+# memória semântica: índice FTS5 é derivado do vault
+vault/.index.db*

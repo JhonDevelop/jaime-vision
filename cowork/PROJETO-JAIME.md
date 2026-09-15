@@ -57,6 +57,8 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F38 | Fase 3.1 — conversa em tempo real (GPT-Realtime-2) com as ferramentas do Jaime; mic gated por VAD local | estratégica | feito (15/09) |
 | F39 | Fase 3.4 — casa (Home Assistant/HomeKit) e câmera como olho | estratégica | código pronto (15/09) — HA_URL/HA_TOKEN do João |
 | F40 | Fase 3.5 — visão contínua (jogos/apps por visão) com limites e kill switch "para" | estratégica | feito (15/09) |
+| F41 | Fase 3.6 — memória semântica (FTS5) com recall proativo | estratégica | feito (15/09) |
+| F42 | Fase 3.7 — autoevolução: proposta semanal → worktree + testes + PR; merge com confirmo | estratégica | feito (15/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -71,5 +73,5 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 
 ## Fase atual
 **1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
-em andamento: **fase 2 fechada em 15/09; fase 3 começou (docs/FASE-3.md): etapa 1 — conversa em tempo real — feita.** Do João: credenciais (Google, Telegram, Meta), Blender, permissões do macOS, cota ElevenLabs.
+em andamento: **fase 2 fechada em 15/09; fase 3: etapas 1, 4, 5, 6 e 7 feitas em 15/09; 2 (objetivo real) e 3 (conexões) dependem do João.** Do João: credenciais (Google, Telegram, Meta), Blender, permissões do macOS, cota ElevenLabs.
 n8n saiu do projeto — automações viram código nosso.

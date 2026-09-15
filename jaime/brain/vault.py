@@ -83,7 +83,17 @@ class Vault:
         return [l for l in self.read("30-Tarefas/Inbox.md").splitlines() if l.startswith("- [ ]")]
 
     # ── busca ──────────────────────────────────────────
+    indice = None   # jaime/brain/indice.py, ligado pelo orquestrador; usado quando o vault passa de 500 notas
+
     def buscar(self, termo: str, limite: int = 12) -> list[tuple[str, int, str]]:
+        if self.indice is not None:
+            try:
+                from .indice import LIMIAR_NOTAS
+                if self.indice.total() > LIMIAR_NOTAS:
+                    self.indice.atualizar()
+                    return [(c, 0, t) for c, t, _ in self.indice.buscar(termo, limite)]
+            except Exception:
+                pass
         rx = re.compile(re.escape(termo), re.IGNORECASE)
         hits: list[tuple[str, int, str]] = []
         for p in sorted(self.root.rglob("*.md")):

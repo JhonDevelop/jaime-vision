@@ -185,3 +185,15 @@ Ver docs/FASE-3.md.
   olhando a imagem → pyautogui executa → repete, com máximo de passos e intervalo mínimo. Iniciada só por pedido explícito
   (`jogar`); enquanto ativa, o Vigia libera as ações de tela; **"para"/"chega"** encerram na hora (kill switch em `_porta`,
   sem modelo) — o mesmo "para" interrompe um objetivo autônomo.
+
+
+## Fase 3, etapas 6–7 — memória semântica e autoevolução
+- `jaime/brain/indice.py`: FTS5 (`vault/.index.db`, derivado) com tokenizador sem acentos e BM25; reindexa por mtime.
+  `Vault.buscar` passa a usar o índice acima de 500 notas. **Recall proativo**: antes de cada turno, `recordar(texto)`
+  põe até 3 lembretes do vault no prefixo da mensagem ("[memória do vault: 20-Projetos/BUB.md: …]") — o Jaime lembra o que
+  o João já disse sem ser perguntado. Ferramenta `recordar` para busca explícita.
+- `jaime/evolucao.py`: rotina semanal `propor melhoria` (segunda 09:00) ou a pedido → proposta única em
+  `01-Estado/Propostas.md` (M-xxxx). "implementa M-0001" → **git worktree** em `~/Jaime/worktrees/<slug>`, branch
+  `jaime/<slug>`, turno avulso do Agent SDK confinado ao worktree (sem vault, .env, push), `pytest` rodado por nós, PR em
+  `docs/PR-jaime-<slug>.md`, commit. O código em produção não é tocado; o merge é do João ("confirmo"). MCP `evolucao`:
+  `propor_melhoria`, `implementar_melhoria`, `propostas`.

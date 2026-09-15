@@ -49,6 +49,9 @@ from ..casa.homeassistant import Casa
 from ..casa.tools import build_casa_server
 from ..maos.visao import Visao, quer_parar
 from ..maos.tools_visao import build_visao_server
+from ..brain.indice import Indice
+from ..evolucao import Evolucao
+from ..tools_evolucao import build_evolucao_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -112,6 +115,11 @@ class Jaime:
         self.casa = Casa(settings.ha_url, settings.ha_token)
         self.visao = Visao(self, settings.visao_max_passos, settings.visao_intervalo_s)
         self.vigia.sessao_livre = lambda: self.visao.ativa
+        # fase 3: memória semântica (FTS5 no vault, recall proativo) e autoevolução por PR
+        self.indice = Indice(settings.vault)
+        self.indice.atualizar()
+        self.vault.indice = self.indice
+        self.evolucao = Evolucao(self, settings.root)
         usar_nome(self.identidade.variantes())
 
     # ── ciclo de vida ──────────────────────────────────
@@ -133,7 +141,8 @@ class Jaime:
                          "meta": build_meta_server(self.meta),
                          "autonomo": build_autonomo_server(self.autonomo),
                          "casa": build_casa_server(self.casa, self.s.camera),
-                         "visao": build_visao_server(self.visao)},
+                         "visao": build_visao_server(self.visao),
+                         "evolucao": build_evolucao_server(self.evolucao, self.indice)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -267,6 +276,9 @@ class Jaime:
         if quer_teclado(texto):
             bus.emitir("teclado", aberto=True, motivo="você pediu")
             return "Pode escrever."
+        if (mi := re.match(r"^\s*implementa(?:r)?\s+(M-\d{4})\b", texto, re.I)):
+            asyncio.get_event_loop().create_task(self.evolucao.implementar(mi.group(1).upper()))
+            return f"Implementando {mi.group(1).upper()} num worktree isolado; te aviso quando a branch estiver pronta."
         if quer_parar(texto):
             # kill switch: visão contínua e objetivo autônomo param na hora, sem modelo
             parou = [n for n, ok in (("visão", self.visao.parar()), ("objetivo", self.autonomo.interromper())) if ok]
@@ -361,12 +373,24 @@ class Jaime:
             self.estudo.abrir(texto[:100], resposta[:400], "sem_resposta")
         await self._pos_turno(canal, texto, "".join(partes))
 
+    def _memoria(self, texto: str) -> str:
+        """Recall proativo: o que o vault já sabe sobre o assunto, em uma linha por lembrete (fora do diário de hoje)."""
+        try:
+            self.indice.atualizar()
+            hits = self.indice.recordar(texto)
+        except Exception:
+            return ""
+        if hits:
+            bus.emitir("raciocinio", ferramenta="memória", alvo="; ".join(h.split(":")[0] for h in hits))
+        return " | ".join(hits)
+
     async def _turno_anthropic(self, escolha, texto: str, canal: str, contexto: str, inicio: float):
         """O caminho normal: cliente persistente da Anthropic, com as mãos."""
         await self._usar_modelo(escolha.modelo)
         bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
                    motivo=escolha.motivo, exploracao=escolha.exploracao)
-        prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
+        memoria = self._memoria(texto) if canal in ("voice", "hud", "cli", "telegram", "whatsapp") else ""
+        prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "") + (f" [memória do vault: {memoria}]" if memoria else "")
         async for t in self._stream(f"{prefixo} {texto}"):
             yield t
         # acerto provisório: vira erro se o próximo turno for uma correção

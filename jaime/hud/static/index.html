@@ -375,6 +375,7 @@ function ligarStream(){
       case 'autonomo': if(e.titulo)feed($('prod'),`<span class="f">autônomo ${esc(e.etapa)}/${esc(e.total)}</span><span class="a">${esc(e.titulo)} · ${esc(e.estado)}</span>`);else if(e.msg)feed($('rac'),`<span class="f">autônomo</span><span class="a">${esc(e.msg)}</span>`);if(e.estado==='pausada')aviso('objetivo pausado pelo Vigia — diga "confirmo"',20000);break;
       case 'conexoes_canal': if(e.texto)mostrarVoce(`${e.canal}: ${e.de} — ${e.texto}`,true);if(e.erro)aviso(e.canal+': '+e.erro);break;
       case 'visao': feed($('prod'),`<span class="f">visão ${esc(e.passo)}/${esc(e.max)}</span><span class="a">${esc(e.acao||e.estado)} · ${esc(e.objetivo)}${e.motivo?' · '+esc(e.motivo):''}</span>`);if(e.estado==='ativa')aviso('visão contínua ativa — diga "para" para encerrar',8000);break;
+      case 'evolucao': feed($('rac'),`<span class="f">evolução</span><span class="a">${esc(e.id||'')} ${esc(e.titulo||'')} · ${esc(e.estado||e.msg||'')}</span>`);if(e.estado==='pronta')aviso('melhoria pronta: '+e.titulo+' — diga "confirmo" para o merge',20000);break;
       case 'placar': feed($('rac'),`<span class="f">placar</span><span class="a">${esc(e.msg)}</span>`);break;
       case 'humor': $('humor').textContent=e.rotulo||'—';[['h1',e.energia],['h2',e.calor],['h3',e.gravidade],['h4',e.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;

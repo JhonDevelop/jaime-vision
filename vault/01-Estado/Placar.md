@@ -1,10 +1,10 @@
 # Placar dos modelos
 
-> Gerado por `jaime/cortex/placar.py` em 15/09/2026 08:59. Acerto = tarefa fechada sem correção.
+> Gerado por `jaime/cortex/placar.py` em 15/09/2026 09:00. Acerto = tarefa fechada sem correção.
 
 | modelo | tipo | acertos | erros | taxa | latência média | custo |
 |---|---|---|---|---|---|---|
-| claude-haiku-4-5-20251001 | rotina | 2 | 0 | 75% | 12.3 s | US$ 0.151 |
+| claude-haiku-4-5-20251001 | rotina | 3 | 0 | 80% | 11.4 s | US$ 0.176 |
 | claude-opus-5 | código | 8 | 0 | 90% | 22.0 s | US$ 1.513 |
 | claude-sonnet-5 | pesquisa | 2 | 0 | 75% | 11.1 s | US$ 0.163 |
 | claude-sonnet-5 | redação | 2 | 0 | 75% | 3.6 s | US$ 0.137 |

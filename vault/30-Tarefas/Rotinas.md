@@ -5,3 +5,4 @@
 
 - 0 7 * * 1-5 · briefing
 - 0 18 * * 5 · fecha a semana
+- 0 9 * * 1 · propor melhoria

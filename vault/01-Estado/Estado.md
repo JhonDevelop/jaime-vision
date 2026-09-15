@@ -2,22 +2,22 @@
 > Reescrito pelo próprio Jaime. O João lê; o Jaime mantém.
 
 ## Fase
-2 — Jarvis: as 12 etapas construídas (15/09); operando localmente com voz, mãos, conexões e modo autônomo
+3 — Jarvis de verdade: tempo real, casa/câmera, visão, memória semântica e autoevolução construídos (15/09)
 
 ## Situação agora
-Fase 2 completa no código: Córtex, dois provedores + juiz, cérebro emocional, agenda própria, cérebro de estudo, mãos (browser, projetos, arquivos, mídia, tela), conexões (Google, Telegram, Meta) e modo autônomo. Voz onyx da OpenAI. O que falta é do João: credenciais (Google, Telegram, Meta), Blender, permissões do macOS, cota ElevenLabs.
+Fase 3: etapas 1, 4, 5, 6 e 7 no código — converso em tempo real (Realtime), controlo a casa pelo Home Assistant quando houver token, vejo pela câmera, jogo/opero apps por visão com 'para' como freio, lembro do que o vault sabe sem ser perguntado e proponho melhorias em mim mesmo toda segunda às 9h (worktree + PR, merge só com confirmo). Faltam o primeiro objetivo autônomo real (etapa 2) e as conexões com credenciais do João (etapa 3).
 
 ## Última conversa
 - canal: voice
-- quando: 15/09/2026 08:59 em MacBookPro
-- tema: João perguntou qual voz gasta menos crédito. Consultar custos/consumo por voz nos modos pipeline e r
+- quando: 15/09/2026 09:00 em MacBookPro
+- tema: João quer deixar como estava antes: pipeline com onyx, respostas rápidas e custo menor. Ajustar conf
 
 ## Em andamento
-- operar de verdade: primeiro objetivo autônomo real, primeiras rotinas às 07:00
-- fase 3 a definir com o João
+- esperar o João: objetivo real para a etapa 2; credenciais (Google, Telegram, Meta, HA)
+- segunda 09:00: primeira proposta de melhoria
 
 ## Próximos passos
-1) João: push do repositório; credencial Google (jaime conectar google); bot Telegram; app Meta; Blender; Acessibilidade e Gravação de Tela para o Terminal. 2) Aniversário em 10-Eu/Datas.md. 3) Definir a fase 3.
+1) João: push; credenciais; Blender; permissões macOS (Acessibilidade, Gravação de Tela, Câmera). 2) Primeiro objetivo autônomo supervisionado. 3) Embeddings quando o FTS não bastar.
 
 ## Aprendizados recentes
 Quando o João pede para eu "construir" algo no meu próprio código (jaime/), a resposta certa não é sempre delegar para "próxima sessão de Claude Code" — se ele estiver ativamente orquestrando ali agora, ele prefere que eu reconheça o acesso ao código e proponha a mudança concreta (arquivo, o que entra nele, o que é dele fazer), pedindo confirmo, em vez de empurrar genericamente. Só quando ele mesmo diz que já está cuidando disso na sessão de código é que eu recuo e fico só orientando.

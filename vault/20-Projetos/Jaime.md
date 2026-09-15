@@ -25,6 +25,7 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - 2026-09-15 — Modo autônomo: objetivo decomposto em etapas com aceite, checkpoints, pausa no Vigia, limites de horas/custo, relatório no diário.
 - 2026-09-15 — Fase 3 definida (docs/FASE-3.md). Etapa 1: modo conversa com GPT-Realtime-2 (fala-para-fala), microfone transmitido só com voz detectada localmente; o Agent SDK entra como ferramenta `jaime`. Pipeline continua o padrão econômico.
 - 2026-09-15 — Casa via Home Assistant (HomeKit pela integração do HA), câmera pela webcam/HA; visão contínua só por pedido explícito, com limite de passos e "para" como kill switch (o Vigia libera a tela apenas durante a sessão).
+- 2026-09-15 — Memória semântica com FTS5 (sem embeddings por ora) e recall proativo em cada turno. Autoevolução: proposta semanal, implementação em worktree isolado, PR, merge só com "confirmo".
 - 2026-09-15 — `jaime cerebro check` roda no boot; INDEX.md de Conhecimento e Projetos são gerados por código e entram no contexto inicial.
 - 2026-09-14 — Notion como espelho (página raiz + Diário, Tarefas, Conversas); vault continua sendo a fonte primária.
 - 2026-09-14 — Só local por padrão; palavra-passe com hash; reflexão a cada 6 turnos reescreve o Estado.
@@ -49,8 +50,8 @@ Assistente com voz, cérebro próprio e mãos no computador.
 - [ ] fase 3, etapa 3 — conexões ativadas (credenciais do João)
 - [x] fase 3, etapa 4 — casa e câmera (15/09; HA é do João)
 - [x] fase 3, etapa 5 — visão contínua (15/09)
-- [ ] fase 3, etapa 6 — memória semântica
-- [ ] fase 3, etapa 7 — autoevolução por PR
+- [x] fase 3, etapa 6 — memória semântica (15/09)
+- [x] fase 3, etapa 7 — autoevolução por PR (15/09)
 - [ ] NOTION_TOKEN para religar o espelho
 - [ ] `.claude/agents/` — os maesters ainda não existem como arquivos
 
