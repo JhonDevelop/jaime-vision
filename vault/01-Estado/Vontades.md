@@ -2,15 +2,15 @@
 
 > Mantido por `jaime/vontade/impulsos.py`. Prioridades com nome, não sentimentos: eu digo "quero", não "sofro".
 
-- atualizado: 2026-09-15 14:20
+- atualizado: 2026-09-15 14:23
 - ultima_criacao: 2026-09-15 14:01
-- demanda_pendente: sim
+- demanda_pendente: não
 
 ## Impulsos
 
 | impulso | nível | barra |
 |---|---|---|
-| Utilidade | 1.00 | ██████████ |
+| Utilidade | 0.90 | █████████░ |
 | Curiosidade | 0.28 | ███░░░░░░░ |
 | Vínculo | 0.25 | ██░░░░░░░░ |
 | Criação | 0.20 | ██░░░░░░░░ |
@@ -19,14 +19,13 @@
 
 ## Motivos
 
-- utilidade: 1 demanda(s) na fila
+- utilidade: fila vazia
 - maestria: acerto em 'pesquisa'
 - vinculo: 1 pergunta(s) sobre o João sem resposta
 - curiosidade: pergunta sem resposta
 
 ## Últimos movimentos
 
-- 15/09 14:05 Utilidade ↓ 0.10 → 0.90 — fila vazia
 - 15/09 14:05 Utilidade ↑ 0.15 → 1.00 — 1 demanda(s) na fila
 - 15/09 14:12 Utilidade ↓ 0.10 → 0.90 — fila vazia
 - 15/09 14:12 Utilidade ↑ 0.15 → 1.00 — 1 demanda(s) na fila
@@ -46,3 +45,4 @@
 - 15/09 14:20 Maestria ↓ 0.05 → 0.00 — acerto em 'pesquisa'
 - 15/09 14:20 Utilidade ↓ 0.10 → 0.90 — fila vazia
 - 15/09 14:20 Utilidade ↑ 0.15 → 1.00 — 1 demanda(s) na fila
+- 15/09 14:23 Utilidade ↓ 0.10 → 0.90 — fila vazia
