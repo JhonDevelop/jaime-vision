@@ -10,7 +10,7 @@ from .escuta import interpretar_chamada, quer_teclado, quer_descansar, LIXO_WHIS
 SR = 24000
 BLOCO = 480                      # 20 ms
 BLOCO_VAD = 768                  # 32 ms a 24 kHz = 512 amostras a 16 kHz (janela do Silero)
-CAUDA_S = 0.3                    # microfone volta a ouvir 300 ms depois do último áudio dele
+CAUDA_S = 0.5                    # microfone volta a ouvir 500 ms depois do último áudio dele
 URL = "wss://api.openai.com/v1/realtime?model={modelo}"
 
 FERRAMENTAS = [
@@ -124,7 +124,7 @@ class Conversa:
                     except queue.Empty:
                         if buf:                                   # fim da resposta: toca o que sobrou
                             out.write(bytes(buf)); buf.clear()
-                        if self.mudo and time.time() - self._ultimo_audio > CAUDA_S:
+                        if self.mudo and self._saida.empty() and time.time() - self._ultimo_audio > CAUDA_S:
                             self.mudo = False; bus.emitir("voz", falando=False, estado="ouvindo")
                         continue
                     self.mudo = True; self._ultimo_audio = time.time()
@@ -155,7 +155,7 @@ class Conversa:
             pass
         return {"type": "session.update", "session": {
             "type": "realtime", "instructions": instrucoes(self.jaime.identidade.nome, pros), "tools": FERRAMENTAS,
-            "audio": {"input": {"format": {"type": "audio/pcm", "rate": SR}, "turn_detection": {"type": "server_vad", "create_response": False, "silence_duration_ms": 600},
+            "audio": {"input": {"format": {"type": "audio/pcm", "rate": SR}, "turn_detection": {"type": "server_vad", "create_response": False, "interrupt_response": False, "silence_duration_ms": 700, "prefix_padding_ms": 300},
                                 "transcription": {"model": "gpt-4o-mini-transcribe", "language": "pt"}},
                       "output": {"format": {"type": "audio/pcm", "rate": SR}, "voice": self.s.realtime_voz}}}}
 
@@ -195,7 +195,13 @@ class Conversa:
     # ── eventos ──────────────────────────────────────
     async def tratar(self, ev: dict):
         t = ev.get("type", "")
-        if t == "input_audio_buffer.speech_started":
+        if t == "response.created":
+            # mudo já na criação da resposta (antes do 1º áudio): o eco do começo não vira "fala do João"
+            self.mudo = True; self._ultimo_audio = time.time() + 2.0
+            await self._enviar({"type": "input_audio_buffer.clear"})
+        elif t == "response.done":
+            self._ultimo_audio = time.time()          # a cauda conta a partir do fim da resposta
+        elif t == "input_audio_buffer.speech_started":
             bus.emitir("escuta", nivel=0.5, voz=0.9, gravando=True, janela_ativa=time.time() < self.gate.ativo_ate)
         elif t == "conversation.item.input_audio_transcription.completed":
             await self._transcricao(ev.get("transcript", ""))

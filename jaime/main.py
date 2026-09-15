@@ -151,7 +151,7 @@ def _voz(acao: str) -> int:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz", "permissoes"])
     ap.add_argument("acao", nargs="?", default="check")
     ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
@@ -160,6 +160,9 @@ def main(argv=None):
     if m == "skills": return _skills(args.acao)
     if m == "conectar": return _conectar(args.acao)
     if m == "voz": return _voz(args.acao)
+    if m == "permissoes":
+        from .ops.permissoes import rodar
+        return rodar()
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
     elif m == "hud": _serve(abrir_hud=True)
