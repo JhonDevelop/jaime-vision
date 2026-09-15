@@ -6,3 +6,10 @@
 - tentativas: 0
 ### Tentativas
 - (nenhuma)
+
+## P-0002 · Ferramenta falha repetidamente: Input validation error: 'corpo' is a required property · aberto · 2026-09-15
+- origem: ferramenta_falhou
+- contexto: Input validation error: 'corpo' is a required property
+- tentativas: 0
+### Tentativas
+- (nenhuma)

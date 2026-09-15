@@ -48,6 +48,7 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 | F29 | Cérebro emocional: perguntas nunca repetidas, datas/momento do dia, humor em 4 eixos → prosódia da voz e HUD | funcional | feito (15/09) |
 | F30 | Agenda própria: scheduler (Rotinas.md), lembretes, relógio, clima, feriados — sem n8n | funcional | feito (15/09) |
 | F31 | Cérebro de estudo: problemas em aberto → ciclo em sandbox → conhecimento, skill, placar | funcional | feito (15/09) |
+| F32 | Mãos: browser próprio (Playwright), criar projetos, organizar arquivos, skills pdf/docx/xlsx/pptx | funcional | feito (15/09) |
 
 ## Necessidades (o que o Jaime precisa do João)
 - `.env` preenchido: ANTHROPIC_API_KEY, NOTION_TOKEN (integração interna com acesso à página raiz), chaves de voz.
@@ -62,5 +63,5 @@ serviços, sabe quem é e em que fase está, e melhora a cada semana.
 
 ## Fase atual
 **1 → 2.** Operando localmente (voz, HUD 3D, observador, GitHub/Notion autenticados). Fase 2 (docs/FASE-2-JARVIS.md)
-em andamento: etapas 1–6 fechadas em 15/09 (identidade, Córtex, OpenAI + juiz, cérebro emocional, agenda própria, cérebro de estudo); próxima é a etapa 7 (mãos: browser, projetos, arquivos).
+em andamento: etapas 1–7 fechadas em 15/09 (identidade, Córtex, OpenAI + juiz, emocional, agenda, estudo, mãos); próxima é a etapa 8 (conexões Google + Telegram).
 n8n saiu do projeto — automações viram código nosso.

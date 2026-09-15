@@ -35,6 +35,7 @@ from ..agenda.tools import build_mundo_server
 from ..agenda import relogio, clima, lembretes as lem
 from ..estudo.loop import Estudo
 from ..estudo.tools import build_estudo_server
+from ..maos.tools import build_maos_server
 from ..hud.events import bus
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -101,7 +102,8 @@ class Jaime:
             mcp_servers={"cerebro": build_cerebro_server(self.vault, self.estado, self),
                          "emocao": build_emocao_server(self.perfil, self.perguntas, self.humor),
                          "mundo": build_mundo_server(self.agenda, self.s.lat, self.s.lon),
-                         "estudo": build_estudo_server(self.estudo)},
+                         "estudo": build_estudo_server(self.estudo),
+                         "maos": build_maos_server(self.vault, self.s.workspace)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

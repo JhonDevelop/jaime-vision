@@ -80,14 +80,40 @@ def _cortex(acao: str, texto: str) -> int:
                  Placar(settings.vault), exploracao=0.0)
     print(r.explicar(texto)); return 0
 
+SKILLS_OFICIAIS = ("pdf", "docx", "xlsx", "pptx")
+
+def _skills(acao: str) -> int:
+    """`jaime skills instalar`: baixa as skills oficiais de documentos (anthropics/skills) para .claude/skills/."""
+    import io, urllib.request, zipfile, shutil
+    if acao != "instalar":
+        print("uso: python -m jaime skills instalar"); return 2
+    destino = settings.root / ".claude" / "skills"; destino.mkdir(parents=True, exist_ok=True)
+    print("▶ baixando anthropics/skills…")
+    dados = urllib.request.urlopen("https://github.com/anthropics/skills/archive/refs/heads/main.zip", timeout=120).read()
+    z = zipfile.ZipFile(io.BytesIO(dados)); raiz = z.namelist()[0].split("/")[0]
+    for nome in SKILLS_OFICIAIS:
+        alvo = destino / nome
+        if alvo.exists():
+            shutil.rmtree(alvo)
+        membros = [n for n in z.namelist() if n.startswith(f"{raiz}/skills/{nome}/")]
+        for n in membros:
+            rel = n[len(f"{raiz}/skills/"):]
+            if n.endswith("/"):
+                (destino / rel).mkdir(parents=True, exist_ok=True); continue
+            (destino / rel).parent.mkdir(parents=True, exist_ok=True)
+            (destino / rel).write_bytes(z.read(n))
+        print(f"  ✔ {nome} ({len(membros)} arquivos)" if membros else f"  ✘ {nome} não encontrada no repositório")
+    print(f"skills em {destino}"); return 0
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills"])
     ap.add_argument("acao", nargs="?", default="check")
     ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
     if m == "cerebro": return _cerebro(args.acao)
     if m == "cortex": return _cortex(args.acao, " ".join(args.texto))
+    if m == "skills": return _skills(args.acao)
     if m == "chat": asyncio.run(_chat())
     elif m == "voice": asyncio.run(_voice())
     elif m == "hud": _serve(abrir_hud=True)

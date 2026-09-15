@@ -118,3 +118,16 @@ provedor falhar, devolve a resposta do outro sem arbitrar. O turno do juiz roda 
   skill em `.claude/skills/<slug>/` quando o estudo devolve uma. Não resolvido → tentativa e "o que falta" no problema.
 - Mente contínua (mínima): `rodar_em_ciclos` a cada 30 min, só com o cérebro liberado, ninguém falando e o lock livre.
   HUD: chip "estudando: N".
+
+
+## Mãos (fase 2, etapa 7) — `jaime/maos/`
+- `browser.py`: Playwright com perfil persistente em `~/Jaime/browser-profile` (janela própria do Jaime; logins feitos
+  uma vez ficam). Ferramentas `mcp__maos__abrir/ler_pagina/clicar/preencher/extrair/screenshot`. O Vigia segura cliques
+  em enviar/comprar/pagar/confirmar/assinar/checkout/excluir (texto ou seletor de submit) até o "confirmo".
+  `JAIME_BROWSER_HEADLESS=1` esconde a janela.
+- `projetos.py`: `criar_projeto(nome, tipo)` → pasta em `JAIME_WORKSPACE`, git init + primeiro commit, README,
+  `.env.example`, `CLAUDE.md` do projeto, nota em `20-Projetos/` pelo `templates/Projeto.md`. Tipos: python, node, generico.
+- `arquivos.py`: regras em `10-Eu/Jeito.md` › "## Arquivos" (`- *.pdf com "nota fiscal" → ~/Documents/Fiscal`);
+  `organizar_arquivos` só propõe; `mover` é ação do Vigia (confirmo).
+- Skills oficiais de documentos (pdf, docx, xlsx, pptx) instaladas em `.claude/skills/` por `python -m jaime skills instalar`
+  (baixa de github.com/anthropics/skills). O Agent SDK carrega `.claude/` via `setting_sources=["project"]`.

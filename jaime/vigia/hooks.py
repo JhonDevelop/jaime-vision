@@ -15,7 +15,9 @@ BASH_PERIGOSO = [
     r"git\s+reset\s+--hard", r"curl[^|]*\|\s*(ba)?sh", r"\bDROP\s+TABLE\b", r"\bTRUNCATE\b",
     r"\bshutdown\b", r"\breboot\b", r"\bkillall\b", r"\bchmod\s+-R\s+777",
 ]
-TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete)", re.I)
+TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete|mover|renomear|apagar)", re.I)
+# browser: clicar em enviar/comprar/pagar/confirmar/assinar (texto ou seletor de submit) espera o "confirmo"
+CLIQUE_IRREVERSIVEL = re.compile(r"(submit|enviar|comprar|finalizar|pagar|pagamento|confirmar|assinar|contratar|checkout|publicar|postar|excluir|apagar|deletar|delete|buy|pay|purchase|send)", re.I)
 CAMINHOS_PROTEGIDOS = re.compile(r"(^|/)(\.env|vault/00-Jaime/)")
 # o próprio código do Jaime: editar exige "confirmo" (e só vale depois de reiniciar o servidor)
 CODIGO_PROPRIO = re.compile(r"(^|/)jaime-vision/(jaime|tests)/.+\.py$|^(jaime|tests)/.+\.py$")
@@ -56,6 +58,8 @@ class Vigia:
                 return self._negar(f"arquivo protegido: {alvo}")
             if CODIGO_PROPRIO.search(alvo):
                 return {} if self._consome() else self._negar(f"isso é o seu próprio código ({alvo.split('/')[-1]}); mudança precisa de 'confirmo' e de reiniciar o servidor")
+        elif nome == "mcp__maos__clicar" and CLIQUE_IRREVERSIVEL.search(str(args.get("alvo", ""))):
+            return {} if self._consome() else self._negar(f"clique irreversível no browser: {str(args.get('alvo'))[:60]}")
         elif TOOLS_DE_ENVIO.match(nome):
             return {} if self._consome() else self._negar(f"ação externa: {nome}")
         return {}
