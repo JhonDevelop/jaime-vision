@@ -141,7 +141,7 @@ def test_barge_in_interrompe_o_modelo_guarda_na_fila_e_retoma_com_sim():
     async def rodar():
         loop = asyncio.get_running_loop()
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=SimpleNamespace(on_parcial=None), antecipador=None)
-        o._tts = _TTS(); o.mudo = True
+        o._tts = _TTS(); o.mudo = True; o.barge_in = "on"          # independente do .env da máquina
         turno = asyncio.create_task(o._tratar_texto("jaime, me explica o plano da semana", b"", t_fim_fala=time.time(), t_texto=time.time()))
         await asyncio.sleep(0.045)                                   # 1ª frase já saiu; o modelo ainda gera
         for _ in range(10): o._barge(0.1, 200.0, b"\x00" * 1024)     # calibra o eco
