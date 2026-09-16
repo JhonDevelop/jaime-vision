@@ -267,6 +267,24 @@ async def hud_sistemas():
 async def hud_conexoes():
     return conexoes.estado()
 
+@app.get("/hud/financas")
+async def hud_financas(mes: str = ""):
+    """Painel Finanças: saldo, entradas/saídas, gastos por categoria e evolução por mês (para os gráficos)."""
+    return jaime.financas.resumo(mes)
+
+@app.get("/hud/painel")
+async def hud_painel():
+    """Cockpit do J.A.I.M.E num JSON: finanças, afazeres (tarefas) e agenda (próximos lembretes/rotinas)."""
+    from datetime import datetime
+    tarefas = jaime.vault.tarefas_abertas()
+    try:
+        lembretes = [{"quando": q.strftime("%d/%m %H:%M"), "o_que": o} for q, o in sorted(jaime.agenda.lembretes())[:8]]
+    except Exception:
+        lembretes = []
+    rotinas = [{"cron": " ".join(c.values()), "ordem": o} for c, o in getattr(jaime.agenda, "rotinas", [])][:12]
+    return {"financas": jaime.financas.resumo(), "afazeres": tarefas, "afazeres_total": len(tarefas),
+            "agenda": {"lembretes": lembretes, "rotinas": rotinas}, "agora": datetime.now().strftime("%d/%m/%Y %H:%M")}
+
 @app.post("/hud/voz")
 async def hud_voz(body: dict):
     """Liga/desliga o microfone a partir do HUD."""

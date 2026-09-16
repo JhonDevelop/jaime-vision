@@ -39,6 +39,8 @@ from ..estudo.tools import build_estudo_server
 from ..equipe.tools import build_equipe_server
 from ..mente.pensar import Pensar
 from ..mente.tools import build_mente_server
+from ..financas.livro import Livro
+from ..financas.tools import build_financas_server
 from ..maos.tools import build_maos_server
 from ..conexoes.registro import Registro
 from ..conexoes.google import GoogleConta
@@ -121,6 +123,7 @@ class Jaime:
         self.equipe = Equipe(self, settings.root, vigia=self.vigia)
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
+        self.financas = Livro(self.vault)      # livro-caixa pessoal do João (painel Finanças)
         self._erros_vistos: dict[str, int] = {}
         # conexões: registro do que ele acessa + Google pelo OAuth próprio (token local)
         self.conexoes = Registro(self.vault)
@@ -178,7 +181,8 @@ class Jaime:
                          "visao": build_visao_server(self.visao),
                          "evolucao": build_evolucao_server(self.evolucao, self.indice),
                          "equipe": build_equipe_server(self.equipe),
-                         "mente": build_mente_server(self.pensar)},
+                         "mente": build_mente_server(self.pensar),
+                         "financas": build_financas_server(self.financas)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
