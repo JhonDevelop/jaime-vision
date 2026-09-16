@@ -94,6 +94,20 @@ orçamento do dia, vontades, humor, latência mediana, pendências que dependem 
 | Orçamento do dia | `/hud/sistemas.orcamento` | chip com barra: gasto/teto (âmbar > 80 %, vermelho esgotado); sem teto = "US$ x hoje" |
 | Rotina | `/hud/sistemas.rotina` | chip "atento" (ciano) · "ocioso" (cinza) · "noite criativa" (violeta); na noite criativa a cena escurece 10 % |
 
+## Cockpit — módulos (abas sob o cabeçalho; teclas 1–5; Esc fecha)
+
+Dados de `GET /hud/painel` a cada 10 s, e na hora quando o SSE traz `lembrete`, `agenda` ou `producao` tocando Inbox/Finanças/Lembretes.
+O painel de vidro abre **sobre** o cérebro 3D, que continua vivo atrás.
+
+| Módulo | Dados | Desenho |
+|---|---|---|
+| Finanças | `painel.financas` / `GET /hud/financas?mes=` | saldo grande (vermelho se negativo), entradas/saídas, rosca dos gastos por categoria e barras entradas×saídas por mês em canvas puro (varrem ao mudar os dados), últimos lançamentos; filtro "tudo / este mês" |
+| Afazeres | `painel.afazeres` (linhas `- [ ] … @projeto ⏳ prazo`) | lista com caixa, chip do projeto e prazo (vermelho se venceu); marcar é visual e fica no localStorage — o Inbox só muda quando o Jaime fecha a tarefa |
+| Agenda | `painel.agenda` | próximos lembretes (verde = hoje) e rotinas com o cron legível ("08:00 · seg–sex") |
+| Música | — | card "Spotify (conectar)": explica que precisa da conta do João; backend vem depois |
+| Cérebro | `GRAFO` (de `/hud/vault`) | notas, ligações, nota tocada agora, contagem por pasta, mais ligadas; botões para o grafo (G) e a memória (B) |
+| Abas | `painel` | cada aba mostra o valor vivo: saldo, tarefas abertas, próximo lembrete, "conectar", nº de notas |
+
 ## Grafo do vault (tecla G / botão "grafo") — estilo Graph View do Obsidian
 
 | Estado real | Sinal | Desenho |
