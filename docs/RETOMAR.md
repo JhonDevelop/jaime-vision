@@ -11,6 +11,21 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
+## 16/09 — raciocínio próprio, áudio e posicionamento
+- **Raciocínio próprio** (`jaime/mente/pensar.py` + `tools.py`, na `main`): quando ocioso, o Jaime forma UM pensamento
+  sobre o mundo do João (projetos, decisões do dia, uso, problemas em aberto), grava em `01-Estado/Pensamentos.md` e no
+  HUD, e CONSULTA o que já pensou antes de responder (injeta "[você já pensou sobre isso: …]" no turno). Ferramentas
+  `mcp__mente__pensar_agora` / `pensamentos`. Modelo rápido, gated por ocioso + orçamento; `JAIME_PENSAR=off` desliga,
+  `JAIME_PENSAR_INTERVALO_S` ajusta. É distinto do Estudo (resolve problema em sandbox) e das Vontades (escolhe atividade).
+- **Áudio bugado** era contenção: processos velhos (`falantes_worker`, `jaime serve`) dos muitos reinícios de hoje
+  disputavam o aparelho, e o stream de saída caía sempre no `afplay` (picotado). Reinício limpo (pkill do worker + serve,
+  uma instância) recuperou o dispositivo. Rede de segurança: `tts._abrir_stream` agora tenta latência low→high→default
+  antes de cair no afplay.
+- **Posicionamento**: ao destrancar, ele despejava o Estado cru em voz ("Fase 3… Situação…"). Agora diz só
+  "Bem-vindo de volta, João. Estou às ordens." — a fase/situação ficam no HUD.
+- Suíte: 226 verdes; 1 oscila (`test_telemetria` fórmula de prioridade, depende do relógio, do nó Bússola — não crítico).
+- Se reiniciar o serviço, faça sempre limpo: `bash jaime/ops/servico.sh parar && pkill -f falantes_worker` antes de ligar.
+
 ## 15/09, 18:15 — cotas, Gemini e harness
 - **Cotas**: Claude Max estourou 14:36 (nós Mente/HUD/Vigília pararam) e voltou 17:10 (Enter reenviado 18:05). Codex está com
   < 5% da franquia mensal — só tarefas curtas. **Novo nó "J.A.I.M.E · Gemini"** (preset Antigravity, papel "Gemini do Jaime",
