@@ -261,3 +261,34 @@ def test_ligar_monta_tudo_com_um_jaime_falso(vault, tmp_path):
     v = asyncio.run(go())
     assert v.impulsos.nivel("maestria") > REPOUSO["maestria"] and "organizar" in v.mente.executores and "criar" in v.mente.executores
     assert all(t.cancelled() or t.done() for t in v.tasks)
+
+
+# ── M-16 (Vigília 15/09): a mesma situação não empurra o impulso a cada sonda; Maestria tem piso ──
+def test_mesma_pergunta_pendente_so_sobe_uma_vez(vault):
+    imp = Impulsos(vault); v0, c0 = imp.nivel("vinculo"), imp.nivel("curiosidade")
+    imp.evento("perfil", perguntas_sem_resposta=1, datas_proximas=0)
+    v1, c1 = imp.nivel("vinculo"), imp.nivel("curiosidade"); assert v1 > v0 and c1 > c0
+    for _ in range(12):                                                   # 2 h de sondas com a mesma pergunta
+        imp.evento("perfil", perguntas_sem_resposta=1, datas_proximas=0)
+    assert imp.nivel("vinculo") == v1 and imp.nivel("curiosidade") == c1
+    imp.evento("perfil", perguntas_sem_resposta=2, datas_proximas=0)      # pergunta NOVA: sobe
+    assert imp.nivel("vinculo") > v1
+    imp.evento("perfil", perguntas_sem_resposta=0, datas_proximas=0, respondida="cor favorita")
+    assert imp.nivel("vinculo") < imp.niveis["vinculo"] + 1e-9 and imp._visto["perguntas"] == 0
+    imp.evento("perfil", perguntas_sem_resposta=1, datas_proximas=0)      # voltou a haver 1: conta de novo
+    assert imp.nivel("vinculo") > 0
+    # inbox e desordem: idem
+    o0 = imp.nivel("ordem"); imp.evento("inbox", abertas=30); o1 = imp.nivel("ordem"); assert o1 > o0
+    imp.evento("inbox", abertas=30); assert imp.nivel("ordem") == o1
+    imp.evento("saude", problemas=["link quebrado x"]); o2 = imp.nivel("ordem"); assert o2 > o1
+    imp.evento("saude", problemas=["link quebrado x"]); assert imp.nivel("ordem") == o2
+
+def test_maestria_nao_cai_abaixo_do_repouso_e_sobe_com_estudo_resolvido(vault):
+    imp = Impulsos(vault)
+    assert imp.nivel("maestria") == REPOUSO["maestria"]
+    for _ in range(10): imp.evento("placar", tarefa="voz", resultado="acerto")
+    assert imp.nivel("maestria") == REPOUSO["maestria"]                    # acerto não leva a 0,00
+    imp.evento("placar", tarefa="voz", resultado="erro"); m = imp.nivel("maestria"); assert m > REPOUSO["maestria"]
+    imp.evento("placar", tarefa="voz", resultado="acerto"); assert REPOUSO["maestria"] <= imp.nivel("maestria") < m
+    imp.evento("estudo", msg="resolvido P-0009 → 50-Conhecimento/x.md", abertos=0)
+    assert imp.nivel("maestria") > REPOUSO["maestria"] and "aprendi" in imp.motivo("maestria")
