@@ -94,6 +94,17 @@ orçamento do dia, vontades, humor, latência mediana, pendências que dependem 
 | Orçamento do dia | `/hud/sistemas.orcamento` | chip com barra: gasto/teto (âmbar > 80 %, vermelho esgotado); sem teto = "US$ x hoje" |
 | Rotina | `/hud/sistemas.rotina` | chip "atento" (ciano) · "ocioso" (cinza) · "noite criativa" (violeta); na noite criativa a cena escurece 10 % |
 
+## Grafo do vault (tecla G / botão "grafo") — estilo Graph View do Obsidian
+
+| Estado real | Sinal | Desenho |
+|---|---|---|
+| Notas e [[links]] do vault | `GET /hud/vault` (mesmo que a constelação; recarrega a cada 2 min) | vista 2D em canvas: bolinha por nota com rótulo, cor por pasta (legenda no rodapé), tamanho = 4 + 2,2·√(ligações); forças simples (repulsão, molas nas arestas, centragem) esfriando até parar |
+| Nota que ele lê/escreve agora | `producao.nota`, alvo com `/vault/`, `pensamento`, busca — tudo passa por `tocarNota` | o nó acende (anel branco) e pulsa ~3 s; as arestas dele ficam ciano forte; o resto esmaece |
+| Passar o mouse | hover | rótulo em branco, vizinhos em destaque |
+| Arrastar nó / arrastar fundo / roda | pointer, wheel | nó fixo enquanto arrasta (simulação reaquece); pan; zoom em volta do cursor (0,25×–4×). Enquanto o João não mexe, o grafo se enquadra sozinho na área livre entre os painéis |
+| Clique num nó | pointerup sem movimento | abre a nota no painel Cérebro (`/hud/nota`) |
+| G de novo | — | volta ao cérebro 3D (o 3D não renderiza enquanto o grafo está aberto) |
+
 ## Regras de desempenho
 - Loop de render limitado a 30 fps; atualizações de DOM vindas de eventos de alta frequência (`escuta`, `fala`,
   `transcricao_viva`) só marcam *dirty* e são aplicadas no próximo frame.
