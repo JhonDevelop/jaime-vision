@@ -340,9 +340,9 @@ class TTS:
         cortada = lambda: self._parando.is_set() or g != self._geracao
         if cortada() or not buf:
             return
-        if self.ao_tocar:
-            try: self.ao_tocar(buf)                          # referência p/ o supressor de eco (voice/eco.py)
-            except Exception: pass
+        # A referência do supressor de eco (voice/eco.py) guarda só os últimos 300 ms: precisa receber o PCM no ritmo em
+        # que ele TOCA, não a frase inteira de uma vez (16/09: com afplay a referência era o fim da frase durante a fala
+        # toda — similaridade nunca batia, e o barge-in decidia só pela energia).
         if not self.t_inicio_audio:
             self.t_inicio_audio = time.time()
         if self._usar_afplay:
@@ -355,6 +355,7 @@ class TTS:
                     if cortada():
                         return
                     st = self._abrir_stream()
+                    self._referencia(buf, i / max(1, len(dados)), (i + bloco) / max(1, len(dados)))
                     st.write(dados[i:i + bloco])
         except Exception as e:
             if cortada():
@@ -363,6 +364,15 @@ class TTS:
             self._usar_afplay = True                          # sticky: não reabre mais o PortAudio nesta sessão
             self._fechar_stream()
             self._tocar_afplay(buf, cortada)
+
+    def _referencia(self, buf: bytes, de: float, ate: float) -> None:
+        """Entrega ao supressor de eco a fatia de `buf` (PCM 24 kHz) entre as frações `de` e `ate` da frase."""
+        if not self.ao_tocar:
+            return
+        a = max(0, min(len(buf), int(de * len(buf)) & ~1)); b = max(a, min(len(buf), int(ate * len(buf)) & ~1))
+        if b > a:
+            try: self.ao_tocar(buf[a:b])
+            except Exception: pass
 
     def _abrir_stream(self):
         """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases.
@@ -427,11 +437,16 @@ class TTS:
                 return
             proc = subprocess.Popen([self._afplay, caminho], stderr=subprocess.DEVNULL)
             self._afplay_proc = proc
+            t0 = time.time(); total_s = len(pcm) / 2 / PCM_SR; entregue = 0.0
             while proc.poll() is None:
                 if cortada():
                     try: proc.terminate()
                     except Exception: pass
                     break
+                # referência de eco no ritmo da reprodução (o afplay não devolve blocos): fatia por tempo decorrido
+                ate = min(1.0, (time.time() - t0) / total_s) if total_s > 0 else 1.0
+                if ate > entregue:
+                    self._referencia(pcm, entregue, ate); entregue = ate
                 time.sleep(0.03)
         except Exception as e:
             print(f"⚠ afplay falhou ({type(e).__name__})")

@@ -189,6 +189,19 @@
   para ligar para o c" (cortada; "1 tarefa" agora casa). Etapa 2 atendida no benchmark; ao vivo, conferir "antecipação:
   usada" no diário depois do merge.
 
+#### M-24 · Barge-in não cortou o briefing (16/09 07:4x, prioridade do Cérebro) — **CORRIGIDO + instrumentado**
+- Log: "Não Jaime, não precisa, isso eu estou fazendo…" por cima do briefing; o briefing seguiu até o fim.
+- Causas no código: (1) com `afplay`, `ao_tocar` recebia a frase inteira de uma vez → a referência de eco (300 ms)
+  era o fim da frase durante a fala toda; similaridade inútil. (2) calibração de eco nos 320 ms após `mudo` = latência
+  do TTS (silêncio) → limiar no chão ou, na rotina, herdado de outra fala. (3) nenhum dado para ajustar limiares.
+- Solução: referência entregue por tempo decorrido no afplay (e por bloco no sounddevice); calibra só com áudio tocando
+  e zera a cada fala; evento `barge` no bus (0,5 s) e linha "Barge-in não cortou: voz por N ms (acima do eco …, vetada …;
+  rms máx X vs eco Y×1,8; sim máx Z)" no diário ao fim de cada fala com ≥ 400 ms de voz sem corte.
+- Validar ao vivo: o João fala por cima → corta em < 200 ms. Se não cortar, a linha do diário diz qual limiar segura
+  (`acima_ms` baixo → baixar `BARGE_IN_ECO_X`; `veto_ms` alto → subir `BARGE_IN_ECO_SIM`). Se cortar sozinho (eco), o
+  inverso. Só então mexer em `jaime/voice/duplex.py`.
+- Delegado ao Gemini (M-23): markdown/emoji lidos em voz alta nas rotinas + briefing frase a frase.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -220,7 +233,9 @@
 | 7g | M-14 muleta sem ferramenta · M-17 tranca na janela | latência/ruído | pronto, aguardando merge |
 | 7h | M-18 modelo fraco derruba rascunho local | 0/10 ao vivo | mergeado |
 | 7i | M-19 rotinas perdidas no sono · M-20 benchmark cego · M-21 refinamento encadeado | etapas 8 e 2 | pronto, aguardando merge |
-| 7j | M-22 senha no diário | segurança | pronto, aguardando merge |
+| 7j | M-22 senha no diário | segurança | mergeado |
+| 7k | M-24 barge-in com afplay (referência, calibração, dados) | prioridade do dia | pronto, aguardando merge |
+| 7l | M-23 markdown na fala das rotinas | qualidade da voz | delegado ao Gemini |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -241,3 +256,4 @@
 - 00:30 (16/09) — Vigília: 0/10 persistia com 22aec49 no ar. Causa: rascunho fraco do modelo derrubava o local. M-18 commitado (8e71b28); 222 testes. Fila de merge: 22aec49, f7c2e96, 38de1d5, 07665d8, 8e71b28.
 - 07:50 (16/09) — Vigília: 'nenhuma' 10/10 e 06:30/07:00 sem disparar. Reproduzi o benchmark cego com o Deepgram real (1º parcial só chega em ~216 ms, depois de todo o áudio) — fac9c82; catch-up de rotinas no boot — 5b7fcd9. 227 testes (+1 alheio, data-dependente).
 - 08:10 (16/09) — benchmark real com a Mente: 7/10, 320 ms, meta OK. M-21 (refinamento encadeado) e M-22 (redator de segredos) commitados; 231 testes. Fila de merge: fac9c82, 5b7fcd9, 3735934, redator, regex.
+- 08:00 (16/09) — main mergeada (tudo meu já está nela). Prioridade do Cérebro: áudio liso + barge-in. Barge-in não cortou o briefing: 3 causas achadas, corrigidas e instrumentadas (M-24); M-23 delegado ao Gemini. 233 testes.
