@@ -24,10 +24,22 @@ def test_resumo_no_diario_quando_a_voz_nao_corta():
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 1500.0, F)          # eco alto (alto-falante)
-        for _ in range(20): assert not o._barge(0.95, 2000.0, F)   # voz do João, mas abaixo de 1,8× o eco
+        for _ in range(20): assert not o._barge(0.95, 1400.0, F)   # voz, mas ABAIXO do eco: nem energia nem sustentada
         o.mudo = False; o._fim_da_fala()
         await asyncio.sleep(0.01)
         linhas = [t for _, t in j.vault.linhas if t.startswith("Barge-in não cortou")]
         assert len(linhas) == 1 and "voz por 640 ms" in linhas[0] and f"×{BARGE_IN_ECO_X}" in linhas[0]
         assert o._barge_stats == {} and o._eco_amostras == 0
+    asyncio.run(rodar())
+
+
+def test_voz_sustentada_no_nivel_do_eco_corta_mesmo_sem_passar_o_limiar():
+    """Vigília 16/09: voz do João por 2,6–3,3 s a 1,2× o eco e nada cortava. Eco não fica tanto tempo acima da própria média."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 1500.0, F)
+        cortou = [o._barge(0.95, 1600.0, F) for _ in range(24)]      # 1,07× o eco, 768 ms
+        assert cortou.index(True) * 32 >= 640 and o._tts.parou == 1 and o._barge_stats["motivo"] == "sustentado"
     asyncio.run(rodar())

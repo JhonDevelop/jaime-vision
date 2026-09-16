@@ -31,8 +31,11 @@ SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
 SILENCIO_ABERTO_MS = 1500     # antecipador diz que o João ainda vai continuar ("…e também")
 BARGE_IN_PROB = 0.82          # VAD enquanto o Jaime fala
 BARGE_IN_MS = 160             # voz contínua necessária para cortar
-BARGE_IN_ECO_X = 1.8          # RMS do João precisa ser 1,8× o eco medido (sem AEC)
-BARGE_IN_ECO_SIM = 0.80       # o supressor só VETA quando tem quase certeza de que é o próprio eco
+# Calibrado com as linhas "Barge-in não cortou" do diário (16/09 08:13–08:16, alto-falante, sem fone): a voz do João
+# ficou entre 1,2× e 2,5× o eco (1,8× segurava quase tudo) e os vetos por similaridade a 0,82–0,88 eram o João.
+BARGE_IN_ECO_X = 1.25         # RMS do João precisa ser 1,25× o eco medido (sem AEC)
+BARGE_IN_ECO_SIM = 0.92       # o supressor só VETA quando tem quase certeza de que é o próprio eco
+BARGE_IN_SUSTENTADO_MS = 700  # voz ≥ 1,0× o eco por este tempo corta mesmo sem passar de 1,25×: eco não fica 2–3 s acima da própria média
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
@@ -131,6 +134,7 @@ class OuvidoDuplex(Ouvido):
         self._barge_ms = 0
         self._supressor_eco = SupressorDeEco()
         self._barge_stats: dict = {}                      # por fala do Jaime: voz ouvida, acima do eco, vetada, cortou
+        self._sustentado_ms = 0
         self._barge_emitido = 0.0
         self._eco_rms = 0.0
         self._eco_amostras = 0
@@ -262,10 +266,16 @@ class OuvidoDuplex(Ouvido):
             self._barge_ms += FRAME_MS
         else:
             self._barge_ms = max(0, self._barge_ms - FRAME_MS)
-        if self._barge_ms < BARGE_IN_MS:
+        # voz contínua no nível do eco ou acima, por muito tempo: é o João falando por cima (2,6–3,3 s medidos)
+        if prob >= BARGE_IN_PROB and rms >= max(self._eco_rms, 80.0):
+            self._sustentado_ms += FRAME_MS
+        else:
+            self._sustentado_ms = 0
+        sustentado = self._sustentado_ms >= BARGE_IN_SUSTENTADO_MS
+        if self._barge_ms < BARGE_IN_MS and not sustentado:
             return False
-        self._barge_ms = 0
-        st["cortou"] = True
+        st["cortou"] = True; st["motivo"] = "sustentado" if sustentado and self._barge_ms < BARGE_IN_MS else "energia"
+        self._barge_ms = 0; self._sustentado_ms = 0
         restantes = self._tts.parar()
         self._nao_ditas = restantes
         self.interrompido = True
@@ -279,11 +289,17 @@ class OuvidoDuplex(Ouvido):
         """Fecha as estatísticas de barge-in da fala que acabou. Voz ouvida por ≥ 400 ms sem cortar vira uma linha no
         diário — é o dado que faltava para calibrar os limiares (16/09: o João falou por cima do briefing e nada cortou)."""
         st, self._barge_stats = self._barge_stats, {}
-        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0
+        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._sustentado_ms = 0
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
+        linha = ""
         if st.get("voz_ms", 0) >= 400 and not st.get("cortou"):
             linha = (f"Barge-in não cortou: voz por {st['voz_ms']} ms durante a minha fala (acima do eco {st['acima_ms']} ms, "
                      f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f})")
+        elif st.get("cortou"):
+            # também quando corta: é assim que se vê um corte pelo próprio eco (o João reclama "você não terminou de falar")
+            linha = (f"Barge-in cortou ({st.get('motivo', '?')}): voz {st['voz_ms']} ms, rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}, "
+                     f"sim máx {st['sim_max']:.2f}")
+        if linha:
             vault = getattr(self.jaime, "vault", None)
             if vault is not None:
                 try: self.loop.call_soon_threadsafe(vault.diario, linha, "Log")
