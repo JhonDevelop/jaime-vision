@@ -4,9 +4,29 @@ Tudo é markdown em disco: o João pode abrir no Obsidian e editar; o Jaime lê 
 pelas mesmas funções. Sem banco, sem embeddings por padrão — grep resolve até o vault
 passar de alguns milhares de notas."""
 from __future__ import annotations
-import re
+import hashlib, os, re
 from datetime import date, datetime
 from pathlib import Path
+
+# ── redator de segredos ─────────────────────────────────────
+# 16/09 07:24: uma reflexão do próprio Jaime escreveu a palavra-passe em texto puro no diário. Toda escrita no vault
+# passa por aqui: qualquer sequência de dígitos (ou números por extenso) cujo SHA-256 bata com JAIME_PASSPHRASE_HASH
+# vira "••••". Compara-se o hash, nunca a senha.
+_HASH_PADRAO = "1718c24b10aeb8099e3fc44960ab6949ab76a267352459f203ea1036bec382c2"
+_NUM = r"(?:zero|uma?|hum|du[ao]s|dois|tr[êe]s|quatro|cinco|seis|meia|sete|oito|nove|\d)"
+_SEQ_RX = re.compile(rf"\b{_NUM}(?:[ ,.\-]*{_NUM}){{3,15}}\b", re.I)
+
+def redigir_segredos(texto: str) -> str:
+    h = (os.environ.get("JAIME_PASSPHRASE_HASH") or _HASH_PADRAO).strip().lower()
+    if not texto or not h:
+        return texto
+    from ..vigia.acesso import normalizar
+    def _mascarar(m: re.Match) -> str:
+        digitos = normalizar(m.group(0))
+        if len(digitos) >= 4 and hashlib.sha256(digitos.encode()).hexdigest() == h:
+            return "••••"
+        return m.group(0)
+    return _SEQ_RX.sub(_mascarar, texto)
 
 DAILY_TEMPLATE = """# {dia}
 
@@ -38,7 +58,7 @@ class Vault:
             raise PermissionError("00-Jaime/ só o João edita")
         p = self.path(rel)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+        p.write_text(redigir_segredos(content), encoding="utf-8")
         return p
 
     def append(self, rel: str, text: str) -> Path:
