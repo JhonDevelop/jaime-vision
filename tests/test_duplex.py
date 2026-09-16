@@ -231,10 +231,12 @@ def test_barge_in_corta_a_fala_quando_o_joao_fala_por_cima():
         o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 200.0, F)          # calibra o eco: ~200 de RMS
         assert not o._barge(0.95, 240.0, F)                   # voz, mas no nível do eco (1,2×): ignora
-        cortou = False
-        for _ in range(8): assert not o._barge(0.95, 900.0, F)               # 256 ms: ainda não (mínimo 320 ms)
-        for _ in range(4): cortou = o._barge(0.95, 900.0, F) or cortou    # 384 ms bem acima do eco
-        assert cortou and o._tts.parou == 1 and o.interrompido and not o.mudo and o.det.falando
+        for _ in range(8):
+            o._barge(0.95, 900.0, F); assert not o._confirmando           # 256 ms: ainda não (mínimo 320 ms)
+        for _ in range(4): o._barge(0.95, 900.0, F)                       # 384 ms bem acima do eco
+        assert o._confirmando and o._tts.parou == 0                        # suspeita levantada, ninguém cortado ainda
+        o._parcial("jaime, para, quero outra coisa")                       # a transcrição voltou: aí sim
+        assert o._tts.parou == 1 and o.interrompido and not o.mudo and o.det.falando
         o.barge_in = "off"; o.mudo = True
         assert not any(o._barge(0.99, 5000.0, F) for _ in range(20))
     asyncio.run(rodar())

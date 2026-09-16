@@ -52,6 +52,12 @@ BARGE_IN_JANELA_SUST_MS = 1000  # janela do corte por voz sustentada
 # É uma FRAÇÃO da janela, não um tempo fixo: quando o João fala por cima do áudio do Jaime o VAD forte dispara em
 # ~1 de cada 4 frames (16/09 09:46), enquanto o toque do telefone deu 64 ms em 640 (0,1) e ruído de porta/teclado menos.
 BARGE_IN_VOZ_FORTE_FRACAO = 0.2
+# CORTE EM DOIS TEMPOS (16/09, pedido do João: "se ele entender ele interrompe; se a transcrição não voltar nada,
+# ele não interrompe"). O critério acústico acima não corta mais nada sozinho — ele só levanta a SUSPEITA: abre o
+# turno e começa a mandar o áudio ao STT enquanto o Jaime segue falando. Quem corta é a transcrição.
+BARGE_IN_CONFIRMA_MS = 1600   # sem palavra nenhuma neste tempo, a suspeita é descartada e ninguém foi interrompido
+BARGE_IN_MIN_PALAVRAS = 2     # uma sílaba solta do STT não é pedido
+BARGE_IN_ECO_TEXTO = 0.7      # transcrição com 70% das palavras do que ele está dizendo = o próprio eco voltando
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
@@ -128,6 +134,20 @@ class DetectorFim:
     def cancelar(self) -> None:
         self.falando = False; self._ms_voz = self._ms_sil = self._ms_total = 0; self.frase_fechou = None
 
+def fala_de_verdade(texto: str, dizendo: str = "") -> bool:
+    """A transcrição voltou palavra de verdade — e não lixo do STT nem o eco do que o próprio Jaime está dizendo?"""
+    t = (texto or "").strip()
+    if len(t) < 6 or LIXO_WHISPER.search(t):
+        return False
+    pal = [w for w in re.findall(r"[0-9a-zà-ÿ]+", t.lower()) if len(w) > 1]
+    if len(pal) < BARGE_IN_MIN_PALAVRAS:
+        return False
+    if dizendo:
+        dele = set(re.findall(r"[0-9a-zà-ÿ]+", dizendo.lower()))
+        if dele and sum(1 for w in pal if w in dele) / len(pal) >= BARGE_IN_ECO_TEXTO:
+            return False
+    return True
+
 class OuvidoDuplex(Ouvido):
     """Mesmo contrato do Ouvido (start/stop/falar/ativo/mudo/ocupado), com STT em streaming, antecipador,
     fim de turno semântico e barge-in. `fluxo` e `antecipador` são injetáveis (testes)."""
@@ -140,6 +160,7 @@ class OuvidoDuplex(Ouvido):
         self.interromper_joao = os.environ.get("JAIME_INTERROMPER", "0").lower() in ("1", "on", "true")
         self._interjeitou = False
         self.interrompido = False
+        self._confirmando = 0.0     # instante da suspeita acústica (0 = nenhuma em curso)
         self._fila_audio: asyncio.Queue | None = None
         self._lock_turno = asyncio.Lock()
         self._pre: deque = deque(maxlen=max(1, PRE_ROLL_MS // FRAME_MS))
@@ -258,6 +279,8 @@ class OuvidoDuplex(Ouvido):
         """Enquanto o Jaime fala: o João falou por cima? Mede o eco no começo e exige voz bem acima dele."""
         if self.barge_in == "off" or not self._tts:
             return False
+        if self._confirmando:                              # suspeita aberta: o STT decide, não a energia
+            return self._confirmar(prob, frame)
         if not getattr(self._tts, "t_inicio_audio", 0.0):
             # a fala ainda não começou a soar (latência do TTS): nada para calibrar — antes o eco era medido
             # neste silêncio e o limiar ficava no chão (16/09).
@@ -307,20 +330,61 @@ class OuvidoDuplex(Ouvido):
         sustentado = sustentado_ms >= BARGE_IN_SUSTENTADO_MS and forte_sust >= BARGE_IN_VOZ_FORTE_FRACAO
         if (not energia and not sustentado) or piso < BARGE_IN_VAD_FRACAO:
             return False
-        st["cortou"] = True; st["motivo"] = "energia" if energia else "sustentado"
-        self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_vad_sust.clear(); self._janela_piso.clear()
-        restantes = self._tts.parar()
+        self._suspeitar(prob, frame, "energia" if energia else "sustentado")
+        return False
+
+    # ── corte em dois tempos: a energia levanta a suspeita, a transcrição decide ──────────
+    def _suspeitar(self, prob: float, frame: bytes, motivo: str) -> None:
+        """Parece voz por cima da fala dele. NÃO corta: abre o turno e começa a transcrever enquanto ele fala.
+        Se voltar palavra, `_talvez_cortar` corta; se não voltar nada, `_desistir` apaga o assunto."""
+        self._confirmando = time.time()
+        st = self._barge_stats
+        st["motivo"] = motivo; st["suspeitas"] = st.get("suspeitas", 0) + 1
+        self._limpar_janelas()
+        bus.emitir("barge", suspeita=True, motivo=motivo)
+        self.det.cancelar(); self._alimentar(prob, frame)
+
+    def _confirmar(self, prob: float, frame: bytes) -> bool:
+        """Enquanto a suspeita está aberta, todo frame vai para o STT (o Jaime continua falando)."""
+        self._alimentar(prob, frame)
+        if (time.time() - self._confirmando) * 1000 >= BARGE_IN_CONFIRMA_MS:
+            self._desistir("transcrição não voltou nada")
+        return False
+
+    def _desistir(self, porque: str) -> None:
+        """Nada foi dito de verdade: fecha o trecho no STT sem virar turno e ninguém foi interrompido."""
+        self._confirmando = 0.0
+        self.det.cancelar(); self._enviar(b""); self._parcial_texto = ""
+        self._limpar_janelas()
+        self._barge_stats["desistiu"] = self._barge_stats.get("desistiu", 0) + 1
+        bus.emitir("barge", desistiu=True, porque=porque)
+
+    def _talvez_cortar(self, texto: str) -> bool:
+        """Chamado a cada parcial e no texto final: entendeu alguma coisa? Então corta."""
+        if not self._confirmando:
+            return False
+        if not fala_de_verdade(texto, getattr(self._tts, "dizendo", "")):
+            return False
+        self._confirmando = 0.0
+        self._barge_stats["cortou"] = True
+        restantes = self._tts.parar() if self._tts else 0
         self._nao_ditas = restantes
         self.interrompido = True
         self.mudo = False
         self._cancelar_modelo()
-        bus.emitir("voz", estado="interrompido", falando=False, restantes=restantes)
-        self.det.cancelar(); self._alimentar(prob, frame)
+        bus.emitir("voz", estado="interrompido", falando=False, restantes=restantes, texto=texto[:120])
         return True
+
+    def _limpar_janelas(self) -> None:
+        self._barge_ms = 0
+        for j in (self._janela_energia, self._janela_sust, self._janela_vad, self._janela_vad_sust, self._janela_piso):
+            j.clear()
 
     def _fim_da_fala(self) -> None:
         """Fecha as estatísticas de barge-in da fala que acabou. Voz ouvida por ≥ 400 ms sem cortar vira uma linha no
         diário — é o dado que faltava para calibrar os limiares (16/09: o João falou por cima do briefing e nada cortou)."""
+        if self._confirmando:
+            self._desistir("o Jaime terminou de falar")
         st, self._barge_stats = self._barge_stats, {}
         self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_vad_sust.clear(); self._janela_piso.clear()
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
@@ -382,6 +446,9 @@ class OuvidoDuplex(Ouvido):
                     texto = (await self.fluxo.finalizar()).strip()
                     self._t_texto = time.time()
                     bus.emitir("transcricao_viva", texto=texto, final=True)
+                    if self._confirmando and not self._talvez_cortar(texto):
+                        self._desistir("o final não trouxe palavra de verdade")
+                        continue                       # era barulho: não vira turno
                     pcm = bytes(self._pcm_turno)
                     asyncio.create_task(self._turno(texto, pcm, self._t_fim_fala, self._t_texto))
                 elif item == b"":
@@ -397,6 +464,7 @@ class OuvidoDuplex(Ouvido):
 
     def _parcial(self, texto: str) -> None:
         self._parcial_texto = texto
+        self._talvez_cortar(texto)
         bus.emitir("transcricao_viva", texto=texto, final=False)
         if self.antecipador and self.antecipador.pode_avaliar(texto):
             try:

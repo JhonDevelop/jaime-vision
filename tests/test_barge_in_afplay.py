@@ -40,8 +40,13 @@ def test_voz_sustentada_no_nivel_do_eco_corta_mesmo_sem_passar_o_limiar():
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 1500.0, F)
-        cortou = [o._barge(0.95, 1750.0, F) for _ in range(24)]      # 1,17× o eco (abaixo de 1,4×), 768 ms
-        assert cortou.index(True) * 32 >= 640 and o._tts.parou == 1 and o._barge_stats["motivo"] == "sustentado"
+        marcas = []
+        for _ in range(24):                                          # 1,17× o eco (abaixo de 1,4×), 768 ms
+            o._barge(0.95, 1750.0, F); marcas.append(bool(o._confirmando))
+        assert marcas.index(True) * 32 >= 640 and o._barge_stats["motivo"] == "sustentado"
+        assert o._tts.parou == 0                                     # suspeita não corta: quem corta é a transcrição
+        o._parcial("pode parar um pouco")
+        assert o._tts.parou == 1
     asyncio.run(rodar())
 
 
@@ -66,13 +71,15 @@ def test_linha_exata_da_vigilia_0919_corta_mesmo_com_prob_e_rms_oscilando():
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 358.0, F)                       # eco 358
-        cortou_em = None
+        suspeitou_em = None
         for i in range(53):                                               # 1696 ms; 81% dos frames acima do eco (1376 ms)
             bom = (i % 5) != 4
-            r = o._barge(0.95 if bom else 0.5, 1230.0 if bom else 300.0, F)
-            if r: cortou_em = i * 32; break
-        assert cortou_em is not None and cortou_em <= 640, cortou_em      # cortou dentro de 640 ms, não "no fim do segmento"
-        assert o._tts.parou == 1 and o._barge_stats["motivo"] == "energia"
+            o._barge(0.95 if bom else 0.5, 1230.0 if bom else 300.0, F)
+            if o._confirmando: suspeitou_em = i * 32; break
+        assert suspeitou_em is not None and suspeitou_em <= 640, suspeitou_em   # suspeitou dentro de 640 ms
+        assert o._barge_stats["motivo"] == "energia" and o._tts.parou == 0
+        o._parcial("espera aí jaime")
+        assert o._tts.parou == 1
     asyncio.run(rodar())
 
 def test_nao_cortou_diz_qual_gate_faltou():
@@ -96,11 +103,13 @@ def test_linha_exata_da_vigilia_0946_vad_esparso_corta_pela_energia():
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 335.0, F)
-        cortou_em = None
+        suspeitou_em = None
         for i in range(60):
-            r = o._barge(0.95 if i % 4 == 0 else 0.4, 1321.0, F)
-            if r: cortou_em = i * 32; break
-        assert cortou_em is not None and cortou_em <= 352 and o._barge_stats["motivo"] == "energia"
+            o._barge(0.95 if i % 4 == 0 else 0.4, 1321.0, F)
+            if o._confirmando: suspeitou_em = i * 32; break
+        assert suspeitou_em is not None and suspeitou_em <= 352 and o._barge_stats["motivo"] == "energia"
+        o._parcial("jaime, deixa eu falar")
+        assert o._tts.parou == 1
     asyncio.run(rodar())
 
 def test_eco_alto_do_proprio_jaime_nao_corta_pela_sustentada():
@@ -123,12 +132,16 @@ def test_linha_exata_da_vigilia_1009_toque_de_telefone_nao_corta():
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 349.0, F)
-        assert not any(o._barge(0.9 if i in (7, 8) else 0.05, 3202.0, F) for i in range(40))   # 1,3 s de toque, 2 frames "voz"
-        assert o._tts.parou == 0 and o._barge_stats["piso_max"] < 0.5
-        # o João falando junto (VAD esparso, mas ≥ 0,3 na maior parte) continua cortando
+        for i in range(40): o._barge(0.9 if i in (7, 8) else 0.05, 3202.0, F)   # 1,3 s de toque, 2 frames "voz"
+        assert not o._confirmando and o._tts.parou == 0 and o._barge_stats["piso_max"] < 0.5
+        # o João falando junto (VAD esparso, mas ≥ 0,35 na maior parte) continua levantando a suspeita
         for _ in range(25): o._barge(0.05, 200.0, F)
-        cortou = any(o._barge(0.95 if i % 4 == 0 else 0.45, 1321.0, F) for i in range(30))
-        assert cortou and o._tts.parou == 1
+        for i in range(30):
+            o._barge(0.95 if i % 4 == 0 else 0.45, 1321.0, F)
+            if o._confirmando: break
+        assert o._confirmando
+        o._parcial("jaime, para um pouco")
+        assert o._tts.parou == 1
     asyncio.run(rodar())
 
 
@@ -141,8 +154,50 @@ def test_barulho_alto_sem_voz_nao_corta_o_raciocinio():
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 300.0, F)                      # calibra o eco
         # 2 s de barulho a 5× o eco, com o VAD tropeçando de leve (prob 0.4: passa no piso, não é voz forte)
-        assert not any(o._barge(0.4, 1500.0, F) for _ in range(60))
-        assert o._tts.parou == 0
-        # a voz do João, no mesmo nível, corta
-        assert any(o._barge(0.95, 1500.0, F) for _ in range(20)) and o._tts.parou == 1
+        for _ in range(60): o._barge(0.4, 1500.0, F)
+        assert not o._confirmando and o._tts.parou == 0
+        # a voz do João, no mesmo nível, levanta a suspeita
+        for _ in range(20):
+            o._barge(0.95, 1500.0, F)
+            if o._confirmando: break
+        assert o._confirmando and o._tts.parou == 0
     asyncio.run(rodar())
+
+
+def test_suspeita_sem_transcricao_e_descartada_sem_interromper():
+    """João, 16/09: 'se a transcrição não voltar nada, ele não interrompe'. Suspeita acústica que não vira palavra
+    nenhuma em BARGE_IN_CONFIRMA_MS morre sozinha — o Jaime não é cortado e nenhum turno é criado."""
+    from jaime.voice.duplex import BARGE_IN_CONFIRMA_MS
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 300.0, F)
+        for _ in range(30):
+            o._barge(0.95, 1500.0, F)
+            if o._confirmando: break
+        assert o._confirmando and o._tts.parou == 0
+        o._confirmando = time.time() - (BARGE_IN_CONFIRMA_MS / 1000 + 0.1)   # passou o tempo, nada transcrito
+        o._barge(0.95, 1500.0, F)
+        assert not o._confirmando and o._tts.parou == 0 and not o.interrompido
+        assert o._barge_stats["desistiu"] == 1
+    asyncio.run(rodar())
+
+
+def test_eco_do_proprio_jaime_transcrito_nao_confirma_o_corte():
+    """O microfone devolve o que o Jaime está dizendo. Transcrição com as palavras dele não é o João falando."""
+    async def rodar_():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o._tts.dizendo = "Primeiro o vídeo, depois a estamparia e por fim o BUB"
+        o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 300.0, F)
+        for _ in range(30):
+            o._barge(0.95, 1500.0, F)
+            if o._confirmando: break
+        assert o._confirmando
+        o._parcial("depois a estamparia e por fim")          # é ele mesmo voltando pelo microfone
+        assert o._tts.parou == 0 and o._confirmando
+        o._parcial("chega disso, muda de assunto")           # agora é o João
+        assert o._tts.parou == 1
+    asyncio.run(rodar_())

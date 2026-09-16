@@ -60,6 +60,7 @@ class TTS:
         self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
         self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.0"))   # 1.15 saía atropelado
         self._t_nivel = 0.0          # último instante em que publicou a altura da voz
+        self.dizendo = ""            # texto das frases desta resposta — o barge-in usa para não se confirmar com o próprio eco
         self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
         self.t_primeiro_som = 0.0    # 1º som do TURNO (muleta incluída) — só `novo_turno()` zera; t_inicio_audio zera a cada resposta
         self.t_fim_audio = 0.0
@@ -135,8 +136,9 @@ class TTS:
             return
         with self._cond:
             if self._pendentes == 0:
-                self.t_inicio_audio = 0.0; self.interrompida = False
+                self.t_inicio_audio = 0.0; self.interrompida = False; self.dizendo = ""
                 bus.emitir("voz", falando=True, estado="falando", texto=texto)
+            self.dizendo = (self.dizendo + " " + texto)[-600:]
             self._pendentes += 1
             g = self._geracao
         self._pedidos.put((g, texto))
@@ -153,8 +155,9 @@ class TTS:
         texto = self._preparar(texto) or texto
         with self._cond:
             if self._pendentes == 0:
-                self.t_inicio_audio = 0.0; self.interrompida = False
+                self.t_inicio_audio = 0.0; self.interrompida = False; self.dizendo = ""
                 bus.emitir("voz", falando=True, estado="falando", texto=texto)
+            self.dizendo = (self.dizendo + " " + texto)[-600:]
             self._pendentes += 1
             g = self._geracao
         self._anterior = texto
