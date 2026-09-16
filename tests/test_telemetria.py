@@ -116,6 +116,9 @@ def test_prioridade_formula_frequencia_x_erro_x_tempo(vault):
     pr = Problemas(vault)
     pr.abrir("RLS do Supabase nega insert no BUB", "policy de insert", "ferramenta_falhou")          # P-0001
     pr.abrir("Whisper lento no Intel", "3,6 s por frase", "joao_pediu")                             # P-0002
+    # os problemas abrem com date.today(); o teste raciocina em 15/09 → fixa a data de abertura (quebrava a partir de 16/09)
+    from datetime import date as _date
+    rel = "90-Estudo/Problemas.md"; vault.write(rel, vault.read(rel).replace(_date.today().isoformat(), "2026-09-15"))
     pedidos = [{"t": "2026-09-15T10:00:00", "tipo": "código", "texto": "arruma a policy RLS do Supabase"},
                {"t": "2026-09-15T11:00:00", "tipo": "código", "texto": "por que o RLS bloqueia o insert"},
                {"t": "2026-09-15T12:00:00", "tipo": "redação", "texto": "escreve o post"}]
