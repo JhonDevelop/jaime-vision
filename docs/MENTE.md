@@ -278,6 +278,15 @@
 - Validar: no próximo sono com o processo vivo, "Relógio saltou…" e "Rotina perdida enquanto eu estava dormindo, vou rodar
   agora: …" no diário; "fecha o dia" às 18:00 hoje.
 
+#### M-34 · Observabilidade pedida pela Vigília (13:58) — **FEITO**
+- (a) Zero "Rotina concluída" em 3 rotinas: agora toda rotina termina com "concluída em N s" | "interrompida pela demanda
+  após N s" | "falhou após N s: …" (inclusive cancelamento). Se continuar sem linha de fim, a rotina não termina — aí é
+  o modelo preso, e os eventos MISSED/ERROR (M-33) dizem.
+- (b) Turnos após rotina com 2,9–4,1 s: a linha "Latência (voz)" ganha "lock esperado N ms" quando a demanda esperou o
+  orquestrador ≥ 200 ms. Se aparecer, a espera (≤ 5 s do `_ceder_rotina`) é a causa; se não, é o modelo.
+- (c) Linhas do barge-in: "acima do eco", rms, sim e veto valem para todos os frames (como as janelas); "voz" é só VAD.
+- Benchmark 13:51 5/10 (4 pareceres não especuláveis): observar — se repetir, olhar quais frases e o STT do `say`.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -320,6 +329,7 @@
 | 7r | M-31 janela por energia, sem VAD | etapa 3 | mergeado |
 | 7s | M-32 piso de voz (ruído não corta) | etapa 3 | pronto, aguardando merge |
 | 7t | M-33 tique recupera rotinas no sono com processo vivo | etapa 8 | pronto, aguardando merge |
+| 7u | M-34 fim de rotina, lock esperado, stats coerentes | observabilidade | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -349,3 +359,4 @@
 - 10:05 (16/09) — Vigília: janela máx 224/320 com 832 ms acima do eco → VAD esparso; M-31 (janelas por energia); 256 testes.
 - 10:35 (16/09) — Vigília: telefone tocando cortou (energia 9×, VAD 64 ms) → M-32 piso de voz; 257 testes.
 - 13:40 (16/09) — Vigília: sono com processo vivo perdeu o cron das 13:00 → M-33 (tique de 60 s + idempotência + eventos do scheduler); 259 testes.
+- 14:10 (16/09) — M-34 (observabilidade pedida pela Vigília); 260 testes. Fila: fcc8173 (M-33) e M-34.
