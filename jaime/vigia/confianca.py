@@ -8,11 +8,11 @@ import re
 from ..identidade import eh_sim
 
 ARQUIVO = "01-Estado/Confianca.md"
-LIMIAR = 5
+LIMIAR = 3          # 3 aprovações sem correção viram proposta "posso fazer sem perguntar?" (era 5, a pedido do João)
 NEGATIVA_RX = re.compile(r"^\s*(n[aã]o|nunca|continua perguntando|deixa como est[aá]|prefiro n[aã]o)\b", re.I)
-CABECALHO = ("# Confiança — o que o Jaime já pode fazer sem perguntar\n\n"
-             "> Cada classe de ação aprovada 5 vezes sem correção vira uma proposta; \"sim\" torna a classe livre. "
-             "Apague a linha para voltar a perguntar.\n\n| classe | aprovações | livre |\n|---|---|---|\n")
+CABECALHO = (f"# Confiança — o que o Jaime já pode fazer sem perguntar\n\n"
+             f"> Cada classe de ação aprovada {LIMIAR} vezes sem correção vira uma proposta; \"sim\" torna a classe livre. "
+             f"Apague a linha para voltar a perguntar.\n\n| classe | aprovações | livre |\n|---|---|---|\n")
 
 class Confianca:
     def __init__(self, vault=None):

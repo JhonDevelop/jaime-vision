@@ -64,6 +64,7 @@ from ..maos.gravador import Gravador, interpretar as gravador_interpretar
 from ..evolucao import Evolucao
 from ..tools_evolucao import build_evolucao_server
 from ..hud.events import bus
+from ..hud.tools import build_interface_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -187,7 +188,8 @@ class Jaime:
                          "equipe": build_equipe_server(self.equipe),
                          "mente": build_mente_server(self.pensar),
                          "financas": build_financas_server(self.financas),
-                         "musica": build_musica_server(self.spotify)},
+                         "musica": build_musica_server(self.spotify),
+                         "interface": build_interface_server()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

@@ -13,7 +13,7 @@ Por que é assim (medido nesta máquina, 14/09/2026):
   conversão para o PortAudio — é de lá que vinham os estalos.
 
 Fase 3 (docs/FASE-3-TEMPO-REAL.md): `pre_sintetizar()` prepara a 1ª frase enquanto o João ainda fala,
-`tocar_pronto()` toca esse cache em ~0 ms, `parar()` mata tudo (barge-in), `velocidade` 1.15× por padrão
+`tocar_pronto()` toca esse cache em ~0 ms, `parar()` mata tudo (barge-in), `velocidade` 1.0× por padrão
 (JAIME_VOZ_VELOCIDADE) e `t_inicio_audio` marca quando a resposta começou a soar (métrica de latência).
 
 Ordem de tentativa: ElevenLabs → OpenAI gpt-4o-mini-tts → `say` do macOS em pt-BR → texto no terminal. Nunca fica mudo.
@@ -58,7 +58,8 @@ class TTS:
         self.ajustes: dict | None = None   # {"stability", "style"} vindos da prosódia (humor); None = .env
         self.instrucoes: str = ""          # instrução de estilo (prosódia) para o gpt-4o-mini-tts
         self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
-        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.15"))
+        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.0"))   # 1.15 saía atropelado
+        self._t_nivel = 0.0          # último instante em que publicou a altura da voz
         self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
         self.t_primeiro_som = 0.0    # 1º som do TURNO (muleta incluída) — só `novo_turno()` zera; t_inicio_audio zera a cada resposta
         self.t_fim_audio = 0.0
@@ -374,13 +375,33 @@ class TTS:
             self._tocar_afplay(buf, cortada)
 
     def _referencia(self, buf: bytes, de: float, ate: float) -> None:
-        """Entrega ao supressor de eco a fatia de `buf` (PCM 24 kHz) entre as frações `de` e `ate` da frase."""
-        if not self.ao_tocar:
-            return
+        """Entrega ao supressor de eco a fatia de `buf` (PCM 24 kHz) entre as frações `de` e `ate` da frase,
+        e publica a ALTURA real dessa fatia — é ela que anima o cérebro no cockpit (antes era um seno falso,
+        que não casava com a voz e parecia bug)."""
         a = max(0, min(len(buf), int(de * len(buf)) & ~1)); b = max(a, min(len(buf), int(ate * len(buf)) & ~1))
-        if b > a:
-            try: self.ao_tocar(buf[a:b])
+        if b <= a:
+            return
+        fatia = buf[a:b]
+        self._nivel_da_fatia(fatia)
+        if self.ao_tocar:
+            try: self.ao_tocar(fatia)
             except Exception: pass
+
+    def _nivel_da_fatia(self, fatia: bytes) -> None:
+        """RMS da fatia que está tocando agora → evento `voz.nivel` (0..1), no máximo ~25 por segundo."""
+        agora = time.time()
+        if agora - self._t_nivel < 0.04:
+            return
+        self._t_nivel = agora
+        try:
+            import numpy as np
+            x = np.frombuffer(fatia, dtype=np.int16).astype(np.float32)
+            if not len(x):
+                return
+            rms = float(np.sqrt(np.mean(x * x))) / 6000.0        # fala normal do TTS ~ 0,4-0,9
+            bus.emitir("voz", falando=True, estado="falando", nivel=max(0.0, min(1.0, rms)))
+        except Exception:
+            pass
 
     def _abrir_stream(self):
         """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases.

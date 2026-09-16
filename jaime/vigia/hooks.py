@@ -14,13 +14,18 @@ import hashlib, json, re, time
 from dataclasses import dataclass
 from claude_agent_sdk import HookMatcher
 
-ARMED_SECONDS = 300
+ARMED_SECONDS = 900          # um "sim" libera por 15 min (era 5)
 
+# Só o CATASTRÓFICO e irreversível pede "sim" (a pedido do João, 16/09 — Vigia bem mais permissivo).
+# sudo, chmod, reset --hard, reboot, push em feature ficaram LIVRES (dev do dia a dia, recuperável).
+# A pedido explícito e reafirmado do João (16/09): Vigia no mínimo. sudo e curl|sh também LIVRES.
+# Continua pedindo "sim" só o que apaga em massa, formata disco, reescreve o histórico remoto ou zera um banco.
 BASH_PERIGOSO = [
-    r"\brm\s+-[a-z]*r[a-z]*f", r"\brm\s+-[a-z]*f[a-z]*r", r"\bsudo\b", r"\bmkfs", r">\s*/dev/",
-    r"git\s+push\b.*(--force|-f\b)", r"git\s+push\b(?!.*origin\s+(feat|fix|chore|dev)\S*)",
-    r"git\s+reset\s+--hard", r"curl[^|]*\|\s*(ba)?sh", r"\bDROP\s+TABLE\b", r"\bTRUNCATE\b",
-    r"\bshutdown\b", r"\breboot\b", r"\bchmod\s+-R\s+777",
+    r"\brm\s+-[a-z]*r[a-z]*f\s+(/|~|\$HOME|\*)",   # rm -rf de raiz/home/tudo (rm -rf numa pasta do projeto é livre)
+    r"\bmkfs", r">\s*/dev/(disk|rdisk|sd)", r"\bdiskutil\s+(erase|reformat)",   # formatar/gravar em disco bruto
+    r"git\s+push\b.*(--force|-f\b)",                # push forçado (reescreve histórico remoto)
+    r"git\s+push\b(?!.*origin\s+(feat|fix|chore|dev|docs)\S*)",  # push em main
+    r"\bDROP\s+(TABLE|DATABASE)\b", r"\bTRUNCATE\s+TABLE\b",     # apagar dados de banco
 ]
 # só o que sai da máquina ou some: enviar, responder, encaminhar, PR/merge, apagar
 TOOLS_DE_ENVIO = re.compile(r"^mcp__.*__(send|reply|forward|create_pull_request|merge_pull_request|delete|apagar|enviar|email_enviar|dispensar_filho)", re.I)

@@ -85,7 +85,7 @@ def test_confianca_progressiva_propoe_na_quinta_e_libera_com_sim(tmp_path):
     assert "passa a ser livre" in c.responder("sim")
     assert c.livre("mcp__google__email_enviar") and _hook(v, *email) == {}          # sem lote, sem confirmo
     c2 = Confianca(vault)                                                          # persistiu no vault
-    assert c2.livre("mcp__google__email_enviar") and "| mcp__google__email_enviar | 5 | sim |" in vault.read("01-Estado/Confianca.md")
+    assert c2.livre("mcp__google__email_enviar") and f"| mcp__google__email_enviar | {LIMIAR} | sim |" in vault.read("01-Estado/Confianca.md")
     c2.corrigir(["mcp__google__email_enviar"]); c2.revogar("mcp__google__email_enviar")
     assert not c2.livre("mcp__google__email_enviar") and _negada(_hook(Vigia(c2), *email))
     c3 = Confianca(vault); c3.contagem["bash:git push"] = LIMIAR - 1
