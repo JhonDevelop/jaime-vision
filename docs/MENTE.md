@@ -224,6 +224,13 @@
 - Validar: linhas "Barge-in cortou (energia|sustentado)" quando o João fala por cima; zero "Barge-in cortou" sem o João
   falar (seria eco); "Você não terminou de falar" não volta.
 
+#### M-28 · "texto→1ª frase 14 s" com a muleta soando aos 3 s — **CORRIGIDO (medição)**
+- `enfileirar()` zera `t_inicio_audio` a cada resposta; a muleta acabava antes da 1ª frase real e a medida pulava para
+  a frase real. `TTS.novo_turno()` + `t_primeiro_som`: o 1º som do turno é o que o João percebe. Validar: no diário,
+  turnos com ferramenta/pensamento longo mostram texto→1ª frase ≈ 3–4 s (muleta), não 7–14 s.
+- Observação do mesmo diário (08:15): João falou por cima por 3,3 s (rms 1603 vs eco 1026, sim 0,88) sem corte e
+  pediu "Continua o que você estava falando" — é o caso exato do M-26.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -260,6 +267,7 @@
 | 7l | M-23 markdown na fala das rotinas | qualidade da voz | delegado ao Gemini |
 | 7m | M-25 rotina bloqueia a demanda | 1–2 min de espera | mergeado |
 | 7n | M-26 limiares do barge-in | prioridade do dia | pronto, aguardando merge |
+| 7o | M-28 latência conta a muleta | medição da etapa 5 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -283,3 +291,4 @@
 - 08:00 (16/09) — main mergeada (tudo meu já está nela). Prioridade do Cérebro: áudio liso + barge-in. Barge-in não cortou o briefing: 3 causas achadas, corrigidas e instrumentadas (M-24); M-23 delegado ao Gemini. 233 testes.
 - 08:25 (16/09) — Vigília: rotina bloqueia o João (66–122 s). M-25: demanda interrompe a rotina e a reagenda; 237 testes.
 - 08:40 (16/09) — Vigília trouxe os números do M-24: limiares recalibrados + regra de voz sustentada (M-26); 242 testes.
+- 08:35 (16/09) — M-28 (1º som do turno, muleta incluída); 243 testes. Fila de merge: 5f0e06d, 17f30b3, M-28.
