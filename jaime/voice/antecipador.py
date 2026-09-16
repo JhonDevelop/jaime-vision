@@ -200,14 +200,17 @@ class Antecipador:
             completude_modelo = 0.0
         modelo_especula = bool(rascunho_modelo) and completude_modelo >= ESPECULAR_A_PARTIR and not bool(d.get("ambigua", False))
         # o modelo só substitui o rascunho local se o parecer dele também for especulável (o nano devolvia um rascunho
-        # com completude 0,2 e derrubava o local — Vigília 23:44: 0/10 no benchmark mesmo com o M-13)
-        local = bool(base.rascunho) and base.origem == "heuristica" and not modelo_especula
+        # com completude 0,2 e derrubava o local — Vigília 23:44: 0/10 no benchmark mesmo com o M-13).
+        # A heurística é recalculada para o texto ATUAL: quando o texto cresce enquanto o modelo pensa, o refinamento
+        # seguinte parte do parecer do modelo (sem rascunho) e o local do texto novo se perdia (benchmark 16/09 07:55).
+        h = heuristico(self._ultimo_texto)
+        local = bool(h["rascunho"]) and not modelo_especula
         a = replace(base, texto=self._ultimo_texto, origem="modelo", latencia_s=time.time() - inicio,
                     intencao=str(d.get("intencao", base.intencao))[:80],
-                    completude=max(base.completude if local else 0.0, min(1.0, float(d.get("completude", base.completude)))),
+                    completude=max(h["completude"] if local else 0.0, min(1.0, float(d.get("completude", base.completude)))),
                     ambigua=False if local else bool(d.get("ambigua", base.ambigua)),
-                    acao_prevista=(base.acao_prevista if local else "") or str(d.get("acao_prevista", ""))[:120],
-                    rascunho=base.rascunho if local else rascunho_modelo,
+                    acao_prevista=(h["acao_prevista"] if local else "") or str(d.get("acao_prevista", ""))[:120],
+                    rascunho=h["rascunho"] if local else rascunho_modelo,
                     # o modelo decide se fechou, mas conjunção solta no fim é veto local (barato e certeiro)
                     frase_fechou=bool(d.get("frase_fechou", base.frase_fechou)) and not INACABADA_RX.search(self._ultimo_texto))
         self.ultima = a

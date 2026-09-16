@@ -168,3 +168,22 @@ def test_benchmark_medir_turno_com_fluxo_falso_e_antecipador_real():
     out = asyncio.run(rodar())
     assert out["Jaime, está aí?"] and out["Jaime, quanto está o dólar?"] and out["Jaime, o que tem na minha agenda hoje?"] and out["Jaime, abre o Finder."]
     assert sum(out.values()) >= 9 and not out["Jaime, que horas são?"]        # a hora muda entre a síntese e a fala: fora por desenho
+
+def test_texto_cresce_enquanto_o_modelo_pensa_e_o_local_do_texto_novo_sobrevive():
+    """Benchmark 16/09 07:55: 'me lembra de beber água em 20 min' terminava com parecer do modelo (completude 0,0,
+    rascunho vazio) porque o 2º refinamento partia do parecer anterior e não da heurística do texto atual."""
+    async def modelo(texto):
+        await asyncio.sleep(0.02)
+        return {"intencao": "x", "completude": 0.0, "ambigua": True, "rascunho": "", "acao_prevista": "aguardar continuidade da fala", "frase_fechou": False}
+    async def rodar():
+        a = Antecipador(modelo, intervalo_s=0.0)
+        await a.avaliar("Jaime, me lembra de", esperar=False)          # dispara o modelo com o prefixo
+        await a.avaliar("Jaime, me lembra de beber água em 20 min")   # o texto cresceu antes de o modelo responder
+        await a.esperar_modelo()
+        for _ in range(5):                                             # o refinamento encadeado do texto novo
+            await asyncio.sleep(0.03)
+            if a._em_curso is None or a._em_curso.done(): break
+        u = a.ultima
+        assert u.rascunho == "Anotando o lembrete." and u.especulavel and u.acao_prevista == "lembrete"
+        assert a.confere("Jaime, me lembra de beber água em 20 min.") is u
+    asyncio.run(rodar())
