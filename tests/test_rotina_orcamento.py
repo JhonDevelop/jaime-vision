@@ -180,3 +180,21 @@ def test_mente_respeita_modo_atento_e_orcamento(vault):
     assert asyncio.run(e.tick(lambda: False)) is None                   # ocupado: nem olha
     rel.avancar(86400)                                                  # dia novo: volta a estudar
     assert asyncio.run(e.tick()) is not None and len(ciclos) == 3
+
+
+# ── M-15 (Mente 15/09): o Mac dorme, o timer acorda atrasado, e o APScheduler descartava a rotina (grace de 1 s) ──
+def test_rotinas_e_lembretes_toleram_atraso_do_timer(vault):
+    from datetime import timedelta
+    from jaime.agenda.scheduler import GRACE_ROTINA_S, GRACE_LEMBRETE_S, ROTINAS_REL
+    vault.write(ROTINAS_REL, "# Rotinas\n\n- 0 18 * * mon-thu,sat,sun · fecha o dia\n- 0 22 * * * · consolida o que ouvi hoje\n")
+    async def rodar():
+        ag = Agenda(_Jaime(vault)); ag.start()
+        try:
+            rotinas = [j for j in ag._sched.get_jobs() if j.id.startswith("rotina:")]
+            assert len(rotinas) == 2 and all(j.misfire_grace_time == GRACE_ROTINA_S and j.coalesce for j in rotinas)
+            ag._agendar_lembrete(datetime.now() + timedelta(hours=1), "beber água")
+            lem = [j for j in ag._sched.get_jobs() if j.id.startswith("lembrete:")]
+            assert len(lem) == 1 and lem[0].misfire_grace_time == GRACE_LEMBRETE_S
+        finally:
+            ag.stop()
+    asyncio.run(rodar())

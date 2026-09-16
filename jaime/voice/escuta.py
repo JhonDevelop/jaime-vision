@@ -311,11 +311,12 @@ class Ouvido:
                 if oferta == "":
                     await asyncio.to_thread(self._falar, "Beleza, sigo de olho."); return
                 decisao, texto, limpo = "pediu", oferta, oferta
-            if decisao == "sem_nome" and not self.janela_ativa:
+            if decisao == "sem_nome" and (not self.janela_ativa or not self.jaime.acesso.liberado):
                 acesso = self.jaime.acesso
                 if not acesso.liberado:
                     # trancado: conversa ambiente NÃO recebe "Palavra-passe, por favor." em voz alta (15/09: dezenas de
-                    # vezes em 20 min). Só a própria palavra-passe, ou o nome dele, passam daqui.
+                    # vezes em 20 min) — nem dentro da janela dos 25 s depois de um "Jaime" (23:40: a cada frase solta).
+                    # Só a própria palavra-passe, ou o nome dele, passam daqui.
                     confere = getattr(acesso, "confere", None)
                     if not (confere and confere(texto)):
                         bus.emitir("ouvido", texto=texto, ignorado=True); return
@@ -393,8 +394,9 @@ class Ouvido:
                 try:
                     await asyncio.wait_for(usou_ferramenta.wait(), MULETA_S)
                 except asyncio.TimeoutError:
-                    return
-                await asyncio.sleep(MULETA_APOS_FERRAMENTA_S)
+                    pass                                   # sem ferramenta, mas MULETA_S de silêncio: também vale (5–9 s até o 1º token em perguntas reflexivas, 15/09)
+                else:
+                    await asyncio.sleep(MULETA_APOS_FERRAMENTA_S)
                 if not primeira.is_set():
                     self._enfileirar(random.choice(MULETAS))
             asyncio.create_task(muleta())

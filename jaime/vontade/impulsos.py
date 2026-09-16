@@ -46,7 +46,16 @@ class Impulsos:
         self._fila_pendentes = 0
         self._erro_no_turno = False
         self._erros_por_tipo: dict[str, int] = {}
+        # contagens já cobradas (Vigília 15/09: a MESMA pergunta sem resposta subia Vínculo/Curiosidade a cada sonda de
+        # 10 min até 1,00 e o ranking perdia sentido). Uma situação só empurra o impulso quando cresce.
+        self._visto: dict[str, int] = {}
         self._carregar()
+
+    def _novo(self, chave: str, n: int) -> int:
+        """Quanto a contagem `chave` cresceu desde a última vez (0 se igual ou menor). Guarda o valor atual."""
+        antes = self._visto.get(chave, 0)
+        self._visto[chave] = n
+        return max(0, n - antes)
 
     # ── leitura ───────────────────────────────────────
     def nivel(self, nome: str) -> float:
@@ -153,32 +162,42 @@ class Impulsos:
                     sobe("curiosidade", 0.05, f"erro repetido em '{tarefa or '?'}' ({n}×)")
             elif d.get("resultado") == "acerto":
                 self._erros_por_tipo[tarefa] = 0
-                desce("maestria", 0.05, f"acerto em '{tarefa or '?'}'")
+                # acerto relaxa a Maestria até o repouso, nunca até zero (ficava preso em 0,00 e nunca subia)
+                sobra = self.niveis["maestria"] - REPOUSO["maestria"]
+                if sobra > 1e-9:
+                    desce("maestria", min(0.05, sobra), f"acerto em '{tarefa or '?'}'")
         elif tipo == "estudo":
             msg = str(d.get("msg", ""))
             if msg.startswith("aberto"):
                 sobe("curiosidade", 0.15, msg[:80])
             elif msg.startswith("resolvido"):
                 desce("curiosidade", 0.20, msg[:80])
+                sobe("maestria", 0.05, "aprendi: " + msg[10:70])       # estudo concluído é maestria ganha
             elif "abertos" in d and int(d["abertos"] or 0) == 0 and not msg:
                 desce("curiosidade", 0.05, "nenhum problema em aberto")
         elif tipo == "saude":
             probs = [str(p) for p in (d.get("problemas") or [])]
             desordem = [p for p in probs if "órfã" in p or "link quebrado" in p]
             if desordem:
-                sobe("ordem", min(0.4, 0.05 * len(desordem)), f"{len(desordem)} órfã(s)/link(s) quebrado(s) no vault")
-            elif not probs:
-                desce("ordem", 0.20, "saúde do cérebro verde")
+                if self._novo("desordem", len(desordem)):
+                    sobe("ordem", min(0.4, 0.05 * len(desordem)), f"{len(desordem)} órfã(s)/link(s) quebrado(s) no vault")
+            else:
+                self._visto["desordem"] = 0
+                if not probs:
+                    desce("ordem", 0.20, "saúde do cérebro verde")
         elif tipo == "inbox":
             n = int(d.get("abertas") or 0)
-            if n >= INBOX_GRANDE:
+            if n >= INBOX_GRANDE and self._novo("inbox", n):
                 sobe("ordem", 0.10, f"Inbox com {n} tarefas")
+            elif n < INBOX_GRANDE:
+                self._visto["inbox"] = 0
         elif tipo == "perfil":
             sem = int(d.get("perguntas_sem_resposta") or 0); prox = int(d.get("datas_proximas") or 0)
-            if sem:
-                sobe("vinculo", min(0.3, 0.05 * sem), f"{sem} pergunta(s) sobre o João sem resposta")
+            novas = self._novo("perguntas", sem)
+            if novas:
+                sobe("vinculo", min(0.3, 0.05 * novas), f"{sem} pergunta(s) sobre o João sem resposta")
                 sobe("curiosidade", 0.03, "pergunta sem resposta")
-            if prox:
+            if self._novo("datas", prox):
                 sobe("vinculo", min(0.2, 0.05 * prox), f"{prox} data(s) próxima(s)")
             if d.get("respondida"):
                 desce("vinculo", 0.10, f"o João respondeu: {str(d['respondida'])[:50]}")

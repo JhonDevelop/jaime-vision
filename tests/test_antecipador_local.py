@@ -17,7 +17,8 @@ def test_rascunho_local_para_pedidos_comuns():
     assert rascunho_local("quanto está o dólar")[1] == "Deixa eu ver a cotação."
     assert rascunho_local("me lembra de beber água em vinte minutos")[1] == "Anotando o lembrete."
     assert rascunho_local("manda um resumo do dia")[1] == "Vou resumir o dia."
-    assert rascunho_local("oi tudo bem") == ("", "") and rascunho_local("Jaime, está aí?") == ("", "")
+    assert rascunho_local("oi tudo bem") == ("", "") and rascunho_local("Jaime, que horas são?") == ("", "")
+    assert rascunho_local("Jaime, está aí?")[1] == "Estou aqui, senhor." and rascunho_local("o que tem na minha agenda hoje")[1] == "Deixa eu ver a agenda."
 
 def test_heuristica_so_especula_com_frase_fechada():
     a = Antecipacao(texto="x", **heuristico("jaime abre o finder"))
@@ -118,3 +119,50 @@ def test_tres_palavras_soltas_nao_fecham_o_turno():
     assert heuristico("Jaime, abre o Finder.")["frase_fechou"]            # pontuação final: fechou
     assert heuristico("jaime abre o finder")["frase_fechou"]              # pedido reconhecido: fechou
     assert not heuristico("jaime tudo bem com você hoje")["frase_fechou"]  # solto, sem pontuação: espera o incerto (700 ms)
+
+def test_modelo_nao_apaga_o_rascunho_local():
+    async def modelo(texto):        # o que o gpt-4o-mini devolve de verdade para "abre o Finder": sem rascunho, completude baixa
+        return {"intencao": "abrir aplicativo", "completude": 0.5, "ambigua": True, "rascunho": "", "frase_fechou": True}
+    async def rodar():
+        a = await Antecipador(modelo, intervalo_s=0.0).avaliar("Jaime, abre o Finder.", esperar=True)
+        assert a.origem == "modelo" and a.rascunho == "Abrindo o Finder." and a.especulavel and a.acao_prevista == "abrir Finder"
+        # sem rascunho local, o modelo manda como antes
+        async def modelo2(texto): return {"completude": 0.9, "ambigua": False, "rascunho": "Tudo bem, e você?", "frase_fechou": True}
+        b = await Antecipador(modelo2, intervalo_s=0.0).avaliar("Jaime, tudo bem com você?", esperar=True)
+        assert b.rascunho == "Tudo bem, e você?" and b.especulavel
+    asyncio.run(rodar())
+
+def test_modelo_com_rascunho_fraco_nao_derruba_o_local():
+    async def nano(texto):          # o que o gpt-4.1-nano devolveu de verdade: rascunho próprio com completude 0,2
+        return {"intencao": "x", "completude": 0.2, "ambigua": True, "rascunho": "Quem enviou mensagem para você?", "frase_fechou": True}
+    async def rodar():
+        a = await Antecipador(nano, intervalo_s=0.0).avaliar("Jaime, quem me mandou mensagem", esperar=True)
+        assert a.especulavel and a.rascunho == "Deixa eu ver as mensagens."
+        async def bom(texto): return {"completude": 0.95, "ambigua": False, "rascunho": "Vendo suas mensagens agora.", "frase_fechou": True}
+        b = await Antecipador(bom, intervalo_s=0.0).avaliar("Jaime, quem me mandou mensagem", esperar=True)
+        assert b.especulavel and b.rascunho == "Vendo suas mensagens agora."      # modelo especulável manda
+    asyncio.run(rodar())
+
+def test_benchmark_medir_turno_com_fluxo_falso_e_antecipador_real():
+    """Caminho completo do 'voz latencia' (sem modelo): parciais crescendo palavra a palavra, como o interim do Deepgram."""
+    from jaime.voice.latencia import medir_turno, FRASES
+    from jaime.voice import stt_stream as ss
+    class Fluxo(ss.FluxoSTT):
+        conectado = True
+        def __init__(self, final): self.final = final; self.palavras = final.split(); self.n = 0
+        async def enviar(self, pcm):
+            if self.n < len(self.palavras):
+                self.n += 1; self._parcial(" ".join(self.palavras[:self.n]).rstrip(".?!"))
+        async def finalizar(self): return self.final
+    class TTS:
+        def pre_sintetizar(self, t): return b"x"
+    async def rodar():
+        out = {}
+        for f in FRASES:
+            r = await medir_turno(b"\x00\x00" * 512 * 12, Fluxo(f), Antecipador(None, intervalo_s=0.0), TTS())
+            out[f] = r["antecipado"]
+            assert "especulável=" in r["antecipacao"]
+        return out
+    out = asyncio.run(rodar())
+    assert out["Jaime, está aí?"] and out["Jaime, quanto está o dólar?"] and out["Jaime, o que tem na minha agenda hoje?"] and out["Jaime, abre o Finder."]
+    assert sum(out.values()) >= 9 and not out["Jaime, que horas são?"]        # a hora muda entre a síntese e a fala: fora por desenho

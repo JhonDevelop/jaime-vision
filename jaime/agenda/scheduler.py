@@ -21,6 +21,11 @@ ROTINAS_REL = "30-Tarefas/Rotinas.md"
 LINHA_RX = re.compile(r"^\s*-\s*([^·]+?)\s*·\s*(.+?)\s*$")
 CRON_RX = re.compile(r"^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$")
 VIGIA_ARQUIVO_S = 30
+# Tolerância de atraso dos jobs. O padrão do APScheduler é 1 s; no macOS o relógio monotônico do asyncio não conta o
+# tempo em que o Mac dorme (medido 15/09: 876 s de parede em 6 s de loop), o timer acorda atrasado e o job é descartado
+# como "perdido" — por isso NENHUMA rotina disparou em nenhum dia. Uma rotina horas atrasada ainda vale ser feita.
+GRACE_ROTINA_S = 3 * 3600
+GRACE_LEMBRETE_S = 30 * 60
 ATENTO_JANELA_S = 15 * 60          # §5: nada de estudo/criação se houve fala nos últimos 15 min
 NOITE_INICIO_H, NOITE_FIM_H = 21, 6   # §5: noite criativa 21h–06h (janela, não cron)
 EVENTOS_FALA = ("conversa", "ouvido", "transcricao_viva")
@@ -151,7 +156,8 @@ class Agenda:
         self.rotinas = parse_rotinas(self.vault.read(ROTINAS_REL))
         for i, (cron, ordem) in enumerate(self.rotinas):
             try:
-                self._sched.add_job(self._rodar_ordem, CronTrigger(**cron, timezone=FUSO), args=[ordem, "rotina"], id=f"rotina:{i}", replace_existing=True)
+                self._sched.add_job(self._rodar_ordem, CronTrigger(**cron, timezone=FUSO), args=[ordem, "rotina"], id=f"rotina:{i}",
+                                    replace_existing=True, misfire_grace_time=GRACE_ROTINA_S, coalesce=True)
             except Exception as e:
                 bus.emitir("agenda", erro=f"rotina inválida '{ordem}': {e}"[:160])
         try:
@@ -199,7 +205,7 @@ class Agenda:
     def _agendar_lembrete(self, quando: datetime, o_que: str):
         from apscheduler.triggers.date import DateTrigger
         self._sched.add_job(self._disparar_lembrete, DateTrigger(run_date=quando), args=[quando, o_que],
-                            id=f"lembrete:{quando:%Y%m%d%H%M}:{o_que[:20]}", replace_existing=True)
+                            id=f"lembrete:{quando:%Y%m%d%H%M}:{o_que[:20]}", replace_existing=True, misfire_grace_time=GRACE_LEMBRETE_S)
 
     async def _disparar_lembrete(self, quando: datetime, o_que: str):
         frase = f"João, lembrete: {o_que}."

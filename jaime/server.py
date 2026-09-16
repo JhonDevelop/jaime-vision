@@ -79,6 +79,13 @@ async def lifespan(app: FastAPI):
     # mente contínua (mínima): estuda um problema em aberto a cada 30 min, só quando ninguém está falando com ele
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
     estudo_t = asyncio.create_task(jaime.estudo.rodar_em_ciclos(ocioso))
+    # raciocínio próprio: pensa sobre o mundo do João quando ocioso (respeita orçamento se houver)
+    if getattr(jaime, "pensar", None) is not None:
+        try: jaime.pensar.pode_gastar = (lambda: app.state.orcamento.pode("estudo")) if getattr(app.state, "orcamento", None) else (lambda: True)
+        except Exception: pass
+        pensar_t = asyncio.create_task(jaime.pensar.rodar(ocioso))
+    else:
+        pensar_t = None
     # fase 3: relatórios dos filhos (terminais no Maestri) chegam pela nota compartilhada; os importantes são falados
     equipe_t = asyncio.create_task(jaime.equipe.vigiar_relatorios(falar=(ouvido.falar if ouvido else None)))
     jaime.estudo.emitir()
@@ -94,6 +101,7 @@ async def lifespan(app: FastAPI):
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
     monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
+    if pensar_t: pensar_t.cancel()
     app.state.vontade.parar()   # fase 3 — E
     telemetria_t.cancel(); atencao_t.cancel(); telemetria.salvar()      # fase 3 — D
     if ouvido:

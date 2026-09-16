@@ -95,7 +95,55 @@
   rascunho «…» sem áudio a tempo | nenhuma`; e `antecipado` agora significa que o cache tocou de fato.
 - Validar: depois do merge, cada turno de voz no diário traz o motivo; contar "usada" por dia.
 
-#### M-08 · Frases fixas sintetizadas uma vez (delegado ao Codex às 15:45)
+#### M-11 · Fim de turno corta o João no meio — **CORRIGIDO (bf538e3, já na main)**
+- Diário 14:20 «…parabéns mas eu preciso» e 14:22 «você sabe sobre o meu» → "Fala truncada". A heurística marcava `frase_fechou`
+  para qualquer parcial de 3+ palavras sem conjunção no fim → turno em 450 ms. Agora: 450 ms só com pontuação ou pedido
+  reconhecido; finais em aberto ganham verbos/preposições que pedem complemento; frase claramente aberta espera 1,5 s.
+- Validar: sumir "Fala truncada"/"Não peguei o final" em falas com pausa de pensamento.
+
+#### M-12 · Áudio do Jaime cortado antes do fim (14:23, 1 ocorrência) — observar
+- «Você não terminou de falar.» após resposta de 2 frases; barge-in OFF; sem "⚠ placa de som". Hipóteses: `st.stop()` sem
+  drenar; 2ª frase enfileirada depois de `vazio`; TTS streaming da OpenAI encerrando cedo. Se repetir, instrumentar `_reprodutor`.
+
+#### M-13 · Vigília 18:04: ainda 0/10 — **causa achada e corrigida em feat/mente**
+- O código no ar já gera rascunho para "abre o Finder"/"dólar"/"clima" (testado no checkout do serviço). As ~35 linhas
+  "sem rascunho" ao vivo são conversa livre ("Pode encerrar então", "tem 3 cérebros") — correto. O 0/10 do `voz latencia`
+  vem de `esperar=True`: o parecer do modelo (completude 0,5, rascunho vazio) **substituía** o da heurística em `_refinar`.
+  Ao vivo o mesmo bug apagaria o cache nos turnos longos. Corrigido: rascunho do modelo quando existe, senão o local.
+- Validar: `voz latencia` → antecipados ≥ 7/10 (abre o Finder, tempo, lembrete, tarefa, dólar, resumo, site da Oldsen;
+  "está aí", "que horas são" e "agenda" ficam de fora por desenho).
+- Também às 18:06–18:08: texto→1ª frase 7,6–9,5 s **sem ferramenta** ("Quais são suas últimas funções", "sala do futuro"):
+  é o tempo até o 1º token do modelo em perguntas reflexivas — a muleta não entra sem ferramenta. Candidato M-14: muleta
+  também quando o 1º token demora > 2,5 s, ou modelo rápido no roteador para "conversa".
+
+#### M-15 · Nenhuma rotina do Rotinas.md disparou, em nenhum dia — **CORRIGIDO em feat/mente (f7c2e96)**
+- Zero "Rotina disparada" em todos os diários; `parse_rotinas`/`CronTrigger` corretos. Reproduzido 18:32 com marcações de
+  5 s: entre dois ticks o relógio de parede andou **876 s** e o do loop 6 s — o Mac dormiu. No macOS `time.monotonic()`
+  não conta o sono, o `call_later` do APScheduler acorda atrasado e o job é descartado pelo `misfire_grace_time` padrão
+  de 1 s (`Run time of job … was missed by 0:14:29`). Lembretes só disparavam quando o Mac estava acordado no minuto.
+- Solução: rotinas com `misfire_grace_time=3 h` + `coalesce`; lembretes 30 min. Validar: amanhã "Rotina disparada:
+  preparar o dia" (06:30) e "briefing" (07:00) no diário mesmo que o Mac tenha dormido; "fecha o dia" às 18:00.
+- Fica para o Cérebro: com o Mac dormindo, nada roda — para rotinas da madrugada vale um `caffeinate`/`pmset` ou
+  aceitar que rodem ao acordar (é o que a tolerância de 3 h faz).
+
+#### M-16 · Vontades saturadas (Vigília 22:04, etapa 9) — **CORRIGIDO em feat/mente (38de1d5)**
+- Curiosidade e Vínculo em 1,00 subindo +0,03/+0,05 a cada sonda de 10 min pela MESMA pergunta sem resposta; Maestria
+  presa em 0,00 (cada "acerto" descia 0,05 sem piso). Com três impulsos em 1,00 a Mente não discrimina.
+- Solução: perguntas, datas, Inbox e desordem só empurram quando a contagem **cresce** (idempotente; zera quando some);
+  acerto relaxa Maestria até o repouso 0,20, nunca a zero; "estudo resolvido" sobe Maestria 0,05.
+- Validar: `Vontades.md` — Vínculo/Curiosidade param de subir com a mesma pergunta e decaem para o repouso; Maestria ≥ 0,20.
+- Registro positivo (Vigília): fila + barge-in ao vivo (22:04, "Continuo o que eu dizia…?"), transcrição viva no stream
+  (75 eventos/60 s), "quero atender o João porque demanda pendente" no diário (21:57).
+
+#### M-14 · Perguntas reflexivas sem ferramenta: 5–9 s até o 1º som, sem muleta — **CORRIGIDO (07665d8)**
+- A muleta só entrava com ferramenta. Agora entra também após 3 s de silêncio sem ferramenta; com o cache M-08 custa ~0.
+- Validar: no diário, turnos sem ferramenta com texto→1ª frase ≤ ~4,5 s (muleta) em vez de 7–9 s.
+
+#### M-17 · Trancado, "Palavra-passe, por favor." a cada frase solta dentro da janela dos 25 s — **CORRIGIDO (07665d8)**
+- Log 23:40: depois de um "Jaime", cada fragmento ambiente recebia a resposta em voz alta. Agora, trancado, só a senha
+  ou o nome passam, com ou sem janela. Destrancado, a janela segue valendo.
+
+#### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
   consultado em `enfileirar`/`tocar_pronto`, faz essas responderem em ~150 ms. Candidato a delegar ao Codex.
@@ -118,8 +166,13 @@
 | 5 | M-05 Notion ruído no log | observabilidade | pronto |
 | 6 | M-06 FutureWarning | cosmético | pronto |
 | 7 | M-07 telemetria vazia | estudo dirigido | resolvido (acumulando) |
-| 7b | M-09 muleta tardia | 4,5 s → ~2 s com ferramenta | pronto, aguardando merge |
-| 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | proposta (Codex) |
+| 7b | M-09 muleta tardia | 4,5 s → ~2 s com ferramenta | mergeado |
+| 7c | M-11 corta o João no meio | irritação diária | mergeado |
+| 7d | M-13 modelo apaga rascunho local | 0/10 no voz latencia | pronto, aguardando merge |
+| 7e | M-15 rotinas não disparam | etapa 8 | pronto, aguardando merge |
+| 7f | M-16 vontades saturadas | etapa 9 | pronto, aguardando merge |
+| 7g | M-14 muleta sem ferramenta · M-17 tranca na janela | latência/ruído | pronto, aguardando merge |
+| 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
 ### Observações para o Cérebro Principal
@@ -133,3 +186,6 @@
 - 15:35 — Cérebro mergeou os 5 commits na main (194 testes, serviço no ar com barge-in ligado). `git merge main` feito. M-04 medido e corrigido com rascunho local (commits WIP + testes); 200 testes.
 - 15:55 — M-09 (muleta logo após a ferramenta) commitado; 205 testes. M-08 aguardando o Codex.
 - 16:05 — Vigília reportou etapas 2 e 5 falhando (mesma leitura: 0/10, TTS OpenAI). Respondi; M-10 (motivo da antecipação no diário) commitado; 206 testes.
+- 18:15 — retomada após pausa. Cérebro mergeou M-09/M-10/M-11 e o M-08 do Codex. Vigília: 0/10 persiste → causa era o modelo apagando o rascunho local em `_refinar`; corrigido (216 testes). Rotinas do dia nunca dispararam (M-15) — investigando.
+- 23:50 — M-15 reproduzido (Mac dormiu 876 s; grace 1 s) e corrigido; M-16 (vontades idempotentes, piso da Maestria) corrigido; 219 testes. Cérebro avisado: 22aec49, f7c2e96, 38de1d5 aguardam merge.
+- 00:05 (16/09) — M-14 e M-17 commitados (07665d8); 220 testes. Quatro commits aguardam merge: 22aec49, f7c2e96, 38de1d5, 07665d8.

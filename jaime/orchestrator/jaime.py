@@ -37,6 +37,8 @@ from ..agenda import relogio, clima, lembretes as lem
 from ..estudo.loop import Estudo
 from ..estudo.tools import build_estudo_server
 from ..equipe.tools import build_equipe_server
+from ..mente.pensar import Pensar
+from ..mente.tools import build_mente_server
 from ..maos.tools import build_maos_server
 from ..conexoes.registro import Registro
 from ..conexoes.google import GoogleConta
@@ -115,6 +117,8 @@ class Jaime:
         # fase 3: filhos — terminais que ele cria no Maestri (Claude Code, Codex…) para trabalhar em paralelo
         from ..equipe.filhos import Equipe
         self.equipe = Equipe(self, settings.root, vigia=self.vigia)
+        # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
+        self.pensar = Pensar(self.vault, s=settings)
         self._erros_vistos: dict[str, int] = {}
         # conexões: registro do que ele acessa + Google pelo OAuth próprio (token local)
         self.conexoes = Registro(self.vault)
@@ -171,7 +175,8 @@ class Jaime:
                          "casa": build_casa_server(self.casa, self.s.camera),
                          "visao": build_visao_server(self.visao),
                          "evolucao": build_evolucao_server(self.evolucao, self.indice),
-                         "equipe": build_equipe_server(self.equipe)},
+                         "equipe": build_equipe_server(self.equipe),
+                         "mente": build_mente_server(self.pensar)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -377,7 +382,8 @@ class Jaime:
             if self.acesso.tentar(texto):
                 self._senha_incerta = 0
                 bus.emitir("acesso", liberado=True)
-                return f"Acesso liberado. {self.estado.resumo_curto()} O que fazemos, João?"
+                # posicionamento: cumprimento curto de Jarvis, sem despejar Fase/Situação em voz alta (isso é do HUD)
+                return "Bem-vindo de volta, João. Estou às ordens."
             bus.emitir("acesso", liberado=False)
             return "Palavra-passe, por favor."
         self.acesso.tocar(); return None
@@ -506,7 +512,16 @@ class Jaime:
         bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
                    motivo=escolha.motivo, exploracao=escolha.exploracao)
         memoria = self._memoria(texto) if canal in ("voice", "hud", "cli", "telegram", "whatsapp") else ""
-        prefixo = f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "") + (f" [memória do vault: {memoria}]" if memoria else "")
+        # antes de responder, checar o que já pensei (tese §3): raciocínio próprio guardado sobre o assunto
+        try:
+            pensei = self.pensar.recall_para_prompt(texto)
+        except Exception:
+            pensei = ""
+        if pensei:
+            bus.emitir("raciocinio", ferramenta="pensamentos", alvo=pensei[:80])
+        prefixo = (f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
+                   + (f" [memória do vault: {memoria}]" if memoria else "")
+                   + (f" [você já pensou sobre isso: {pensei}]" if pensei else ""))
         try:
             async for t in self._stream(f"{prefixo} {texto}"):
                 yield t
