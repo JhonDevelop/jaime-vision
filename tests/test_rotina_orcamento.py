@@ -251,3 +251,30 @@ def test_rotina_registra_duracao_reagenda_e_nao_fala_o_que_sobrou_quando_cedida(
         finally:
             ag.stop()
     asyncio.run(rodar())
+
+
+# ── M-33 (Vigília 16/09 13:28): o Mac dorme com o processo vivo e o cron das 13:00 não roda nem é recuperado ──
+def test_tique_detecta_salto_do_relogio_e_recupera_o_cron_que_passou(vault):
+    from datetime import timedelta
+    from jaime.agenda.scheduler import ROTINAS_REL, FUSO
+    vault.write(ROTINAS_REL, "# Rotinas\n\n- 0 13 * * mon-fri · revisão de tarefas\n- 0 7 * * mon-fri · briefing\n")
+    j = _Jaime(vault); ag = Agenda(j); ag.rotinas = parse_rotinas(vault.read(ROTINAS_REL))
+    t = datetime(2026, 9, 16, 12, 58, tzinfo=FUSO)                       # quarta
+    assert ag.tique_uma_vez(t) == []                                       # nada passou
+    assert ag.tique_uma_vez(t + timedelta(minutes=1)) == []               # 12:59: ainda não
+    hoje = vault.read(vault.daily_rel(t.date()))
+    assert ag.tique_uma_vez(t + timedelta(minutes=14, seconds=35)) == ["revisão de tarefas"]   # acordou 13:12:35: 13:00 passou
+    d = vault.read(vault.daily_rel(t.date()))
+    assert "Relógio saltou 14 min (o Mac dormiu)" in d and "estava dormindo, vou rodar agora: revisão de tarefas" in d
+    assert ag.tique_uma_vez(t + timedelta(minutes=16)) == []              # já agendada: não repete
+    # sem salto, um slot que passa entre dois tiques também é pego (o timer do APScheduler pode ter pulado)
+    ag2 = Agenda(_Jaime(vault)); ag2.rotinas = ag.rotinas
+    ag2.tique_uma_vez(datetime(2026, 9, 17, 6, 59, 30, tzinfo=FUSO))
+    assert ag2.tique_uma_vez(datetime(2026, 9, 17, 7, 0, 30, tzinfo=FUSO)) == ["briefing"]
+
+def test_rotina_nao_roda_duas_vezes_em_dez_minutos(vault):
+    from datetime import timedelta as _td
+    j = _Jaime(vault); ag = Agenda(j)
+    asyncio.run(ag._rodar_ordem("briefing")); asyncio.run(ag._rodar_ordem("briefing"))
+    assert j.ordens == ["briefing"]                                        # a 2ª (tique + APScheduler acordando juntos) não roda
+    assert ag._disparada_ha_pouco("briefing") and not ag._disparada_ha_pouco("briefing", datetime.now() + _td(minutes=11))

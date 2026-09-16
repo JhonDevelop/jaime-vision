@@ -111,6 +111,7 @@ class Agenda:
         self._mtime = 0.0
         self.rotinas: list[tuple[dict, str]] = []
         self.ganchos: dict[str, list] = {}       # "fecha o dia" → [fn, ...] (fn sync ou async, sem argumentos)
+        self._ultimo_tique: datetime | None = None
 
     # ── ganchos (fase 3 — D) ─────────────────────────────
     def ao(self, chave: str, fn) -> None:
@@ -142,7 +143,14 @@ class Agenda:
         for quando, o_que in lem.pendentes(self.vault.read(lem.ARQUIVO)):
             self._agendar_lembrete(quando, o_que)
         self.recuperar_perdidas()
-        asyncio.get_event_loop().create_task(self._vigiar_arquivo())
+        try:
+            from apscheduler.events import EVENT_JOB_MISSED, EVENT_JOB_ERROR
+            self._sched.add_listener(self._evento_job, EVENT_JOB_MISSED | EVENT_JOB_ERROR)
+        except Exception:
+            pass
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._vigiar_arquivo())
+        loop.create_task(self._tique())
 
     # ── rotinas perdidas enquanto o processo não existia (Vigília 16/09: 06:30 e 07:00 caíram no sono do Mac) ──
     def perdidas(self, agora: datetime | None = None, janela_s: int = GRACE_ROTINA_S) -> list[str]:
@@ -164,15 +172,51 @@ class Agenda:
             achadas.append(ordem)
         return achadas
 
-    def recuperar_perdidas(self) -> list[str]:
+    def recuperar_perdidas(self, agora: datetime | None = None, janela_s: int = GRACE_ROTINA_S, motivo: str = "desligado") -> list[str]:
         from apscheduler.triggers.date import DateTrigger
-        ordens = self.perdidas()
+        agora = agora or datetime.now(FUSO)
+        ordens = self.perdidas(agora, janela_s)
         for i, ordem in enumerate(ordens):
-            quando = datetime.now(FUSO) + timedelta(seconds=20 + 30 * i)   # depois de o serviço acabar de subir, uma por vez
-            self._sched.add_job(self._rodar_ordem, DateTrigger(run_date=quando), args=[ordem, "rotina"],
-                                id=f"recuperada:{i}", replace_existing=True, misfire_grace_time=GRACE_ROTINA_S)
-            self.vault.diario(f"Rotina perdida enquanto eu estava desligado, vou rodar agora: {ordem}", "Log")
+            quando = agora + timedelta(seconds=20 + 30 * i)   # depois de o serviço acabar de subir/acordar, uma por vez
+            if self._sched:
+                self._sched.add_job(self._rodar_ordem, DateTrigger(run_date=quando), args=[ordem, "rotina"],
+                                    id=f"recuperada:{ordem[:30]}", replace_existing=True, misfire_grace_time=GRACE_ROTINA_S)
+            self.vault.diario(f"Rotina perdida enquanto eu estava {motivo}, vou rodar agora: {ordem}", "Log")
         return ordens
+
+    # ── tique: o Mac dorme com o processo VIVO (16/09 13:02–13:12) e o cron das 13:00 não rodou nem foi recuperado ──
+    TIQUE_S = 60
+    SALTO_S = 120
+
+    def tique_uma_vez(self, agora: datetime | None = None) -> list[str]:
+        """Um tique do relógio: se o relógio de parede saltou (sono) ou se algum slot de rotina passou desde o tique
+        anterior sem 'Rotina disparada', recupera. Independe dos timers do APScheduler (que não contam o sono)."""
+        agora = agora or datetime.now(FUSO)
+        anterior = self._ultimo_tique or agora
+        self._ultimo_tique = agora
+        salto = (agora - anterior).total_seconds()
+        if salto >= self.SALTO_S:
+            try: self.vault.diario(f"Relógio saltou {salto / 60:.0f} min (o Mac dormiu); conferindo rotinas perdidas", "Log")
+            except Exception: pass
+        janela = int(max(self.TIQUE_S * 2, salto + self.TIQUE_S))
+        return self.recuperar_perdidas(agora, janela_s=min(janela, GRACE_ROTINA_S), motivo="dormindo")
+
+    async def _tique(self):
+        while True:
+            await asyncio.sleep(self.TIQUE_S)
+            try:
+                self.tique_uma_vez()
+            except Exception as e:
+                bus.emitir("agenda", erro=f"tique: {type(e).__name__}: {e}"[:160])
+
+    def _evento_job(self, ev) -> None:
+        """MISSED/ERROR do APScheduler viram linha no diário: separa 'não disparou' de 'disparou e falhou'."""
+        try:
+            tipo = "perdido pelo scheduler" if getattr(ev, "code", 0) & 2 ** 13 else "falhou"
+            exc = getattr(ev, "exception", None)
+            self.vault.diario(f"Scheduler: job {getattr(ev, 'job_id', '?')} {tipo}" + (f": {type(exc).__name__}: {exc}"[:120] if exc else ""), "Log")
+        except Exception:
+            pass
 
     def stop(self):
         if self._sched:
@@ -208,7 +252,20 @@ class Agenda:
             if mt != self._mtime:
                 self.recarregar()
 
+    def _disparada_ha_pouco(self, ordem: str, agora: datetime | None = None, minutos: int = 10) -> bool:
+        """Já há 'Rotina disparada: ordem' nos últimos `minutos` no diário de hoje? (o APScheduler e o tique podem
+        acordar os dois para a mesma rotina; ela roda uma vez.)"""
+        agora = agora or datetime.now(FUSO)
+        txt = self.vault.read(self.vault.daily_rel(agora.date())) or ""
+        for m in re.finditer(rf"^- (\d\d):(\d\d) Rotina disparada: {re.escape(ordem)}", txt, re.M):
+            t = agora.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
+            if 0 <= (agora - t).total_seconds() <= minutos * 60:
+                return True
+        return False
+
     async def _rodar_ordem(self, ordem: str, canal: str = "rotina"):
+        if self._disparada_ha_pouco(ordem):
+            return
         bus.emitir("agenda", disparo=ordem, quando=datetime.now(FUSO).strftime("%H:%M"))
         self.vault.diario(f"Rotina disparada: {ordem}", "Log")
         if not self.jaime.acesso.liberado:
