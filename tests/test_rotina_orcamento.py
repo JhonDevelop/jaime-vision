@@ -211,6 +211,10 @@ def test_rotinas_perdidas_no_sono_rodam_no_boot(vault):
     vault.diario("Rotina disparada: briefing", "Log") if False else None
     hoje = vault.daily_rel(agora.date()); vault.write(hoje, "# 16/09\n\n## Log\n- 07:00 Rotina disparada: briefing\n")
     assert ag.perdidas(agora) == ["preparar o dia"]                       # a que já consta no diário não repete
+    vault.diario("Rotina perdida enquanto eu estava desligado, vou rodar agora: preparar o dia", "Log")
+    vault.write(hoje, vault.read(hoje).replace(f"- {__import__('datetime').datetime.now():%H:%M} Rotina perdida", "- 07:14 Rotina perdida"))
+    assert ag.perdidas(agora) == []                                       # outro boot já agendou: não duplica (07:35 rodou 2×)
+    vault.write(hoje, "# 16/09\n\n## Log\n- 07:00 Rotina disparada: briefing\n")
     assert ag.perdidas(datetime(2026, 9, 16, 12, 0, tzinfo=FUSO)) == []   # fora da janela de 3 h: não recupera
     assert ag.perdidas(datetime(2026, 9, 16, 1, 30, tzinfo=FUSO)) == []   # 22:00 de ontem: diário de ontem, não de hoje → mas fora da janela
     async def rodar():

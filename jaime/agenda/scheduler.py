@@ -159,8 +159,8 @@ class Agenda:
                 continue
             if prev is None or prev > agora:
                 continue                                   # nada previsto dentro da janela
-            if f"Rotina disparada: {ordem}" in diario_hoje:
-                continue                                   # já rodou (antes de o processo cair, ou em outro boot)
+            if f"Rotina disparada: {ordem}" in diario_hoje or f"vou rodar agora: {ordem}" in diario_hoje:
+                continue                                   # já rodou, ou outro boot (16/09 07:35: dois seguidos) já a agendou
             achadas.append(ordem)
         return achadas
 
