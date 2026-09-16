@@ -186,6 +186,14 @@ async def hud_tela():
         raise HTTPException(404)
     return FileResponse(ULTIMA, headers={"Cache-Control": "no-store"})
 
+@app.get("/hud/agentes")
+async def hud_agentes():
+    """O grafo COMPLETO do J.A.I.M.E (estilo ATSMATRIX): todas as peças reais como nós — orquestrador, maesters,
+    ferramentas, loops, equipe, e o cérebro inteiro do vault (notas, cada linha do diário, problemas, pensamentos,
+    música). Denso de verdade, sem inventar. Alimenta a vista central do cérebro no cockpit."""
+    from .hud.grafo import montar
+    return montar(jaime.vault, jaime)
+
 @app.get("/hud/vault")
 async def hud_vault():
     """O cérebro real: notas do vault como nós, [[links]] como arestas — o HUD desenha e acende o que ele toca."""
