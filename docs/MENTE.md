@@ -143,6 +143,16 @@
 - Log 23:40: depois de um "Jaime", cada fragmento ambiente recebia a resposta em voz alta. Agora, trancado, só a senha
   ou o nome passam, com ou sem janela. Destrancado, a janela segue valendo.
 
+#### M-18 · Vigília 23:44: ainda 0/10 com o M-13 no ar — **CORRIGIDO (8e71b28)**
+- Offline (fluxo falso, sem modelo) o benchmark dá 7/10. Ao vivo o modelo está ligado e `esperar=True` espera por ele: quando
+  o modelo devolve rascunho **próprio** com completude baixa (nano: "Quem enviou mensagem para você?", 0,2), ele substituía o
+  local e a antecipação deixava de ser especulável. Agora o modelo só substitui o local se o parecer dele for especulável.
+- "está aí" (→ "Estou aqui, senhor.") e "agenda/compromissos" (→ "Deixa eu ver a agenda.") entram na lista; "aí" em "está aí"
+  deixa de contar como fim em aberto. `voz latencia` imprime por turno origem/especulável/completude/ação/rascunho/parcial.
+- Teste do caminho completo de `medir_turno` exige ≥ 9/10 sem modelo. Exit 1 do comando é por desenho (mediana > 700 ms).
+- Validar: `voz latencia` ≥ 7/10 ao vivo com Deepgram (o `say` troca ~3/10 frases: "Finder"→"vender"; isso é o STT do
+  benchmark, não o antecipador).
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -172,6 +182,7 @@
 | 7e | M-15 rotinas não disparam | etapa 8 | pronto, aguardando merge |
 | 7f | M-16 vontades saturadas | etapa 9 | pronto, aguardando merge |
 | 7g | M-14 muleta sem ferramenta · M-17 tranca na janela | latência/ruído | pronto, aguardando merge |
+| 7h | M-18 modelo fraco derruba rascunho local | 0/10 ao vivo | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -189,3 +200,4 @@
 - 18:15 — retomada após pausa. Cérebro mergeou M-09/M-10/M-11 e o M-08 do Codex. Vigília: 0/10 persiste → causa era o modelo apagando o rascunho local em `_refinar`; corrigido (216 testes). Rotinas do dia nunca dispararam (M-15) — investigando.
 - 23:50 — M-15 reproduzido (Mac dormiu 876 s; grace 1 s) e corrigido; M-16 (vontades idempotentes, piso da Maestria) corrigido; 219 testes. Cérebro avisado: 22aec49, f7c2e96, 38de1d5 aguardam merge.
 - 00:05 (16/09) — M-14 e M-17 commitados (07665d8); 220 testes. Quatro commits aguardam merge: 22aec49, f7c2e96, 38de1d5, 07665d8.
+- 00:30 (16/09) — Vigília: 0/10 persistia com 22aec49 no ar. Causa: rascunho fraco do modelo derrubava o local. M-18 commitado (8e71b28); 222 testes. Fila de merge: 22aec49, f7c2e96, 38de1d5, 07665d8, 8e71b28.
