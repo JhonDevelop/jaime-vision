@@ -60,6 +60,7 @@ class TTS:
         self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
         self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.15"))
         self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
+        self.t_primeiro_som = 0.0    # 1º som do TURNO (muleta incluída) — só `novo_turno()` zera; t_inicio_audio zera a cada resposta
         self.t_fim_audio = 0.0
         self.interrompida = False    # a última fala foi cortada por parar()
         self._openai = None
@@ -157,6 +158,11 @@ class TTS:
             g = self._geracao
         self._anterior = texto
         self._prontos.put((g, texto, pcm if pcm else None))
+
+    def novo_turno(self) -> None:
+        """Começa a contar o 1º som do turno: a muleta ('deixa eu ver…') conta como 1ª frase percebida pelo João.
+        Antes, enfileirar() zerava t_inicio_audio quando a muleta acabava e o diário dizia 14 s onde o João ouviu algo em 4 s."""
+        self.t_primeiro_som = 0.0
 
     def parar(self) -> int:
         """Barge-in: cala em < 100 ms. Esvazia as filas, corta o bloco em curso e fecha o aparelho.
@@ -345,6 +351,8 @@ class TTS:
         # toda — similaridade nunca batia, e o barge-in decidia só pela energia).
         if not self.t_inicio_audio:
             self.t_inicio_audio = time.time()
+        if not self.t_primeiro_som:
+            self.t_primeiro_som = self.t_inicio_audio
         if self._usar_afplay:
             return self._tocar_afplay(buf, cortada)
         try:

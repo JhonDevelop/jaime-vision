@@ -53,3 +53,32 @@ def test_sem_ferramenta_mas_modelo_lento_tambem_tem_muleta(monkeypatch):
             await asyncio.sleep(0.8); yield "Sou um robô assistente."
     tts = _turno(_Lento())
     assert tts.falas[0] in MULETAS and tts.falas[-1] == "Sou um robô assistente."
+
+
+def test_latencia_conta_a_muleta_como_primeiro_som(monkeypatch):
+    """Diário 16/09 08:15: 'texto→1ª frase 14,31 s' num turno em que a muleta soou em ~3 s — o TTS zerava o marcador
+    quando a muleta acabava. Agora o 1º som do turno (muleta incluída) é o que vale."""
+    from jaime.voice import escuta
+    monkeypatch.setattr(escuta, "MULETA_S", 0.2)
+    class _TTSTurno(_TTS):
+        def __init__(self):
+            super().__init__(); self.t_primeiro_som = 0.0
+        def novo_turno(self): self.t_primeiro_som = 0.0
+        def enfileirar(self, t):
+            self.t_inicio_audio = time.time()                          # cada frase "começa a soar" agora (zera como o TTS real)
+            self.t_primeiro_som = self.t_primeiro_som or self.t_inicio_audio
+            self.falas.append(t)
+    class _Lento(_JaimeComFerramenta):
+        def __init__(self):
+            super().__init__(); self.vault = SimpleNamespace(diario=lambda t, s="Log": self.linhas.append(t)); self.linhas = []
+        async def ask_stream(self, texto, canal="voice", contexto=""):
+            await asyncio.sleep(0.9); yield "Sou um robô assistente."
+    async def rodar():
+        j = _Lento(); o = OuvidoDuplex(j, S, asyncio.get_running_loop(), fluxo=SimpleNamespace(on_parcial=None), antecipador=None)
+        o._tts = _TTSTurno(); o.mudo = True
+        t0 = time.time()
+        await o._tratar_texto("jaime, o que você é", b"", t_fim_fala=t0, t_texto=t0)
+        assert o._tts.falas[0] in MULETAS
+        lat = o.latencias.turnos[-1]
+        assert lat["texto_frase"] < 0.6                                # a muleta (~0,2 s) conta, não a resposta (~0,9 s)
+    asyncio.run(rodar())
