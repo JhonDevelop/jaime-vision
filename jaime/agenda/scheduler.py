@@ -11,7 +11,7 @@ auto-avaliação, consolidação). O que NÃO é cron fica aqui como função pu
 Ganchos: `Agenda.ao("fecha o dia", fn)` roda `fn` antes de a ordem ir ao modelo (recalcular prioridades, Uso.md)."""
 from __future__ import annotations
 import asyncio, inspect, re, time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from ..hud.events import bus
 from . import lembretes as lem
@@ -141,7 +141,38 @@ class Agenda:
         self.recarregar()
         for quando, o_que in lem.pendentes(self.vault.read(lem.ARQUIVO)):
             self._agendar_lembrete(quando, o_que)
+        self.recuperar_perdidas()
         asyncio.get_event_loop().create_task(self._vigiar_arquivo())
+
+    # ── rotinas perdidas enquanto o processo não existia (Vigília 16/09: 06:30 e 07:00 caíram no sono do Mac) ──
+    def perdidas(self, agora: datetime | None = None, janela_s: int = GRACE_ROTINA_S) -> list[str]:
+        """Ordens cujo último horário previsto caiu nas últimas `janela_s` e que ainda não constam no diário de hoje.
+        misfire_grace_time só recupera com o processo VIVO; o jobstore é em memória, então o boot precisa olhar para trás."""
+        from apscheduler.triggers.cron import CronTrigger
+        agora = agora or datetime.now(FUSO)
+        diario_hoje = self.vault.read(self.vault.daily_rel(agora.date())) or ""
+        achadas = []
+        for cron, ordem in self.rotinas:
+            try:
+                prev = CronTrigger(**cron, timezone=FUSO).get_next_fire_time(None, agora - timedelta(seconds=janela_s))
+            except Exception:
+                continue
+            if prev is None or prev > agora:
+                continue                                   # nada previsto dentro da janela
+            if f"Rotina disparada: {ordem}" in diario_hoje:
+                continue                                   # já rodou (antes de o processo cair, ou em outro boot)
+            achadas.append(ordem)
+        return achadas
+
+    def recuperar_perdidas(self) -> list[str]:
+        from apscheduler.triggers.date import DateTrigger
+        ordens = self.perdidas()
+        for i, ordem in enumerate(ordens):
+            quando = datetime.now(FUSO) + timedelta(seconds=20 + 30 * i)   # depois de o serviço acabar de subir, uma por vez
+            self._sched.add_job(self._rodar_ordem, DateTrigger(run_date=quando), args=[ordem, "rotina"],
+                                id=f"recuperada:{i}", replace_existing=True, misfire_grace_time=GRACE_ROTINA_S)
+            self.vault.diario(f"Rotina perdida enquanto eu estava desligado, vou rodar agora: {ordem}", "Log")
+        return ordens
 
     def stop(self):
         if self._sched:

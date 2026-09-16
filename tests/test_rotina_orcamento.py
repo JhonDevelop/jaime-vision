@@ -198,3 +198,27 @@ def test_rotinas_e_lembretes_toleram_atraso_do_timer(vault):
         finally:
             ag.stop()
     asyncio.run(rodar())
+
+
+# ── M-19 (Vigília 16/09): rotinas que caíram enquanto o processo não existia rodam no boot, uma vez ──
+def test_rotinas_perdidas_no_sono_rodam_no_boot(vault):
+    from datetime import timedelta
+    from jaime.agenda.scheduler import ROTINAS_REL, FUSO
+    vault.write(ROTINAS_REL, "# Rotinas\n\n- 30 6 * * mon-fri · preparar o dia\n- 0 7 * * mon-fri · briefing\n- 0 13 * * mon-fri · revisão de tarefas\n- 0 22 * * * · consolida o que ouvi hoje\n")
+    j = _Jaime(vault); ag = Agenda(j); ag.rotinas = parse_rotinas(vault.read(ROTINAS_REL))
+    agora = datetime(2026, 9, 16, 7, 14, tzinfo=FUSO)                      # quarta, o Mac acordou às 07:14
+    assert ag.perdidas(agora) == ["preparar o dia", "briefing"]
+    vault.diario("Rotina disparada: briefing", "Log") if False else None
+    hoje = vault.daily_rel(agora.date()); vault.write(hoje, "# 16/09\n\n## Log\n- 07:00 Rotina disparada: briefing\n")
+    assert ag.perdidas(agora) == ["preparar o dia"]                       # a que já consta no diário não repete
+    assert ag.perdidas(datetime(2026, 9, 16, 12, 0, tzinfo=FUSO)) == []   # fora da janela de 3 h: não recupera
+    assert ag.perdidas(datetime(2026, 9, 16, 1, 30, tzinfo=FUSO)) == []   # 22:00 de ontem: diário de ontem, não de hoje → mas fora da janela
+    async def rodar():
+        ag.start()
+        try:
+            rec = [jb for jb in ag._sched.get_jobs() if jb.id.startswith("recuperada:")]
+            return rec
+        finally:
+            ag.stop()
+    # com o relógio real, o que está nas últimas 3 h depende da hora: só garantimos que o boot não quebra
+    asyncio.run(rodar())
