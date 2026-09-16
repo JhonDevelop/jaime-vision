@@ -26,6 +26,7 @@
 | `fila` | voice/fila | `itens[{id,resumo,estado,ditas,pendentes}]`, `atual`, `aguardando` |
 | `equipe` | equipe/filhos | `filhos[{nome,tipo,estado,preset,tarefas}]` · `relatorio{nome,texto}` · `erro` |
 | `estudo` | estudo/loop | `abertos`, `msg` |
+| `pensamento` | mente/pensar (raciocínio próprio, ocioso) | `pensando`, `tema` · `texto`, `vale_dizer` · `ligado`, `total` · `erro` |
 | `vontade` | vontade/impulsos, mente | `niveis`, `escolha{pensamento}`, `demanda_pendente`, `erro` |
 | `humor` | orchestrator | `energia`, `calor`, `gravidade`, `confianca`, `rotulo` |
 | `placar`, `telemetria` | cortex/placar, telemetria | `msg` / `ligada`, `erro` |
@@ -67,6 +68,8 @@ orçamento do dia, vontades, humor, latência mediana, pendências que dependem 
 | Vigia anotou ação | `resultado` com "VIGIA" | som do Vigia; painel Sistemas mostra o lote em âmbar | "sim"/descarte |
 | Intensidade do turno | tokens de thinking + nº ferramentas + tamanho da fala | `UI.carga` 0–1 → brilho, tamanho dos pontos e opacidade das sinapses; decai 0,15/s | `fala_fim` zera |
 | Espera de rede | > 600 ms sem evento durante o turno | pulso lento do núcleo (2,4 s) em vez do pulso rápido | próximo evento |
+| Pensando sozinho (Mente contínua, ocioso) | `pensamento.pensando=true` | cérebro ouro claro em luz baixa, respiração lenta (1,2 rad/s); legenda "pensando sozinho · tema" | `pensamento` com `texto`/`erro`, ou 90 s |
+| Pensei | `pensamento.texto` | nó Obsidian pulsa ouro, estrela `01-Estado/Pensamentos.md` acende; feed "pensei · vale dizer"; linha mente do painel | — |
 | Tamanho do turno | `conversa`→`fala_fim` | linha "turno: 8,4 s · 3 ferramentas · 1,2k pensamento · 640 ms até a 1ª palavra" | próximo turno |
 
 ## Camada 3 — painel Sistemas (compacto, à esquerda)
@@ -78,6 +81,7 @@ orçamento do dia, vontades, humor, latência mediana, pendências que dependem 
 | Lote do Vigia | `/hud/sistemas.vigia.lote` + `resultado` VIGIA | bloco âmbar "esperando seu sim": lista das ações; some ao liberar/descartar |
 | Filhos (equipe) | `equipe.filhos` + `relatorio` | ● vivo / ○ parado · nome (tipo); relatório novo pisca violeta 2 s |
 | Estudo | `estudo` + `/hud/sistemas.estudo` | "N em aberto · estudando agora" ou motivo de não estudar |
+| Mente | `pensamento` + `/hud/sistemas.mente` | "N pensamentos · K a dizer · último"; âmbar quando há algo que vale dizer ao João; ciano enquanto pensa |
 | Pendente de você | lote, fila.aguardando, evolução pronta, objetivo pausado, nome proposto | lista âmbar no topo do painel; vazia = oculta |
 | A seguir | `estado.proximos` (1ª linha) + `vontade.escolha` | "a seguir: …" + "quero … porque …" em itálico |
 
@@ -86,7 +90,7 @@ orçamento do dia, vontades, humor, latência mediana, pendências que dependem 
 | Estado | Sinal | Desenho sutil |
 |---|---|---|
 | Humor | `humor` | chip com 4 barras (já existia); a vinheta ganha tom: grave → avermelhada, caloroso → âmbar, leve → ciano claro; transição 2 s |
-| Vontades | `vontade.niveis` | chip "vontade" com o impulso mais alto + mini-barras (6); constelação do vault gira 1,5× mais rápido quando Curiosidade > 0,6 |
+| Vontades | `vontade.niveis`, `movimentos`, `demanda_pendente` | chip "vontade" com o impulso mais alto + mini-barras (6) que deslizam a cada movimento; borda âmbar com demanda pendente; último movimento ("Utilidade ↑ 0,30 — demanda nova") no feed; constelação do vault gira 1,5× mais rápido quando Curiosidade > 0,6 |
 | Orçamento do dia | `/hud/sistemas.orcamento` | chip com barra: gasto/teto (âmbar > 80 %, vermelho esgotado); sem teto = "US$ x hoje" |
 | Rotina | `/hud/sistemas.rotina` | chip "atento" (ciano) · "ocioso" (cinza) · "noite criativa" (violeta); na noite criativa a cena escurece 10 % |
 
