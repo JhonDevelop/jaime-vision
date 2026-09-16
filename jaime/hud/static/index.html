@@ -147,9 +147,35 @@
   #menteBox input{width:100%;background:rgba(4,8,15,.8);border:1px solid rgba(79,216,255,.3);color:var(--tx);padding:9px 12px;border-radius:8px;font-size:14px;outline:none}
   .lista{font-size:12px;color:var(--tx);line-height:1.5}.lista div{padding:4px 0;border-bottom:1px dashed rgba(79,216,255,.08);cursor:pointer}.lista div:hover{color:var(--cy)}.lista .m{color:var(--mu);font-size:11px}
   .m{color:var(--mu)}
-  #aviso{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:6;font-size:11.5px;letter-spacing:.06em;color:var(--am);background:var(--pn);border:1px solid rgba(255,179,71,.35);padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none}
+  #aviso{position:fixed;top:104px;left:50%;transform:translateX(-50%);z-index:6;font-size:11.5px;letter-spacing:.06em;color:var(--am);background:var(--pn);border:1px solid rgba(255,179,71,.35);padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none}
   #aviso.on{opacity:1}
   @media (max-width:1100px){.painel{display:none}}
+
+  /* ── cockpit: barra de MÓDULOS (abas) e o painel de vidro sobre o cérebro ── */
+  #modulos{position:fixed;top:62px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:7}
+  .mod{cursor:pointer;display:flex;flex-direction:column;align-items:center;min-width:104px;padding:6px 12px 5px;border:1px solid var(--bd);border-radius:10px;background:var(--pn);backdrop-filter:blur(10px);color:var(--mu);transition:.25s;user-select:none}
+  .mod b{font-size:10px;letter-spacing:.26em;text-transform:uppercase;font-weight:500;color:var(--mu)}
+  .mod span{font-size:12px;color:var(--tx);margin-top:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mod:hover{border-color:rgba(79,216,255,.45);color:var(--cy)}
+  .mod.on{border-color:rgba(255,179,71,.7);box-shadow:0 0 18px rgba(255,179,71,.18),inset 0 -2px 0 var(--am)}.mod.on b{color:var(--am)}
+  .mod.alerta span{color:var(--am)}
+  body.sem-paineis #modulos{opacity:.35}
+  #modulo{position:fixed;left:50%;top:118px;transform:translateX(-50%);width:min(840px,94vw);max-height:calc(100% - 250px);overflow:auto;scrollbar-width:thin;z-index:8;
+          border:1px solid rgba(79,216,255,.3);border-radius:14px;background:rgba(6,16,26,.82);backdrop-filter:blur(14px);padding:16px 20px;box-shadow:0 0 60px rgba(79,216,255,.12);animation:in .25s}
+  #modulo h2{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--am);font-weight:500;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  #modulo h2 small{color:var(--mu);letter-spacing:.06em;text-transform:none;font-weight:400}
+  #modulo h3{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--cy2);margin:12px 0 6px}
+  .fin{display:grid;grid-template-columns:1.1fr 1fr;gap:14px 22px}
+  .saldo{font-size:40px;font-weight:200;color:var(--tx);letter-spacing:.02em;line-height:1.1;text-shadow:0 0 24px rgba(79,216,255,.25)}
+  .saldo.neg{color:var(--rd)}.saldo small{font-size:14px;color:var(--mu);letter-spacing:.1em;margin-right:6px}
+  .fluxo{display:flex;gap:18px;font-size:11.5px;color:var(--mu);margin-top:4px}.fluxo b{color:var(--gn);font-weight:500}.fluxo b.sai{color:var(--am)}
+  .fin canvas{width:100%;height:auto;display:block}
+  .legenda{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;font-size:11px;color:var(--mu);align-content:start}
+  .legenda i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-top:3px}.legenda b{color:var(--tx);font-weight:500;text-align:right}
+  .lanc{font-size:11.5px;display:grid;grid-template-columns:44px 1fr auto;gap:2px 10px;color:var(--mu)}.lanc span{color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lanc b{font-weight:500;color:var(--am);text-align:right}.lanc b.entra{color:var(--gn)}.lanc em{font-style:normal;color:var(--mu);margin-left:6px}
+  .mes{display:flex;gap:6px;margin-left:auto}.mes button{cursor:pointer;border:1px solid var(--bd);background:transparent;color:var(--mu);border-radius:14px;padding:3px 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase}.mes button.on{color:var(--am);border-color:rgba(255,179,71,.5)}
+  .vazio{color:var(--mu);font-size:12px;padding:6px 0}
 </style>
 </head>
 <body>
@@ -178,6 +204,14 @@
   </div>
 </header>
 <div id="aviso"></div>
+<nav id="modulos">
+  <div class="mod" data-mod="financas"><b>Finanças</b><span id="mFin">—</span></div>
+  <div class="mod" data-mod="afazeres"><b>Afazeres</b><span id="mAfa">—</span></div>
+  <div class="mod" data-mod="agenda"><b>Agenda</b><span id="mAge">—</span></div>
+  <div class="mod" data-mod="musica"><b>Música</b><span id="mMus">conectar</span></div>
+  <div class="mod" data-mod="cerebro"><b>Cérebro</b><span id="mCer">—</span></div>
+</nav>
+<section id="modulo" hidden></section>
 
 <aside class="painel esq">
   <h2>Sistemas</h2>
@@ -614,6 +648,7 @@ function flushDOM(t){
     const a=UI.antecip,on=UI.transcrevendo||(agora()-a.usado<0.8);$('ant').classList.toggle('on',on);
     if(on){const i=$('ant-i');i.style.width=((agora()-a.usado<0.8?1:a.completude)*100)+'%';i.className=agora()-a.usado<0.8?'usado':'';}}
   if(UI.turno&&!UI.turno.fim&&t-ultimoFlushTurno>0.5){ultimoFlushTurno=t;desenharTurno();}
+  if(MOD.anim<1){MOD.anim=Math.min(1,MOD.anim+0.06);desenharFinancas();}
 }
 const ms=v=>v==null?'—':Math.round(v*1000)+' ms';
 const k=n=>n>=1000?(n/1000).toFixed(1).replace('.',',')+'k':String(n);
@@ -741,6 +776,73 @@ function carregarSistemasLogo(){clearTimeout(sisT);sisT=setTimeout(carregarSiste
 async function carregarSistemas(){const s=await fetch('/hud/sistemas').then(r=>r.ok?r.json():null).catch(()=>null);if(s)renderSistemas(s);}
 carregarSistemas();setInterval(carregarSistemas,10000);
 
+
+// ── cockpit J.A.I.M.E: módulos (abas) sobre o cérebro — dados de GET /hud/painel (10 s + gatilhos do SSE) ──
+const MOD={aberto:null,painel:null,fin:null,mesFin:'',anim:1,feitos:new Set()};
+try{MOD.feitos=new Set(JSON.parse(localStorage.getItem('jaime.afazeres.feitos')||'[]'))}catch(e){}
+const brl=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const PALETA=['#4fd8ff','#ffb347','#c6a5ff','#5cff9d','#ff8fb1','#ffe27a','#8fb4c7','#1aa0c8','#ff5f5f','#a9d8ea'];
+function abrirModulo(nome){if(MOD.aberto===nome)nome=null;MOD.aberto=nome;
+  document.querySelectorAll('#modulos .mod').forEach(m=>m.classList.toggle('on',m.dataset.mod===nome));
+  const el=$('modulo');el.hidden=!nome;if(!nome)return;el.innerHTML='';renderModulo();el.scrollTop=0;}
+document.querySelectorAll('#modulos .mod').forEach(m=>m.onclick=()=>abrirModulo(m.dataset.mod));
+function renderModulo(){const n=MOD.aberto;if(!n)return;
+  if(n==='financas')renderFinancas();else if(n==='afazeres')renderAfazeres();else if(n==='agenda')renderAgenda();else if(n==='musica')renderMusica();else if(n==='cerebro')renderCerebroMod();}
+let painelT=null;
+function carregarPainelLogo(){clearTimeout(painelT);painelT=setTimeout(carregarPainel,400);}
+async function carregarPainel(){const d=await fetch('/hud/painel').then(r=>r.ok?r.json():null).catch(()=>null);if(!d)return;
+  const mudou=JSON.stringify(d.financas&&d.financas.por_categoria)!==JSON.stringify(MOD.painel&&MOD.painel.financas&&MOD.painel.financas.por_categoria);
+  MOD.painel=d;if(!MOD.mesFin)MOD.fin=d.financas;if(mudou)MOD.anim=0;
+  renderAbas();if(MOD.aberto)renderModulo();}
+function renderAbas(){const d=MOD.painel;if(!d)return;const f=d.financas||{};
+  const sf=$('mFin');sf.textContent=brl(f.saldo);sf.parentElement.classList.toggle('alerta',(f.saldo||0)<0);
+  const na=d.afazeres_total||0;$('mAfa').textContent=na?`${na} aberta${na===1?'':'s'}`:'nada aberto';
+  const l=(d.agenda&&d.agenda.lembretes||[])[0];$('mAge').textContent=l?`${l.quando} · ${l.o_que}`:`${(d.agenda&&d.agenda.rotinas||[]).length} rotinas`;
+  $('mCer').textContent=($('notas').textContent||'—')+' notas';}
+carregarPainel();setInterval(carregarPainel,10000);
+
+// FINANÇAS — saldo grande, rosca por categoria, barras por mês, últimos lançamentos (canvas puro)
+async function trocarMes(mes){MOD.mesFin=mes;if(!mes){MOD.fin=MOD.painel&&MOD.painel.financas;}else{MOD.fin=await fetch('/hud/financas?mes='+encodeURIComponent(mes)).then(r=>r.ok?r.json():null).catch(()=>null)||MOD.fin;}
+  MOD.anim=0;renderFinancas();}
+function renderFinancas(){const el=$('modulo'),f=MOD.fin||{},agora=new Date(),mesAtual=agora.toISOString().slice(0,7);
+  const sai=f.saidas||0,cats=(f.por_categoria||[]);
+  el.innerHTML=`<h2>Finanças <small>${esc(f.lancamentos||0)} lançamento${f.lancamentos===1?'':'s'}${MOD.mesFin?' · '+MOD.mesFin:' · tudo'}</small>
+      <div class="mes"><button class="${MOD.mesFin?'':'on'}" data-mes="">tudo</button><button class="${MOD.mesFin===mesAtual?'on':''}" data-mes="${mesAtual}">este mês</button></div></h2>
+    <div class="fin">
+      <div><div class="saldo ${(f.saldo||0)<0?'neg':''}"><small>saldo</small>${esc(brl(f.saldo))}</div>
+        <div class="fluxo"><span>entradas <b>${esc(brl(f.entradas))}</b></span><span>saídas <b class="sai">${esc(brl(f.saidas))}</b></span></div>
+        <h3>gastos por categoria</h3>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center"><canvas id="rosca" width="300" height="300"></canvas>
+          <div class="legenda" id="roscaLeg"></div></div></div>
+      <div><h3>entradas × saídas por mês</h3><canvas id="barras" width="760" height="300"></canvas>
+        <h3>últimos lançamentos</h3><div class="lanc" id="lancs"></div></div>
+    </div>`;
+  el.querySelectorAll('.mes button').forEach(b=>b.onclick=()=>trocarMes(b.dataset.mes));
+  const leg=$('roscaLeg');leg.innerHTML=cats.slice(0,8).map(([c,v],i)=>`<i style="background:${PALETA[i%PALETA.length]}"></i><span>${esc(c)}</span><b>${sai?Math.round(v/sai*100):0}%</b>`).join('')||'<div class="vazio">nenhum gasto ainda — diga "gastei 50 no mercado"</div>';
+  const ul=(f.ultimos||[]).slice().reverse();$('lancs').innerHTML=ul.map(l=>`<span style="color:var(--mu)">${esc((l.data||'').slice(5))}</span><span>${esc(l.descricao||l.categoria)}<em>${esc(l.categoria||'')}</em></span><b class="${l.tipo==='entrada'?'entra':''}">${l.tipo==='entrada'?'+':'−'}${esc(brl(l.valor))}</b>`).join('')||'<div class="vazio">nada registrado</div>';
+  desenharFinancas();}
+function desenharFinancas(){if(MOD.aberto!=='financas')return;const f=MOD.fin||{},k=MOD.anim;
+  const rc=$('rosca');if(rc){const c=rc.getContext('2d'),cats=(f.por_categoria||[]).slice(0,8),tot=cats.reduce((a,x)=>a+x[1],0)||1;c.clearRect(0,0,300,300);
+    let a0=-Math.PI/2;c.lineWidth=34;cats.forEach(([cat,v],i)=>{const a1=a0+v/tot*Math.PI*2*k;c.beginPath();c.strokeStyle=PALETA[i%PALETA.length];c.arc(150,150,110,a0,a1);c.stroke();a0=a1;});
+    if(!cats.length){c.beginPath();c.strokeStyle='rgba(79,216,255,.12)';c.arc(150,150,110,0,Math.PI*2);c.stroke();}
+    c.fillStyle='#d6ecf7';c.font='300 30px Inter, system-ui, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(brl(f.saidas).replace('R$ ',''),150,142);
+    c.fillStyle='#6b93a8';c.font='11px Inter, system-ui, sans-serif';c.fillText('SAÍDAS',150,172);}
+  const bc=$('barras');if(bc){const c=bc.getContext('2d'),W=760,H=300,ms=(f.por_mes||[]).slice(-8);c.clearRect(0,0,W,H);const max=Math.max(1,...ms.flatMap(m=>[m[1],m[2]]));
+    const pad=36,base=H-30,larg=(W-pad*2)/Math.max(1,ms.length),bw=Math.min(28,larg*0.3);
+    c.strokeStyle='rgba(79,216,255,.12)';c.lineWidth=1;[0.25,0.5,0.75,1].forEach(q=>{const y=base-(base-20)*q;c.beginPath();c.moveTo(pad,y);c.lineTo(W-pad,y);c.stroke();});
+    c.font='10px Inter, system-ui, sans-serif';c.textAlign='center';
+    ms.forEach((m,i)=>{const x=pad+larg*i+larg/2;const he=(base-20)*m[1]/max*k,hs=(base-20)*m[2]/max*k;
+      c.fillStyle='#5cff9d';c.fillRect(x-bw-2,base-he,bw,he);c.fillStyle='#ffb347';c.fillRect(x+2,base-hs,bw,hs);
+      c.fillStyle='#6b93a8';c.fillText(m[0].slice(2).replace('-','/'),x,base+14);});
+    if(!ms.length){c.fillStyle='#6b93a8';c.textAlign='center';c.fillText('sem meses registrados',W/2,H/2);}
+    c.textAlign='left';c.fillStyle='#5cff9d';c.fillRect(pad,8,10,10);c.fillStyle='#6b93a8';c.fillText('entradas',pad+14,17);c.fillStyle='#ffb347';c.fillRect(pad+80,8,10,10);c.fillStyle='#6b93a8';c.fillText('saídas',pad+94,17);}}
+
+// (módulos seguintes entram nos próximos commits)
+function renderAfazeres(){$('modulo').innerHTML='<h2>Afazeres</h2><div class="vazio">em obra</div>'}
+function renderAgenda(){$('modulo').innerHTML='<h2>Agenda</h2><div class="vazio">em obra</div>'}
+function renderMusica(){$('modulo').innerHTML='<h2>Música</h2><div class="vazio">em obra</div>'}
+function renderCerebroMod(){$('modulo').innerHTML='<h2>Cérebro</h2><div class="vazio">em obra</div>'}
+
 // ── teclado sob demanda ───────────────────────────────────────────────────
 const tecladoAberto=()=>$('teclado').classList.contains('aberto');
 function abrirTeclado(motivo,inicial){
@@ -766,6 +868,8 @@ addEventListener('keydown',e=>{
   if(e.key==='s'||e.key==='S'){toggleSom();return;}
   if(e.key==='b'||e.key==='B'){toggleMente();return;}
   if(e.key==='g'||e.key==='G'){toggleGrafo();return;}
+  if(e.key==='Escape'&&MOD.aberto){abrirModulo(null);return;}
+  if(/^[1-5]$/.test(e.key)){abrirModulo(['financas','afazeres','agenda','musica','cerebro'][+e.key-1]);return;}
   if(e.key.length===1){abrirTeclado(null,e.key);e.preventDefault();}   // começou a digitar: abre com a letra
 });
 
@@ -809,7 +913,7 @@ function ligarStream(){
       case 'cortex': mostrarCortex(e);feed($('rac'),`<span class="f${e.modelo==='juiz'?' ju':''}">córtex</span><span class="a">${esc(e.tarefa)} → ${esc((e.modelo||'').replace('claude-',''))}${e.exploracao?' (exploração)':''} · ${esc(e.motivo)}</span>`);break;
       case 'juiz': feed($('rac'),`<span class="f ju">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);$('cxMotivo').textContent='juiz escolheu '+(e.escolha||'')+' · '+(e.justificativa||'');break;
       case 'agenda': if(e.disparo)feed($('prod'),`<span class="f">rotina</span><span class="a">${esc(e.disparo)} · ${esc(e.quando)}</span>`);else if(e.erro)aviso('agenda: '+e.erro);else if(e.rotinas)feed($('rac'),`<span class="f">agenda</span><span class="a">${e.rotinas.length} rotina(s), ${e.lembretes} lembrete(s)</span>`);break;
-      case 'lembrete': aviso('⏰ '+e.texto,15000);feed($('prod'),`<span class="f">lembrete</span><span class="a">${esc(e.quando)} · ${esc(e.texto)}</span>`);break;
+      case 'lembrete': carregarPainelLogo();aviso('⏰ '+e.texto,15000);feed($('prod'),`<span class="f">lembrete</span><span class="a">${esc(e.quando)} · ${esc(e.texto)}</span>`);break;
       case 'pensamento': {const m=UI.mente;if(e.pensando){m.pensando=true;m.tema=e.tema||'';m.t=agora();feed($('rac'),`<span class="f">pensando sozinho</span><span class="a">${esc(e.tema||'')}…</span>`);}else{m.pensando=false;if(e.total!=null)m.total=e.total;if(e.texto){m.total++;m.ultimo=(e.tema?e.tema+': ':'')+e.texto;if(e.vale_dizer)m.aDizer++;pulsar('vault',0xffe27a);tocarNota('01-Estado/Pensamentos.md');registrarPensamento(m.ultimo,'01-Estado/Pensamentos.md');feed($('rac'),`<span class="f">pensei${e.vale_dizer?' · vale dizer':''}</span><span class="a">${esc(m.ultimo)}</span>`);}else if(e.erro)feed($('rac'),`<span class="f">pensamento</span><span class="a">${esc(e.erro)}</span>`);}renderMente();carregarSistemasLogo();}break;
       case 'estudo': if(e.abertos!=null){const s=$('sEstudo');s.textContent=e.abertos+' em aberto'+(e.msg?' · '+e.msg.slice(0,60):'');}if(e.msg)feed($('rac'),`<span class="f">estudo</span><span class="a">${esc(e.msg)}</span>`);carregarSistemasLogo();break;
       case 'tela': $('telaImg').src='/hud/tela?t='+e.t;$('telaBox').hidden=false;clearTimeout(window._telaT);window._telaT=setTimeout(()=>$('telaBox').hidden=true,60000);break;
@@ -845,7 +949,7 @@ function ligarStream(){
         if(e.ferramenta){feed($('rac'),`<span class="f">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);if(e.ferramenta!=='memória'&&e.ferramenta!=='reflexão')ferramentaChamada(e.ferramenta,false);}
         else{feed($('rac'),`<span class="think">${esc((e.texto||'').slice(0,400))}</span>`);const n=(e.texto||'').length;if(UI.turno&&!UI.turno.fim)UI.turno.think+=n;UI.carga=Math.min(1,UI.carga+n/1200);UI.pensando=true;}
         {const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0xffd08a);}break;
-      case 'producao': linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f ag">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);ferramentaChamada(e.ferramenta,true);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0x5cff9d);}
+      case 'producao': if(/Inbox|Financas|Lembretes|financas|tarefa|lembrete/i.test((e.alvo||'')+(e.nota||'')+(e.ferramenta||'')))carregarPainelLogo();linhaTempo({Bash:'$',Read:'r',Write:'w',Edit:'e',Task:'t'}[e.ferramenta]||'·');feed($('prod'),`<span class="f ag">${esc(e.ferramenta)}</span><span class="a">${esc(e.alvo)}</span>`);ferramentaChamada(e.ferramenta,true);{const n=noDaFerramenta(e.ferramenta);if(n)pulsar(n,0x5cff9d);}
         if(e.trecho)mostrarTrecho(e.ferramenta+' · '+(e.alvo||''),e.trecho);if(e.nota)tocarNota(e.nota);else if((e.alvo||'').includes('/vault/'))tocarNota((e.alvo||'').split('/vault/')[1]);break;
       case 'resultado': {const vigia=/VIGIA/.test(e.texto||'');if(e.erro&&vigia)SONS.vigia();ferramentaVoltou(!!e.erro);
         feed($('prod'),`<span class="res ${e.erro?'err':''}">${esc((e.texto||'').slice(0,240))}</span>`);linhaTempo(e.erro?'✘':'✔');if(vigia||/lote/.test(e.texto||''))carregarSistemasLogo();}break;
