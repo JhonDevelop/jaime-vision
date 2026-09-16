@@ -268,6 +268,16 @@
 - Validar: sem "cortou" durante toques/notificações; "cortou (energia)" segue quando o João fala por cima.
 - Desde o M-31 na main: nenhum "não cortou" — o gate de energia resolveu 09:46–09:51.
 
+#### M-33 · Rotina perdida no sono COM o processo vivo (Vigília 13:28, etapa 8) — **CORRIGIDO**
+- pmset: sono 13:02:30–13:12:35; pid vivo desde 10:31; cron das 13:00 não rodou nem foi recuperado. O catch-up (M-19) só
+  rodava no boot e o timer do APScheduler não conta o sono (M-15) — a tolerância de 3 h não bastou.
+- Solução: tique de 60 s no scheduler: salto de relógio ≥ 2 min → "Relógio saltou N min (o Mac dormiu)"; qualquer slot
+  que passou desde o tique anterior sem "Rotina disparada" é recuperado (com ou sem sono). Rotina não roda 2× em 10 min
+  (tique e APScheduler podem acordar juntos). EVENT_JOB_MISSED/ERROR viram "Scheduler: job … perdido/falhou" no diário
+  (sugestão 1 da Vigília). Teste com relógio falso saltando 14 min sobre o cron (sugestão 3).
+- Validar: no próximo sono com o processo vivo, "Relógio saltou…" e "Rotina perdida enquanto eu estava dormindo, vou rodar
+  agora: …" no diário; "fecha o dia" às 18:00 hoje.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -309,6 +319,7 @@
 | 7q | M-30 contagem por janela deslizante | etapa 3 | mergeado |
 | 7r | M-31 janela por energia, sem VAD | etapa 3 | mergeado |
 | 7s | M-32 piso de voz (ruído não corta) | etapa 3 | pronto, aguardando merge |
+| 7t | M-33 tique recupera rotinas no sono com processo vivo | etapa 8 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -337,3 +348,4 @@
 - 09:35 (16/09) — Vigília: energia/sustentação passam, não corta → contador consecutivo era o bug; janelas deslizantes (M-30); 254 testes.
 - 10:05 (16/09) — Vigília: janela máx 224/320 com 832 ms acima do eco → VAD esparso; M-31 (janelas por energia); 256 testes.
 - 10:35 (16/09) — Vigília: telefone tocando cortou (energia 9×, VAD 64 ms) → M-32 piso de voz; 257 testes.
+- 13:40 (16/09) — Vigília: sono com processo vivo perdeu o cron das 13:00 → M-33 (tique de 60 s + idempotência + eventos do scheduler); 259 testes.
