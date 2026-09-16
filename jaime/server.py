@@ -134,7 +134,15 @@ def _auth(token: str | None):
 # ── HUD ────────────────────────────────────────────────
 @app.get("/")
 async def hud():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "cockpit.html")     # cockpit ATSMATRIX (principal)
+
+@app.get("/classico")
+async def hud_classico():
+    return FileResponse(STATIC / "index.html")       # HUD 3D anterior (cérebro de pontos)
+
+@app.get("/cockpit")
+async def hud_cockpit():
+    return FileResponse(STATIC / "cockpit.html")
 
 @app.get("/hud/vendor/{arquivo}")
 async def hud_vendor(arquivo: str):
