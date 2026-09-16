@@ -41,6 +41,10 @@ BARGE_IN_SUST_X = 1.15        # (sem VAD) o eco oscila em torno de 1,0× a próp
 # As contagens são por JANELA deslizante, não por frames consecutivos: prob e rms oscilam a cada 32 ms e um contador que
 # soma/subtrai (ou zera) nunca chegava ao mínimo — 16/09 09:15–09:21: 8 falas com 352–1376 ms acima do eco e nenhum corte.
 BARGE_IN_JANELA_MS = 640      # janela do corte por energia (precisa de BARGE_IN_MS qualificados dentro dela)
+# Piso de voz: energia sozinha corta com toque de telefone (16/09 10:09: 64 ms de VAD, rms 9× o eco, sim 0,39). Metade
+# dos frames da janela precisa ter alguma probabilidade de voz — o VAD esparso do João passa, campainha/telefone não.
+BARGE_IN_VAD_PISO = 0.3
+BARGE_IN_VAD_FRACAO = 0.5
 BARGE_IN_JANELA_SUST_MS = 1000  # janela do corte por voz sustentada
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
@@ -143,6 +147,7 @@ class OuvidoDuplex(Ouvido):
         self._janela_energia: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._janela_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
         self._janela_vad: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
+        self._janela_piso: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._barge_emitido = 0.0
         self._eco_rms = 0.0
         self._eco_amostras = 0
@@ -276,16 +281,18 @@ class OuvidoDuplex(Ouvido):
         self._janela_energia.append(acima_do_eco and not provavel_eco)
         self._janela_sust.append(rms >= BARGE_IN_SUST_X * max(self._eco_rms, 80.0) and not provavel_eco)
         self._janela_vad.append(prob >= BARGE_IN_PROB)
+        self._janela_piso.append(prob >= BARGE_IN_VAD_PISO)
         self._barge_ms = sum(self._janela_energia) * FRAME_MS
         sustentado_ms = sum(self._janela_sust) * FRAME_MS
+        piso = sum(self._janela_piso) / max(1, len(self._janela_piso))
         st["janela_max"] = max(st.get("janela_max", 0), self._barge_ms); st["sust_max"] = max(st.get("sust_max", 0), sustentado_ms)
-        st["vad_max"] = max(st.get("vad_max", 0), sum(self._janela_vad) * FRAME_MS)
+        st["vad_max"] = max(st.get("vad_max", 0), sum(self._janela_vad) * FRAME_MS); st["piso_max"] = max(st.get("piso_max", 0.0), piso)
         energia = self._barge_ms >= BARGE_IN_MS
         sustentado = sustentado_ms >= BARGE_IN_SUSTENTADO_MS
-        if not energia and not sustentado:
+        if (not energia and not sustentado) or piso < BARGE_IN_VAD_FRACAO:
             return False
         st["cortou"] = True; st["motivo"] = "energia" if energia else "sustentado"
-        self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear()
+        self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_piso.clear()
         restantes = self._tts.parar()
         self._nao_ditas = restantes
         self.interrompido = True
@@ -299,18 +306,18 @@ class OuvidoDuplex(Ouvido):
         """Fecha as estatísticas de barge-in da fala que acabou. Voz ouvida por ≥ 400 ms sem cortar vira uma linha no
         diário — é o dado que faltava para calibrar os limiares (16/09: o João falou por cima do briefing e nada cortou)."""
         st, self._barge_stats = self._barge_stats, {}
-        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear()
+        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_piso.clear()
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
         linha = ""
         if st.get("voz_ms", 0) >= 400 and not st.get("cortou"):
             linha = (f"Barge-in não cortou: voz por {st['voz_ms']} ms durante a minha fala (acima do eco {st['acima_ms']} ms, "
                      f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f}; "
                      f"janela máx {st.get('janela_max', 0)}/{BARGE_IN_MS} ms, sustentada máx {st.get('sust_max', 0)}/{BARGE_IN_SUSTENTADO_MS} ms, "
-                     f"vad máx {st.get('vad_max', 0)}/{BARGE_IN_JANELA_MS} ms)")
+                     f"vad máx {st.get('vad_max', 0)}/{BARGE_IN_JANELA_MS} ms, piso de voz máx {st.get('piso_max', 0.0):.0%}/{BARGE_IN_VAD_FRACAO:.0%})")
         elif st.get("cortou"):
             # também quando corta: é assim que se vê um corte pelo próprio eco (o João reclama "você não terminou de falar")
             linha = (f"Barge-in cortou ({st.get('motivo', '?')}): voz {st['voz_ms']} ms, rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}, "
-                     f"sim máx {st['sim_max']:.2f}")
+                     f"sim máx {st['sim_max']:.2f}, piso de voz {st.get('piso_max', 0.0):.0%}")
         if linha:
             vault = getattr(self.jaime, "vault", None)
             if vault is not None:

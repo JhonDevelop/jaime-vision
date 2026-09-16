@@ -84,7 +84,7 @@ def test_nao_cortou_diz_qual_gate_faltou():
         for _ in range(15): o._barge(0.95, 1100.0, F)                     # 480 ms a 1,1×: nem energia (1,4×) nem sustentada (700)
         o.mudo = False; o._fim_da_fala(); await asyncio.sleep(0.01)
         l = next(t for _, t in j.vault.linhas if t.startswith("Barge-in não cortou"))
-        assert "janela máx 0/320 ms, sustentada máx 0/700 ms, vad máx 480/640 ms" in l    # 1,1×: nem 1,4× (energia) nem 1,15× (sustentada)
+        assert "janela máx 0/320 ms, sustentada máx 0/700 ms, vad máx 480/640 ms, piso de voz máx 100%/50%" in l    # 1,1×: nem 1,4× nem 1,15×
     asyncio.run(rodar())
 
 
@@ -112,4 +112,21 @@ def test_eco_alto_do_proprio_jaime_nao_corta_pela_sustentada():
         for _ in range(10): o._barge(0.9, 1000.0, F)
         assert not any(o._barge(0.9, 1000.0 * (1.1 if i % 2 else 0.9), F) for i in range(60))   # 2 s de eco oscilando
         assert o._tts.parou == 0
+    asyncio.run(rodar())
+
+
+def test_linha_exata_da_vigilia_1009_toque_de_telefone_nao_corta():
+    """10:09: 'cortou (energia): voz 64 ms, rms máx 3202 vs eco 349, sim 0.39' — era o telefone tocando. Energia 9× o eco,
+    mas quase nenhum frame com probabilidade de voz: o piso de VAD (≥ 0,3 em ≥ 50 % da janela) segura."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 349.0, F)
+        assert not any(o._barge(0.9 if i in (7, 8) else 0.05, 3202.0, F) for i in range(40))   # 1,3 s de toque, 2 frames "voz"
+        assert o._tts.parou == 0 and o._barge_stats["piso_max"] < 0.5
+        # o João falando junto (VAD esparso, mas ≥ 0,3 na maior parte) continua cortando
+        for _ in range(25): o._barge(0.05, 200.0, F)
+        cortou = any(o._barge(0.95 if i % 4 == 0 else 0.45, 1321.0, F) for i in range(30))
+        assert cortou and o._tts.parou == 1
     asyncio.run(rodar())
