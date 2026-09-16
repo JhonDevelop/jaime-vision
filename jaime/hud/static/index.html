@@ -868,7 +868,14 @@ function renderAfazeres(){const el=$('modulo'),d=MOD.painel||{},lista=(d.afazere
     <div class="tarefas">${[...abertas,...feitas].map(t=>`<div class="tarefa ${MOD.feitos.has(t.chave)?'feita':''}" data-k="${esc(t.chave)}"><i></i><span>${esc(t.texto)}</span>${t.projeto?`<span class="proj">${esc(t.projeto)}</span>`:'<span></span>'}${t.prazo?`<span class="prazo ${prazoVencido(t.prazo)?'vencido':''}">⏳ ${esc(t.prazo)}</span>`:'<span></span>'}</div>`).join('')||'<div class="vazio">nada em aberto no Inbox — diga "cria uma tarefa…"</div>'}</div>`;
   el.querySelectorAll('.tarefa').forEach(x=>x.onclick=()=>{const k=x.dataset.k;if(MOD.feitos.has(k))MOD.feitos.delete(k);else MOD.feitos.add(k);
     try{localStorage.setItem('jaime.afazeres.feitos',JSON.stringify([...MOD.feitos]))}catch(e){}renderAfazeres();renderAbas();});}
-function renderAgenda(){$('modulo').innerHTML='<h2>Agenda</h2><div class="vazio">em obra</div>'}
+// AGENDA — próximos lembretes e rotinas (cron legível)
+const DIAS={mon:'seg',tue:'ter',wed:'qua',thu:'qui',fri:'sex',sat:'sáb',sun:'dom'};
+function cronLegivel(c){const p=(c||'').split(/\s+/);if(p.length<5)return c;const [mi,h,dm,mo,dw]=p;const hora=(h!=='*'&&mi!=='*')?`${h.padStart(2,'0')}:${mi.padStart(2,'0')}`:'';
+  let dias=dw==='*'?'todo dia':dw.replace(/mon-fri/i,'seg–sex').replace(/[a-z]{3}/gi,x=>DIAS[x.toLowerCase()]||x);if(dm!=='*')dias=`dia ${dm}`;return `${hora} · ${dias}`;}
+function renderAgenda(){const el=$('modulo'),d=MOD.painel||{},a=d.agenda||{},hoje=new Date().toLocaleDateString('pt-BR').slice(0,5);
+  el.innerHTML=`<h2>Agenda <small>${esc(d.agora||'')}</small></h2><div class="agenda">
+    <div><h3>próximos lembretes</h3><div class="lemb">${(a.lembretes||[]).map(l=>`<b class="${l.quando.startsWith(hoje)?'hoje':''}">${esc(l.quando)}</b><span>${esc(l.o_que)}</span>`).join('')||'<div class="vazio">nenhum lembrete — diga "me lembra às 15h de…"</div>'}</div></div>
+    <div><h3>rotinas</h3><div class="rot">${(a.rotinas||[]).map(r=>`<code title="${esc(r.cron)}">${esc(cronLegivel(r.cron))}</code><span>${esc(r.ordem)}</span>`).join('')||'<div class="vazio">nenhuma rotina em 30-Tarefas/Rotinas.md</div>'}</div></div></div>`;}
 function renderMusica(){$('modulo').innerHTML='<h2>Música</h2><div class="vazio">em obra</div>'}
 function renderCerebroMod(){$('modulo').innerHTML='<h2>Cérebro</h2><div class="vazio">em obra</div>'}
 // ── teclado sob demanda ───────────────────────────────────────────────────
