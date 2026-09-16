@@ -12,6 +12,9 @@
   .vinheta{position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 800px at 50% 45%,transparent 40%,rgba(2,5,10,.75) 100%);transition:opacity 2s}
   body.noite .vinheta{background:radial-gradient(1100px 700px at 50% 45%,rgba(0,0,0,.15) 30%,rgba(1,3,7,.88) 100%)}
   #tinta{position:fixed;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0;background:transparent;transition:background-color 2s,opacity 2s}
+  /* fase 3 — HUD: grafo 2D do vault (Graph View), alterna com o cérebro 3D pela tecla G */
+  #grafo{position:fixed;inset:0;display:block;z-index:2;cursor:grab;touch-action:none}#grafo[hidden]{display:none}#grafo.arrastando{cursor:grabbing}
+  body.grafo #cena{visibility:hidden}
 
   /* ── topo ── */
   header{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 22px;z-index:5;
@@ -153,6 +156,7 @@
 <canvas id="cena"></canvas>
 <div class="vinheta"></div>
 <div id="tinta"></div>
+<canvas id="grafo" hidden></canvas>
 
 <header>
   <div class="brand"><h1 id="nome">JAIME</h1><small>assistente operacional</small></div>
@@ -169,6 +173,7 @@
     <button class="ico on" id="btMic" title="microfone (M)">mic</button>
     <button class="ico" id="btTeclado" title="teclado (T ou comece a digitar)">teclado</button>
     <button class="ico on" id="btPaineis" title="painéis (H)">painéis</button>
+    <button class="ico" id="btGrafo" title="grafo do vault, estilo Obsidian (G)">grafo</button>
     <button class="ico" id="btLock" title="trancar (L)">trancar</button>
   </div>
 </header>
@@ -215,7 +220,7 @@
 <div id="telaBox" hidden><img id="telaImg" alt="tela"><span>o que ele está vendo</span></div>
 <div id="tempo" title="últimos eventos"></div>
 <aside id="menteBox" hidden>
-  <h2>Cérebro <small>B fecha · clique numa estrela abre a nota</small></h2>
+  <h2>Cérebro <small>B fecha · G alterna o grafo do vault · clique numa estrela ou num nó abre a nota</small></h2>
   <input id="busca" placeholder="buscar na memória (Enter)…">
   <div id="buscaRes" class="lista"></div>
   <h3>Pessoas</h3><div id="pessoas" class="lista"></div>
@@ -409,9 +414,10 @@ async function carregarVault(){
       m.position.copy(pos);constelacao.add(m);estrelas[n.id]={m,cor,pulso:0,nome:n.nome,pasta};});});
   const ls=[];v.arestas.forEach(([a,b])=>{if(estrelas[a]&&estrelas[b]){ls.push(estrelas[a].m.position,estrelas[b].m.position)}});
   if(ls.length){constelacao.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ls),new THREE.LineBasicMaterial({color:0x4fd8ff,transparent:true,opacity:0.08})))}
+  grafoDados(v);
 }
 function tocarNota(ref){if(!ref)return;const id=Object.keys(estrelas).find(k=>k===ref||k.endsWith('/'+ref)||k.endsWith('/'+ref+'.md')||estrelas[k].nome===ref.replace(/\.md$/,''));
-  if(!id)return;const e=estrelas[id];e.pulso=1;e.m.material.color.setHex(0xffffff);feixe(e.m.getWorldPosition(new THREE.Vector3()));
+  if(!id)return;const e=estrelas[id];e.pulso=1;e.m.material.color.setHex(0xffffff);feixe(e.m.getWorldPosition(new THREE.Vector3()));grafoAcender(id);
   fetch('/hud/nota?rel='+encodeURIComponent(id)).then(r=>r.json()).then(n=>mostrarTrecho(id,n.texto)).catch(()=>{});}
 function linhaTempo(icone){const t=$('tempo');const i=document.createElement('i');i.textContent=icone;t.appendChild(i);while(t.children.length>24)t.firstChild.remove();}
 const feixes=[];
@@ -456,6 +462,81 @@ canvas.addEventListener('click',e=>{if(drag&&Math.abs(e.movementX)>2)return;cons
 function mostrarTrecho(arq,txt){const el=$('trecho');el.innerHTML='';const a=document.createElement('span');a.className='arq';a.textContent=arq;el.appendChild(a);el.appendChild(document.createTextNode((txt||'').slice(0,1500)));el.scrollTop=0;}
 carregarVault();setInterval(carregarVault,120000);
 
+
+// ── fase 3 — HUD: grafo 2D do vault, estilo Graph View do Obsidian ───────
+// Mesmos dados da constelação (/hud/vault): nós = notas, arestas = [[links]]. Forças simples (repulsão + molas + centro),
+// cor por pasta, tamanho pelo nº de ligações, rótulo = nome da nota. O nó que o Jaime toca agora (tocarNota) acende e pulsa.
+const GRAFO={on:false,nos:[],arestas:[],porId:{},cam:{x:0,y:0,k:1},alpha:0,drag:null,pan:null,hover:null,atual:null,moveu:false,pastas:[],livre:false};   // livre: o João já moveu/zoomou — não reenquadrar
+const gcan=$('grafo'),gctx=gcan.getContext('2d');
+const corCss=h=>'#'+h.toString(16).padStart(6,'0');
+function grafoResize(){const dpr=Math.min(devicePixelRatio,2);gcan.width=innerWidth*dpr;gcan.height=innerHeight*dpr;}
+addEventListener('resize',grafoResize);
+function grafoDados(v){const antigos=GRAFO.porId;GRAFO.porId={};GRAFO.nos=[];
+  const R=Math.min(innerWidth,innerHeight)*0.32;
+  const porPasta={};v.nos.forEach(x=>{(porPasta[x.pasta]=porPasta[x.pasta]||[]).push(x)});const pastas=Object.keys(porPasta).sort();GRAFO.pastas=pastas;
+  v.nos.forEach(x=>{const a=antigos[x.id];const ang=pastas.indexOf(x.pasta)/pastas.length*Math.PI*2+(Math.random()-.5)*0.8;const rr=R*(0.5+Math.random()*0.6);
+    const no={id:x.id,nome:x.nome,pasta:x.pasta,kb:x.kb,cor:corCss(CORES_PASTA[x.pasta]||0x6b93a8),x:a?a.x:Math.cos(ang)*rr,y:a?a.y:Math.sin(ang)*rr,vx:0,vy:0,grau:0,viz:new Set(),pulso:a?a.pulso:0,fixo:false,r:4};
+    GRAFO.nos.push(no);GRAFO.porId[x.id]=no;});
+  GRAFO.arestas=[];v.arestas.forEach(([a,b])=>{const A=GRAFO.porId[a],B=GRAFO.porId[b];if(A&&B&&!A.viz.has(B)){GRAFO.arestas.push([A,B]);A.viz.add(B);B.viz.add(A);A.grau++;B.grau++;}});
+  GRAFO.nos.forEach(no=>no.r=4+2.2*Math.sqrt(no.grau));
+  GRAFO.atual=GRAFO.atual?GRAFO.porId[GRAFO.atual.id]||null:null;GRAFO.hover=null;
+  GRAFO.alpha=Math.max(GRAFO.alpha,0.9);}
+function grafoAcender(id){const no=GRAFO.porId[id];if(!no)return;no.pulso=1;GRAFO.atual=no;}
+function grafoPasso(){const G=GRAFO;if(G.alpha<0.004)return;const ns=G.nos,n=ns.length,a=G.alpha;
+  const REP=520,MOLA=0.045,L=48,CENTRO=0.04;
+  for(let i=0;i<n;i++){const p=ns[i];for(let j=i+1;j<n;j++){const q=ns[j];let dx=p.x-q.x,dy=p.y-q.y,d2=dx*dx+dy*dy;
+      if(d2<1){dx=Math.random()-.5;dy=Math.random()-.5;d2=1;}if(d2>250000)continue;
+      const f=REP/d2,fx=dx*f*a,fy=dy*f*a;p.vx+=fx;p.vy+=fy;q.vx-=fx;q.vy-=fy;}}
+  for(const [p,q] of G.arestas){const dx=q.x-p.x,dy=q.y-p.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-L)*MOLA*a,fx=dx/d*f,fy=dy/d*f;p.vx+=fx;p.vy+=fy;q.vx-=fx;q.vy-=fy;}
+  for(const p of ns){if(p.fixo){p.vx=p.vy=0;continue;}p.vx-=p.x*CENTRO*a;p.vy-=p.y*CENTRO*a;p.vx*=0.82;p.vy*=0.82;p.x+=p.vx;p.y+=p.vy;}
+  if(!G.drag)G.alpha*=0.985;
+  if(!G.livre&&!G.drag)grafoEnquadrar();}
+// enquadra o grafo na área livre entre os painéis (a 1280px sobra ~600px no centro); pára quando o João mexe na câmera
+function grafoEnquadrar(){const G=GRAFO;if(!G.nos.length)return;const paineis=innerWidth>1100&&!document.body.classList.contains('sem-paineis');
+  const x0=paineis?330:24,x1=paineis?innerWidth-380:innerWidth-24,y0=70,y1=innerHeight-120;
+  let ax=1e9,ay=1e9,bx=-1e9,by=-1e9;for(const p of G.nos){ax=Math.min(ax,p.x);ay=Math.min(ay,p.y);bx=Math.max(bx,p.x);by=Math.max(by,p.y);}
+  const k=Math.max(0.35,Math.min(1.6,Math.min((x1-x0)/(bx-ax+90),(y1-y0)/(by-ay+70))));const cx=(ax+bx)/2,cy=(ay+by)/2;
+  const alvoX=(x0+x1)/2-innerWidth/2-cx*k,alvoY=(y0+y1)/2-innerHeight/2-cy*k;
+  G.cam.k+=(k-G.cam.k)*0.1;G.cam.x+=(alvoX-G.cam.x)*0.1;G.cam.y+=(alvoY-G.cam.y)*0.1;}
+function grafoDesenhar(dt){const G=GRAFO,c=gctx,W=gcan.width,H=gcan.height,dpr=Math.min(devicePixelRatio,2),k=G.cam.k,t=performance.now()/1000;
+  c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,W,H);
+  c.setTransform(dpr*k,0,0,dpr*k,W/2+G.cam.x*dpr,H/2+G.cam.y*dpr);
+  const foco=G.hover||G.atual;
+  c.lineWidth=1/k;
+  for(const [p,q] of G.arestas){const liga=foco&&(p===foco||q===foco);c.strokeStyle=liga?'rgba(79,216,255,.75)':'rgba(79,216,255,.16)';c.beginPath();c.moveTo(p.x,p.y);c.lineTo(q.x,q.y);c.stroke();}
+  for(const p of G.nos){
+    if(p.pulso>0){p.pulso=Math.max(0,p.pulso-dt*0.35);const g=0.5+0.5*Math.sin(t*6);c.beginPath();c.arc(p.x,p.y,p.r+5+9*p.pulso*g,0,Math.PI*2);c.fillStyle=`rgba(255,255,255,${(0.08+0.28*p.pulso*g).toFixed(3)})`;c.fill();}
+    if(p===G.atual){c.beginPath();c.arc(p.x,p.y,p.r+3,0,Math.PI*2);c.strokeStyle='rgba(255,255,255,.9)';c.lineWidth=1.5/k;c.stroke();c.lineWidth=1/k;}
+    const rd=p.r*Math.max(1,0.9/k);c.beginPath();c.arc(p.x,p.y,rd,0,Math.PI*2);c.fillStyle=p.cor;c.globalAlpha=(foco&&p!==foco&&!foco.viz.has(p))?0.4:0.95;c.fill();c.globalAlpha=1;
+    if(p===G.hover){c.strokeStyle='#fff';c.stroke();}}
+  const todos=k>=0.5;c.font=`${11/k}px Inter, Segoe UI, system-ui, sans-serif`;c.textAlign='center';c.textBaseline='top';
+  for(const p of G.nos){if(!(todos||p===G.hover||p===G.atual||p.grau>=2||p.pulso>0))continue;
+    c.fillStyle=p===foco?'#ffffff':'rgba(214,236,247,.8)';c.fillText(p===foco||p.nome.length<=28?p.nome:p.nome.slice(0,26)+'…',p.x,p.y+p.r*Math.max(1,0.9/k)+3/k);}
+  // legenda das pastas (espaço de tela, canto inferior esquerdo)
+  c.setTransform(dpr,0,0,dpr,0,0);c.font='10px Inter, Segoe UI, system-ui, sans-serif';c.textAlign='left';c.textBaseline='middle';
+  let x=30;const y=innerHeight-24;
+  G.pastas.forEach(pasta=>{c.fillStyle=corCss(CORES_PASTA[pasta]||0x6b93a8);c.beginPath();c.arc(x,y,4,0,Math.PI*2);c.fill();c.fillStyle='rgba(107,147,168,.95)';c.fillText(pasta,x+9,y);x+=c.measureText(pasta).width+26;});
+  c.fillStyle='rgba(107,147,168,.7)';c.fillText(`${G.nos.length} notas · ${G.arestas.length} ligações · arraste · roda = zoom · clique abre · G volta ao cérebro`,30,innerHeight-42);}
+function grafoMundo(sx,sy){const G=GRAFO;return [(sx-innerWidth/2-G.cam.x)/G.cam.k,(sy-innerHeight/2-G.cam.y)/G.cam.k];}
+function grafoHit(sx,sy){const [wx,wy]=grafoMundo(sx,sy);const G=GRAFO;let melhor=null,md=1e9;
+  for(const p of G.nos){const dx=p.x-wx,dy=p.y-wy,d=dx*dx+dy*dy,raio=Math.max(p.r,7/G.cam.k)+2/G.cam.k;if(d<raio*raio&&d<md){md=d;melhor=p;}}return melhor;}
+gcan.addEventListener('pointerdown',e=>{const G=GRAFO;G.moveu=false;const no=grafoHit(e.clientX,e.clientY);
+  if(no){const [wx,wy]=grafoMundo(e.clientX,e.clientY);G.drag={no,dx:no.x-wx,dy:no.y-wy};no.fixo=true;G.alpha=Math.max(G.alpha,0.4);}
+  else G.pan={x:e.clientX,y:e.clientY,cx:G.cam.x,cy:G.cam.y};gcan.classList.add('arrastando');gcan.setPointerCapture(e.pointerId);});
+gcan.addEventListener('pointermove',e=>{const G=GRAFO;
+  if(G.drag){const [wx,wy]=grafoMundo(e.clientX,e.clientY);G.drag.no.x=wx+G.drag.dx;G.drag.no.y=wy+G.drag.dy;G.alpha=Math.max(G.alpha,0.3);if(Math.abs(e.movementX)+Math.abs(e.movementY)>1)G.moveu=true;}
+  else if(G.pan){G.cam.x=G.pan.cx+(e.clientX-G.pan.x);G.cam.y=G.pan.cy+(e.clientY-G.pan.y);if(Math.abs(e.movementX)+Math.abs(e.movementY)>1){G.moveu=true;G.livre=true;}}
+  else G.hover=grafoHit(e.clientX,e.clientY);});
+gcan.addEventListener('pointerup',e=>{const G=GRAFO;gcan.classList.remove('arrastando');
+  if(G.drag){const no=G.drag.no;no.fixo=false;G.drag=null;if(!G.moveu){grafoAcender(no.id);abrirNota(no.id);}}
+  G.pan=null;});
+gcan.addEventListener('pointerleave',()=>{GRAFO.hover=null;});
+gcan.addEventListener('wheel',e=>{const G=GRAFO;const [wx,wy]=grafoMundo(e.clientX,e.clientY);const k2=Math.max(0.25,Math.min(4,G.cam.k*Math.exp(-e.deltaY*0.0015)));
+  G.cam.x=e.clientX-innerWidth/2-wx*k2;G.cam.y=e.clientY-innerHeight/2-wy*k2;G.cam.k=k2;G.livre=true;},{passive:true});
+function toggleGrafo(){const G=GRAFO;G.on=!G.on;gcan.hidden=!G.on;document.body.classList.toggle('grafo',G.on);$('btGrafo').classList.toggle('on',G.on);
+  if(G.on){grafoResize();G.alpha=Math.max(G.alpha,0.6);G.livre=false;if(!G.nos.length)carregarVault();}}
+$('btGrafo').onclick=toggleGrafo;
+
 // ── animação (≤ 30 fps; DOM de alta frequência aplicado aqui, em lote) ────
 const corAtual=new THREE.Color(0x4fd8ff),corAlvo=new THREE.Color(),corInt=new THREE.Color(),BRANCO=new THREE.Color(0xffffff);
 let ultimoFrame=0;
@@ -475,6 +556,7 @@ function animar(ts){
             :camada==='agir'?0.65+0.25*UI.carga:camada==='pensar'?(espera?0.38:0.55)+0.3*UI.carga:camada==='mente'?0.3:camada==='equipe'?0.45:0.12+0.25*UI.carga;
   UI.energia+=(alvo-UI.energia)*Math.min(1,dt*4);
   const e=UI.energia;
+  if(GRAFO.on){grafoPasso();grafoDesenhar(dt);flushDOM(t);return;}
   cerebro.rotation.y+=dt*0.12;cerebro.rotation.x=Math.sin(t*0.2)*0.06;
   // pulso: falando 9 Hz curto · espera de rede: respiração lenta (~2,4 s) · resto suave
   const freq=camada==='falar'?9:espera?2.6:camada==='mente'?1.2:2.2,amp=(espera||camada==='mente')?0.06:0.035;   // mente: respiração lenta, luz baixa
@@ -683,6 +765,7 @@ addEventListener('keydown',e=>{
   if(e.key==='l'||e.key==='L'){fetch('/hud/trancar',{method:'POST'});return;}
   if(e.key==='s'||e.key==='S'){toggleSom();return;}
   if(e.key==='b'||e.key==='B'){toggleMente();return;}
+  if(e.key==='g'||e.key==='G'){toggleGrafo();return;}
   if(e.key.length===1){abrirTeclado(null,e.key);e.preventDefault();}   // começou a digitar: abre com a letra
 });
 
