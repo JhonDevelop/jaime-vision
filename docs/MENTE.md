@@ -231,6 +231,14 @@
 - Observação do mesmo diário (08:15): João falou por cima por 3,3 s (rms 1603 vs eco 1026, sim 0,88) sem corte e
   pediu "Continua o que você estava falando" — é o caso exato do M-26.
 
+#### M-29 · Corte pelo próprio eco após o M-26 (Vigília 08:57) — **CORRIGIDO (7d9d4c6)**
+- Diário 08:46–08:47: "Barge-in cortou (energia): voz 224 ms, rms 1255 vs eco 717" e "voz 160 ms, rms 1116 vs eco 390", sem
+  nenhum "🎙 você" — o Jaime se calou sozinho. Nenhum "não cortou" novo (veto 0,92 está bom).
+- Solução: `BARGE_IN_ECO_X` 1,25 → 1,4 (meu critério) e `BARGE_IN_MS` 160 → 320 ms de voz qualificada no caminho por
+  energia (sugestão da Vigília: as falas reais por cima tinham 416–3296 ms). Caminho de voz sustentada (700 ms a 1,0×) segue.
+- Validar: zero "Barge-in cortou" sem o João falar; "cortou (energia|sustentado)" quando ele fala por cima; se voltar
+  "não cortou" com acima_ms ≥ 320, aí o problema é o 1,4× e o caminho sustentado deve pegar.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -268,6 +276,7 @@
 | 7m | M-25 rotina bloqueia a demanda | 1–2 min de espera | mergeado |
 | 7n | M-26 limiares do barge-in | prioridade do dia | pronto, aguardando merge |
 | 7o | M-28 latência conta a muleta | medição da etapa 5 | pronto, aguardando merge |
+| 7p | M-29 corte por eco (mín. 320 ms, 1,4×) | etapa 3 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -292,3 +301,4 @@
 - 08:25 (16/09) — Vigília: rotina bloqueia o João (66–122 s). M-25: demanda interrompe a rotina e a reagenda; 237 testes.
 - 08:40 (16/09) — Vigília trouxe os números do M-24: limiares recalibrados + regra de voz sustentada (M-26); 242 testes.
 - 08:35 (16/09) — M-28 (1º som do turno, muleta incluída); 243 testes. Fila de merge: 5f0e06d, 17f30b3, M-28.
+- 09:05 (16/09) — 2 cortes por eco (160/224 ms) → M-29; 248 testes. Fila de merge: 8bd2ffb (M-28), 7d9d4c6 (M-29).
