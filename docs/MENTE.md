@@ -177,6 +177,18 @@
 - Validar: benchmark real abaixo (bench4). Artefatos do STT do benchmark que não são do antecipador: "está aí?" vazando
   para o turno seguinte (segmentação do Deepgram entre turnos sintéticos) e "site da." (Oldsen sumiu).
 
+#### M-22 · Palavra-passe escrita em texto puro no diário (16/09 07:24) — **CORRIGIDO (redator no Vault)**
+- Uma reflexão do próprio Jaime registrou "destrancado por senha digitada no HUD (dígitos)". Regra 2 violada; o espelho
+  do Notion pode ter levado. Cérebro avisado para apagar a linha ao vivo (só ele edita o vault do serviço).
+- Solução: `Vault.write` mascara qualquer sequência de dígitos/números por extenso cujo SHA-256 bata com
+  `JAIME_PASSPHRASE_HASH` (diário, conversas, ouvido passivo, tudo). Validar: `grep` da senha no vault → nada novo.
+- Recomendação ao João: trocar a senha (`python -m jaime senha`) — ainda é a padrão do `.env.example`.
+
+#### Benchmark real com a Mente (16/09 08:05, código 3735934): **antecipados 7/10 · mediana fala→1ª frase 320 ms · meta < 700 ms OK · exit 0**
+- Os 3 que faltam são STT do `say`: "pior ação" (= que horas são), "previsão do tempo para" (cortada), "cria 1 tarefa
+  para ligar para o c" (cortada; "1 tarefa" agora casa). Etapa 2 atendida no benchmark; ao vivo, conferir "antecipação:
+  usada" no diário depois do merge.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -208,6 +220,7 @@
 | 7g | M-14 muleta sem ferramenta · M-17 tranca na janela | latência/ruído | pronto, aguardando merge |
 | 7h | M-18 modelo fraco derruba rascunho local | 0/10 ao vivo | mergeado |
 | 7i | M-19 rotinas perdidas no sono · M-20 benchmark cego · M-21 refinamento encadeado | etapas 8 e 2 | pronto, aguardando merge |
+| 7j | M-22 senha no diário | segurança | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -227,3 +240,4 @@
 - 00:05 (16/09) — M-14 e M-17 commitados (07665d8); 220 testes. Quatro commits aguardam merge: 22aec49, f7c2e96, 38de1d5, 07665d8.
 - 00:30 (16/09) — Vigília: 0/10 persistia com 22aec49 no ar. Causa: rascunho fraco do modelo derrubava o local. M-18 commitado (8e71b28); 222 testes. Fila de merge: 22aec49, f7c2e96, 38de1d5, 07665d8, 8e71b28.
 - 07:50 (16/09) — Vigília: 'nenhuma' 10/10 e 06:30/07:00 sem disparar. Reproduzi o benchmark cego com o Deepgram real (1º parcial só chega em ~216 ms, depois de todo o áudio) — fac9c82; catch-up de rotinas no boot — 5b7fcd9. 227 testes (+1 alheio, data-dependente).
+- 08:10 (16/09) — benchmark real com a Mente: 7/10, 320 ms, meta OK. M-21 (refinamento encadeado) e M-22 (redator de segredos) commitados; 231 testes. Fila de merge: fac9c82, 5b7fcd9, 3735934, redator, regex.
