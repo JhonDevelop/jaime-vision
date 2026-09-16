@@ -43,6 +43,18 @@ def _estudo(jaime) -> dict:
             "ultimo_ciclo": float(getattr(e, "ultimo_ciclo", 0.0) or 0.0),
             "titulos": [getattr(p, "titulo", "")[:60] for p in abertos[:3]]}
 
+def _mente(jaime) -> dict:
+    """Raciocínio próprio (jaime/mente/pensar.py): quantos pensamentos, o último, quantos valem dizer ao João."""
+    m = getattr(jaime, "pensar", None)
+    if m is None:
+        return {"total": 0, "ocupado": False, "a_dizer": 0, "ultimo": None}
+    ps = list(getattr(m, "pensamentos", None) or [])
+    u = ps[-1] if ps else None
+    return {"total": len(ps), "ocupado": bool(getattr(m, "ocupado", False)),
+            "a_dizer": sum(1 for p in ps if getattr(p, "vale_dizer", False)),
+            "ultimo": ({"tema": getattr(u, "tema", ""), "texto": getattr(u, "texto", "")[:200], "quando": getattr(u, "quando", ""),
+                        "vale_dizer": bool(getattr(u, "vale_dizer", False))} if u is not None else None)}
+
 def _rotina(state, agora: datetime | None = None) -> dict:
     agora = agora or datetime.now()
     atencao = getattr(state, "atencao", None)
@@ -103,6 +115,7 @@ def montar(jaime, ouvido=None, state=None, settings=None, agora: datetime | None
         "fila": fila,
         "equipe": _equipe(jaime),
         "estudo": _estudo(jaime),
+        "mente": _mente(jaime),
         "rotina": _rotina(state, agora),
         "orcamento": _orcamento(state),
         "vontades": _vontades(state),

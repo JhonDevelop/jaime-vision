@@ -32,6 +32,7 @@
   .ob{display:inline-block;width:40px;height:3px;margin-left:8px;vertical-align:middle;background:rgba(79,216,255,.12);border-radius:2px;overflow:hidden}
   .ob i{display:block;height:100%;width:0;background:var(--cy);transition:width .8s}
   #orcChip.alto .ob i{background:var(--am)}#orcChip.esgotado .ob i{background:var(--rd)}
+  #vontChip.pendente{border-color:rgba(255,179,71,.55)}#vontChip.pendente b{color:var(--am)}
   #rotChip.atento b{color:var(--cy)}#rotChip.noite b{color:var(--vi)}#rotChip.ocioso b{color:var(--mu)}
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rd);box-shadow:0 0 8px var(--rd);margin-right:6px;vertical-align:middle}
   .dot.on{background:var(--gn);box-shadow:0 0 8px var(--gn)}
@@ -87,7 +88,7 @@
   .sl{display:grid;grid-template-columns:52px 1fr;gap:8px;font-size:11px;color:var(--mu);padding:3px 0;border-bottom:1px dashed rgba(79,216,255,.08);min-width:0}
   .sl>span{letter-spacing:.12em;text-transform:uppercase;font-size:10px;padding-top:1px}
   .sl b{color:var(--tx);font-weight:400;min-width:0;overflow:hidden}
-  .sl b.err{color:var(--rd)}.sl b.on{color:var(--cy)}.sl b.esp{color:var(--am)}
+  .sl b.err{color:var(--rd)}.sl b.on{color:var(--cy)}.sl b.esp{color:var(--am)}.sl b.dizer{color:var(--am)}
   .fi{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .fi.em_andamento{color:var(--cy)}.fi.interrompida{color:var(--am)}.fi.retomada{color:var(--cy)}.fi.concluida,.fi.descartada{color:var(--mu)}.fi.esp{color:var(--am);font-weight:500}
   .filho{display:inline-block;margin-right:8px;white-space:nowrap}.filho.vivo{color:var(--tx)}.filho.parado{color:var(--mu)}.filho.novo{color:var(--vi)}
@@ -182,6 +183,7 @@
     <div class="sl" id="sVigiaRow" hidden><span>vigia</span><b id="sVigia" class="esp"></b></div>
     <div class="sl"><span>equipe</span><b id="sEquipe">sem filhos</b></div>
     <div class="sl"><span>estudo</span><b id="sEstudo">—</b></div>
+    <div class="sl"><span>mente</span><b id="sMente">—</b></div>
     <div class="sl"><span>rotina</span><b id="sRotina">—</b></div>
   </div>
   <h2 style="margin-top:4px">A seguir</h2>
@@ -262,7 +264,8 @@ const UI={liberado:false,voz:'iniciando',falando:false,pensando:false,nivel:0,ni
   pendTools:[],                // ferramentas chamadas e ainda sem resultado ('agir' | 'ler')
   agindo:false,ferramenta:'',
   turno:null,                  // {t0, tools, think, chars, primeira, modelo, fim}
-  curiosidade:0,voceTexto:''};
+  curiosidade:0,voceTexto:'',
+  mente:{pensando:false,tema:'',t:-9,total:0,aDizer:0,ultimo:''}};   // raciocínio próprio (jaime/mente/pensar.py): pensa sozinho quando ocioso
 function esperaRede(){return UI.pensando&&!UI.streaming&&(agora()-UI.ultimoEvento)>0.6}
 
 // ── cena 3D ────────────────────────────────────────────────────────────────
@@ -294,8 +297,8 @@ function texRotulo(txt,cor){const c=document.createElement('canvas');c.width=256
 const GLOW_CY=texBrilho('rgba(79,216,255,1)'),GLOW_AM=texBrilho('rgba(255,179,71,1)'),GLOW_RD=texBrilho('rgba(255,95,95,1)'),GLOW_MU=texBrilho('rgba(80,110,130,1)'),
       GLOW_GN=texBrilho('rgba(92,255,157,1)'),GLOW_VI=texBrilho('rgba(198,165,255,1)');
 // cor por camada (docs/HUD-VIVO.md): ouvir âmbar · pensar ouro · agir verde · falar ciano · interrompido vermelho · equipe violeta
-const COR={repouso:0x4fd8ff,ouvir:0xffb347,pensar:0xffd08a,agir:0x5cff9d,falar:0x4fd8ff,interrompido:0xff5f5f,equipe:0xc6a5ff,trancado:0xff7a7a};
-const GLOW={repouso:GLOW_CY,ouvir:GLOW_AM,pensar:GLOW_AM,agir:GLOW_GN,falar:GLOW_CY,interrompido:GLOW_RD,equipe:GLOW_VI,trancado:GLOW_RD};
+const COR={repouso:0x4fd8ff,ouvir:0xffb347,pensar:0xffd08a,mente:0xffe27a,agir:0x5cff9d,falar:0x4fd8ff,interrompido:0xff5f5f,equipe:0xc6a5ff,trancado:0xff7a7a};
+const GLOW={repouso:GLOW_CY,ouvir:GLOW_AM,pensar:GLOW_AM,mente:GLOW_AM,agir:GLOW_GN,falar:GLOW_CY,interrompido:GLOW_RD,equipe:GLOW_VI,trancado:GLOW_RD};
 
 // ── o cérebro: nuvem de pontos em dois hemisférios com sulcos ─────────────
 const cerebro=new THREE.Group();scene.add(cerebro);
@@ -465,16 +468,16 @@ function animar(ts){
   const voce=!UI.falando&&UI.liberado&&UI.micAtivo&&(UI.gravando||UI.transcrevendo);   // você está falando (VAD abriu o turno), não ruído de sala
   const espera=esperaRede();
   // a camada ativa é UM estado real; a prioridade resolve sobreposições (interrompido > você > ele fala > age > pensa > equipe)
-  const camada=!UI.liberado?'trancado':(now-UI.interrompidoT<0.6)?'interrompido':voce?'ouvir':UI.falando?'falar':UI.agindo?'agir':UI.pensando?'pensar':(now-UI.equipeT<2)?'equipe':'repouso';
+  const camada=!UI.liberado?'trancado':(now-UI.interrompidoT<0.6)?'interrompido':voce?'ouvir':UI.falando?'falar':UI.agindo?'agir':UI.pensando?'pensar':UI.mente.pensando?'mente':(now-UI.equipeT<2)?'equipe':'repouso';
   UI.camada=camada;
   // intensidade = intensidade: carga do turno (thinking + ferramentas + fala) acende mais o cérebro
   const alvo=camada==='trancado'?0.05:camada==='interrompido'?0.3:camada==='falar'?0.8+0.2*UI.carga:camada==='ouvir'?0.6+UI.nivelSuave*0.4
-            :camada==='agir'?0.65+0.25*UI.carga:camada==='pensar'?(espera?0.38:0.55)+0.3*UI.carga:camada==='equipe'?0.45:0.12+0.25*UI.carga;
+            :camada==='agir'?0.65+0.25*UI.carga:camada==='pensar'?(espera?0.38:0.55)+0.3*UI.carga:camada==='mente'?0.3:camada==='equipe'?0.45:0.12+0.25*UI.carga;
   UI.energia+=(alvo-UI.energia)*Math.min(1,dt*4);
   const e=UI.energia;
   cerebro.rotation.y+=dt*0.12;cerebro.rotation.x=Math.sin(t*0.2)*0.06;
   // pulso: falando 9 Hz curto · espera de rede: respiração lenta (~2,4 s) · resto suave
-  const freq=camada==='falar'?9:espera?2.6:2.2,amp=espera?0.06:0.035;
+  const freq=camada==='falar'?9:espera?2.6:camada==='mente'?1.2:2.2,amp=(espera||camada==='mente')?0.06:0.035;   // mente: respiração lenta, luz baixa
   const pulso=(1+Math.sin(t*freq)*amp*e)*(voce?1+UI.nivelSuave*0.55:1)*(now-UI.interrompidoT<0.4?0.93:1);
   cerebro.scale.setScalar(pulso);
   corAlvo.setHex(COR[camada]);corAtual.lerp(corAlvo,Math.min(1,dt*6));      // sem trocas bruscas de cor
@@ -525,6 +528,7 @@ function flushDOM(t){
     const [txt,cls]=rotuloVoz();if(txt!==ultimoRotulo){ultimoRotulo=txt;const el=$('estadoVoz');el.textContent=txt;el.className=cls;}
     if(UI.pensando&&agora()-UI.ultimoEvento>120){UI.pensando=false;UI.pendTools.length=0;UI.agindo=false;}   // turno morto: solta o estado
     if(UI.transcrevendo&&agora()-UI.transcT>8){UI.transcrevendo=false;$('voce').classList.remove('viva');}      // parcial sem final há 8 s: turno descartado
+    if(UI.mente.pensando&&agora()-UI.mente.t>90){UI.mente.pensando=false;}                                        // pensamento sem fim há 90 s: solta
     const a=UI.antecip,on=UI.transcrevendo||(agora()-a.usado<0.8);$('ant').classList.toggle('on',on);
     if(on){const i=$('ant-i');i.style.width=((agora()-a.usado<0.8?1:a.completude)*100)+'%';i.className=agora()-a.usado<0.8?'usado':'';}}
   if(UI.turno&&!UI.turno.fim&&t-ultimoFlushTurno>0.5){ultimoFlushTurno=t;desenharTurno();}
@@ -575,6 +579,7 @@ function rotuloVoz(){
     const a=UI.antecip;if(a.completude>0&&now-a.t<3)s+=` · antecipando ${Math.round(a.completude*100)}%`+(a.fechou?' · frase fechou':'');return [s,'gravando'];}
   if(UI.agindo)return ['executando · '+(UI.ferramenta||'ferramenta'),'agir'];
   if(UI.pensando){const m=UI.turno&&UI.turno.modelo;return ['pensando'+(m?' · '+m:'')+(esperaRede()?' · esperando o modelo':''),'pensar'];}
+  if(UI.mente.pensando)return ['pensando sozinho · '+(UI.mente.tema||''),'pensar'];
   if(UI.voz==='transcrevendo')return ['transcrevendo','gravando'];
   if(now-UI.fimTurnoT<0.8)return ['entendi · pensando','pensar'];
   return [UI.janelaAtiva?ROTULO.ativo:ROTULO.ouvindo,''];
@@ -619,6 +624,9 @@ function renderFila(itens,aguardando){const el=$('sFila');itens=itens||[];if(!it
 let equipeAnterior={};
 function renderEquipe(filhos,novo){const el=$('sEquipe');filhos=filhos||[];if(!filhos.length){el.textContent='sem filhos';return;}
   el.innerHTML=filhos.map(f=>`<span class="filho ${f.estado==='vivo'?'vivo':'parado'}${novo===f.nome?' novo':''}" title="${esc(f.tipo)} · ${esc(f.preset)} · ${f.tarefas||0} tarefa(s)${f.ultimo?' · '+esc(f.ultimo):''}">${f.estado==='vivo'?'●':'○'} ${esc(f.nome)}</span>`).join('');}
+function renderMente(m){const u=UI.mente;if(m){if(m.total!=null)u.total=m.total;if(m.a_dizer!=null)u.aDizer=m.a_dizer;if(m.ultimo&&m.ultimo.texto)u.ultimo=(m.ultimo.tema?m.ultimo.tema+': ':'')+m.ultimo.texto;if(m.ocupado!=null&&!m.ocupado)u.pensando=false;}
+  const el=$('sMente');el.textContent=(u.pensando?'pensando sozinho · '+(u.tema||''):`${u.total} pensamento${u.total===1?'':'s'}`)+(u.aDizer?` · ${u.aDizer} a dizer`:'')+(u.ultimo&&!u.pensando?' · '+u.ultimo.slice(0,70):'');
+  el.className=u.pensando?'on':(u.aDizer?'dizer':'');el.title=u.ultimo||'';}
 function renderEstudo(s){const el=$('sEstudo');if(!s){return;}
   el.textContent=`${s.abertos} em aberto`+(s.ocupado?' · estudando agora':s.pode?' · pode estudar':(s.motivo?' · '+s.motivo:''));el.className=s.ocupado?'on':'';el.title=(s.titulos||[]).join(' · ');}
 const JANELA={atento:'atento',ocioso:'ocioso',noite:'noite criativa'};
@@ -630,7 +638,7 @@ function renderOrcamento(o){const chip=$('orcChip');if(!o){$('orc').textContent=
   chip.className='chip'+(p>=100?' esgotado':p>80?' alto':'');chip.title=o.resumo||'';}
 function renderVontades(v){if(!v||!v.niveis)return;const n=v.niveis;const top=IMPULSO_ORDEM.filter(k=>k in n).sort((a,b)=>n[b]-n[a])[0];
   $('vont').textContent=top?IMPULSO[top]:'—';$('vontChip').title='vontades: '+IMPULSO_ORDEM.map(k=>`${IMPULSO[k]} ${Math.round((n[k]||0)*100)}%`).join(' · ')+(v.demanda_pendente?' · demanda pendente':'');
-  [...$('vontBars').children].forEach((b,i)=>b.style.setProperty('--v',Math.round((n[IMPULSO_ORDEM[i]]||0)*100)+'%'));UI.curiosidade=n.curiosidade||0;
+  [...$('vontBars').children].forEach((b,i)=>b.style.setProperty('--v',Math.round((n[IMPULSO_ORDEM[i]]||0)*100)+'%'));UI.curiosidade=n.curiosidade||0;$('vontChip').classList.toggle('pendente',!!v.demanda_pendente);
   if(v.escolha&&v.escolha.pensamento){$('querer').textContent=v.escolha.pensamento;$('querer').title=v.escolha.pensamento;}}
 const TINTA={grave:'rgb(255,80,80)',caloroso:'rgb(255,179,71)',leve:'rgb(120,220,255)',cauteloso:'rgb(150,160,210)'};
 function renderHumor(h){if(!h)return;$('humor').textContent=h.rotulo||'—';[['h1',h.energia],['h2',h.calor],['h3',h.gravidade],['h4',h.confianca]].forEach(([id,v])=>$(id).style.setProperty('--v',Math.round((v||0)*100)+'%'));
@@ -644,7 +652,7 @@ function renderSistemas(s){
   renderFila(s.fila&&s.fila.itens,s.fila&&s.fila.aguardando);
   const v=s.vigia||{};$('sVigiaRow').hidden=!(v.lote&&v.lote.length)&&!v.armado;
   $('sVigia').textContent=v.lote&&v.lote.length?`${v.lote.length} ação(ões) esperando seu "sim": `+v.lote.map(a=>a.descricao).join('; '):(v.armado?'armado · próxima ação passa':'');
-  renderEquipe(s.equipe);renderEstudo(s.estudo);renderRotina(s.rotina);renderOrcamento(s.orcamento);renderVontades(s.vontades);if(s.humor)renderHumor(s.humor);
+  renderEquipe(s.equipe);renderEstudo(s.estudo);renderMente(s.mente);renderRotina(s.rotina);renderOrcamento(s.orcamento);renderVontades(s.vontades);if(s.humor)renderHumor(s.humor);
   if(s.proximos)$('prox').textContent=s.proximos;}
 let sisT=null;
 function carregarSistemasLogo(){clearTimeout(sisT);sisT=setTimeout(carregarSistemas,350);}
@@ -719,7 +727,7 @@ function ligarStream(){
       case 'juiz': feed($('rac'),`<span class="f ju">juiz</span><span class="a">${esc(e.escolha)} · ${esc(e.justificativa)} · ${esc((e.provedores||[]).join(' vs '))}</span>`);$('cxMotivo').textContent='juiz escolheu '+(e.escolha||'')+' · '+(e.justificativa||'');break;
       case 'agenda': if(e.disparo)feed($('prod'),`<span class="f">rotina</span><span class="a">${esc(e.disparo)} · ${esc(e.quando)}</span>`);else if(e.erro)aviso('agenda: '+e.erro);else if(e.rotinas)feed($('rac'),`<span class="f">agenda</span><span class="a">${e.rotinas.length} rotina(s), ${e.lembretes} lembrete(s)</span>`);break;
       case 'lembrete': aviso('⏰ '+e.texto,15000);feed($('prod'),`<span class="f">lembrete</span><span class="a">${esc(e.quando)} · ${esc(e.texto)}</span>`);break;
-      case 'pensamento': if(e.pensando){feed($('rac'),`<span class="f">pensando</span><span class="a">${esc(e.tema||'')}…</span>`);}else if(e.texto){feed($('rac'),`<span class="f">pensei${e.vale_dizer?' ·dizer':''}</span><span class="a">${esc(e.tema?e.tema+': ':'')}${esc(e.texto)}</span>`);}else if(e.erro){feed($('rac'),`<span class="f">pensamento</span><span class="a">${esc(e.erro)}</span>`);}break;
+      case 'pensamento': {const m=UI.mente;if(e.pensando){m.pensando=true;m.tema=e.tema||'';m.t=agora();feed($('rac'),`<span class="f">pensando sozinho</span><span class="a">${esc(e.tema||'')}…</span>`);}else{m.pensando=false;if(e.total!=null)m.total=e.total;if(e.texto){m.total++;m.ultimo=(e.tema?e.tema+': ':'')+e.texto;if(e.vale_dizer)m.aDizer++;pulsar('vault',0xffe27a);tocarNota('01-Estado/Pensamentos.md');registrarPensamento(m.ultimo,'01-Estado/Pensamentos.md');feed($('rac'),`<span class="f">pensei${e.vale_dizer?' · vale dizer':''}</span><span class="a">${esc(m.ultimo)}</span>`);}else if(e.erro)feed($('rac'),`<span class="f">pensamento</span><span class="a">${esc(e.erro)}</span>`);}renderMente();carregarSistemasLogo();}break;
       case 'estudo': if(e.abertos!=null){const s=$('sEstudo');s.textContent=e.abertos+' em aberto'+(e.msg?' · '+e.msg.slice(0,60):'');}if(e.msg)feed($('rac'),`<span class="f">estudo</span><span class="a">${esc(e.msg)}</span>`);carregarSistemasLogo();break;
       case 'tela': $('telaImg').src='/hud/tela?t='+e.t;$('telaBox').hidden=false;clearTimeout(window._telaT);window._telaT=setTimeout(()=>$('telaBox').hidden=true,60000);break;
       case 'autonomo': if(e.titulo)feed($('prod'),`<span class="f">autônomo ${esc(e.etapa)}/${esc(e.total)}</span><span class="a">${esc(e.titulo)} · ${esc(e.estado)}</span>`);else if(e.msg)feed($('rac'),`<span class="f">autônomo</span><span class="a">${esc(e.msg)}</span>`);if(e.estado==='pausada')aviso('objetivo pausado pelo Vigia — diga "confirmo"',20000);carregarSistemasLogo();break;
@@ -733,6 +741,7 @@ function ligarStream(){
       case 'humor': renderHumor(e);break;
       case 'saude': if(e.erros)aviso('cérebro: '+e.erros+' erro(s) — '+(e.problemas||[])[0],15000);break;
       case 'vontade': if(e.niveis)renderVontades({niveis:e.niveis,escolha:e.escolha,demanda_pendente:e.demanda_pendente});
+        if(e.movimentos&&e.movimentos.length){const mv=e.movimentos[e.movimentos.length-1];if(mv!==UI.ultimoMovimento){UI.ultimoMovimento=mv;feed($('rac'),`<span class="f ju">vontade</span><span class="a">${esc(mv.replace(/^\d\d\/\d\d \d\d:\d\d /,''))}</span>`);}}
         if(e.escolha)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.escolha.pensamento||'')}</span>`);if(e.erro)feed($('rac'),`<span class="f">vontade</span><span class="a">${esc(e.erro)}</span>`);if(menteAberta()&&(e.niveis||e.escolha))carregarVitrine();break;
       case 'vitrine': if(e.acao==='entregue'){feed($('prod'),`<span class="f">vitrine</span><span class="a">criei ${esc(e.formato||'')}: ${esc(e.titulo||'')}</span>`);aviso('nova criação na Vitrine: '+(e.titulo||''),10000);}else if(e.acao==='criando')feed($('rac'),`<span class="f">vitrine</span><span class="a">criando ${esc(e.formato||'')}…</span>`);else if(e.acao==='falhou')feed($('rac'),`<span class="f">vitrine</span><span class="a">${esc(e.formato||'')} não saiu: ${esc(e.erro||'')}</span>`);if(menteAberta())carregarVitrine();break;
       case 'identidade': aplicarNome(e.nome);if(e.msg)aviso(e.msg,8000);carregarSistemasLogo();break;
