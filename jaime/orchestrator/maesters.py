@@ -16,9 +16,11 @@ def carregar_maesters(root: Path) -> dict[str, AgentDefinition]:
     maesters: dict[str, AgentDefinition] = {}
     for p in sorted((root / ".claude" / "agents").glob("*.md")):
         meta, prompt = _parse(p.read_text(encoding="utf-8"))
+        if not meta.get("name") or not meta.get("description"):
+            continue                      # README, LICENSE e afins não são agentes
         tools = meta.get("tools", "")
         tools = [t.strip() for t in tools.split(",")] if isinstance(tools, str) else list(tools or [])
-        maesters[meta.get("name", p.stem)] = AgentDefinition(
+        maesters[meta["name"]] = AgentDefinition(
             description=meta.get("description", ""),
             prompt=prompt,
             tools=tools or None,
