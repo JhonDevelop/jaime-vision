@@ -57,7 +57,10 @@ async def medir_turno(pcm: bytes, fluxo, antecipador=None, tts=None, ritmo_real:
     fala_frase = fala_texto + (0.0 if rascunho else t_tts)
     return {"texto": texto, "parciais": len(parciais), "primeiro_parcial_s": (parciais[0][0] - t0) if parciais else None,
             "fala_texto": fala_texto, "texto_frase": t_tts, "fala_frase": fala_frase, "antecipado": bool(rascunho),
-            "antecipador_s": antecip.latencia_s if antecip else None, "duracao_audio_s": len(pcm) / 2 / SR}
+            "antecipador_s": antecip.latencia_s if antecip else None, "duracao_audio_s": len(pcm) / 2 / SR,
+            # para a Vigília validar sem adivinhar: o que o antecipador viu e decidiu neste turno
+            "antecipacao": (f"{antecip.origem} · especulável={'sim' if antecip.especulavel else 'não'} · completude {antecip.completude:.1f}"
+                            f" · ação «{antecip.acao_prevista}» · rascunho «{antecip.rascunho}» · parcial «{antecip.texto[:40]}»") if antecip else "nenhuma"}
 
 def _med(vals):
     v = [x for x in vals if x is not None]
@@ -93,6 +96,7 @@ async def medir(s, n: int = 10, frases: list[str] | None = None, gerar_audio=ger
         f = lambda v: f"{v * 1000:4.0f} ms" if v is not None else "   —   "
         imprimir(f"{i:2}. fala→texto {f(r['fala_texto'])} · texto→1ª frase {f(r['texto_frase'])} · fala→1ª frase {f(r['fala_frase'])}"
                  f"{' · antecipado' if r['antecipado'] else ''} · «{r['texto'][:40]}»")
+        imprimir(f"    antecipação: {r['antecipacao']}")
     try:
         await fluxo.fechar()
     except Exception:

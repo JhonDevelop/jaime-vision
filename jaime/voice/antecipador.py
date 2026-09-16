@@ -22,6 +22,8 @@ INACABADA_RX = re.compile(r"\b(e|ou|mas|que|também|tambem|aí|ai|então|entao|t
                           # verbos e preposições que pedem complemento: "eu preciso", "você sabe sobre o", "me manda" (cortes de 15/09 14:20–14:22)
                           r"preciso|precisa|quero|queria|gostaria|vou|vai|pode|podia|poderia|consegue|conseguiria|sabe|sobre|tem|tenho|"
                           r"faz|fazer|ver|abrir|abre|manda|mandar|me|te|nos|lhe|você|voce|deixa|só|so|mais|muito|bem|tá|ta)\s*[,…]?\s*$", re.I)
+# frases completas que TERMINAM numa palavra da lista acima ("está aí?"): não são inacabadas
+COMPLETA_RX = re.compile(r"\b(?:t[aá]|est[aá])\s+a[íi]\s*[?.!…]*$", re.I)
 HESITACAO_RX = re.compile(r"\b(é+|hum+|ãh+|ah+|tipo|então|assim|né)\b[,…\s]*$", re.I)
 
 SISTEMA = ("Você é o antecipador do Jaime, assistente pessoal do João. Recebe a transcrição PARCIAL do que o João está "
@@ -73,6 +75,10 @@ RASCUNHOS: list[tuple[re.Pattern, "callable"]] = [
      lambda m: ("cotação do dólar", "Deixa eu ver a cotação.")),
     (re.compile(r"\bme\s+lembra\b|\blembrete\b", re.I),
      lambda m: ("lembrete", "Anotando o lembrete.")),
+    (re.compile(r"^\s*(?:t[aá]|est[aá])\s+a[íi]\s*[?.!…]*$", re.I),
+     lambda m: ("presença", "Estou aqui, senhor.")),
+    (re.compile(r"\b(?:minha\s+)?agenda\b|\bcompromissos?\b", re.I),
+     lambda m: ("agenda", "Deixa eu ver a agenda.")),
 ]
 
 def rascunho_local(texto: str) -> tuple[str, str]:
@@ -90,7 +96,7 @@ def heuristico(texto: str) -> dict:
     palavras = _norm(t)
     if not palavras:
         return {"intencao": "", "completude": 0.0, "ambigua": True, "acao_prevista": "", "rascunho": "", "frase_fechou": False}
-    inacabada = bool(INACABADA_RX.search(t)) or bool(HESITACAO_RX.search(t))
+    inacabada = (bool(INACABADA_RX.search(t)) and not COMPLETA_RX.search(t)) or bool(HESITACAO_RX.search(t))
     pontuada = t[-1] in ".!?…"
     completude = min(1.0, 0.25 + 0.12 * len(palavras)) if not inacabada else min(0.5, 0.08 * len(palavras))
     if pontuada:
@@ -188,7 +194,14 @@ class Antecipador:
         # O rascunho LOCAL (pedido reconhecido) prevalece: o modelo devolvia rascunho vazio/completude 0,5 para
         # "abre o Finder" e apagava o da heurística — era isso o 0/10 do `voz latencia` com esperar=True (Vigília, 18:04).
         rascunho_modelo = str(d.get("rascunho", ""))[:240].strip()
-        local = bool(base.rascunho) and base.origem == "heuristica" and not rascunho_modelo
+        try:
+            completude_modelo = max(0.0, min(1.0, float(d.get("completude", 0.0))))
+        except (TypeError, ValueError):
+            completude_modelo = 0.0
+        modelo_especula = bool(rascunho_modelo) and completude_modelo >= ESPECULAR_A_PARTIR and not bool(d.get("ambigua", False))
+        # o modelo só substitui o rascunho local se o parecer dele também for especulável (o nano devolvia um rascunho
+        # com completude 0,2 e derrubava o local — Vigília 23:44: 0/10 no benchmark mesmo com o M-13)
+        local = bool(base.rascunho) and base.origem == "heuristica" and not modelo_especula
         a = replace(base, texto=self._ultimo_texto, origem="modelo", latencia_s=time.time() - inicio,
                     intencao=str(d.get("intencao", base.intencao))[:80],
                     completude=max(base.completude if local else 0.0, min(1.0, float(d.get("completude", base.completude)))),
