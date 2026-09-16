@@ -202,6 +202,16 @@
   inverso. Só então mexer em `jaime/voice/duplex.py`.
 - Delegado ao Gemini (M-23): markdown/emoji lidos em voz alta nas rotinas + briefing frase a frase.
 
+#### M-25 · Rotina segura o orquestrador e o João espera 1–2 min (Vigília 07:56, etapas 5/8) — **CORRIGIDO (3907b96)**
+- Diário 07:39–07:40: 4 turnos com texto→1ª frase de 66/100/120/122 s logo após "preparar o dia" e "briefing".
+  `jaime.ask(ordem, canal="rotina")` segura `_lock` até o modelo terminar; a voz espera na fila.
+- Solução: `ask_stream` de demanda (voz/HUD/Telegram) com rotina em curso → `interrupt()` do SDK (o mesmo do barge-in),
+  espera o lock (≤ 5 s), diário "Rotina «…» interrompida: demanda do João; volto a ela em 10 min", `agenda.reagendar`;
+  `_rodar_ordem` não fala o resto da rotina cedida e registra "Rotina concluída em N s".
+- Validar: falar durante o briefing → resposta em < 3 s e, 10 min depois, "Rotina disparada: briefing" de novo.
+- Em aberto (Vigília, etapa 7): `Uso.md`/`Prioridades.md` só são reescritos nos ganchos "fecha o dia"/"fecha a semana";
+  ontem o fecha-dia não rodou (M-15) e hoje só chega às 18:00. Se as rotinas rodarem hoje, resolve-se sozinho.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -236,6 +246,7 @@
 | 7j | M-22 senha no diário | segurança | mergeado |
 | 7k | M-24 barge-in com afplay (referência, calibração, dados) | prioridade do dia | pronto, aguardando merge |
 | 7l | M-23 markdown na fala das rotinas | qualidade da voz | delegado ao Gemini |
+| 7m | M-25 rotina bloqueia a demanda | 1–2 min de espera | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -257,3 +268,4 @@
 - 07:50 (16/09) — Vigília: 'nenhuma' 10/10 e 06:30/07:00 sem disparar. Reproduzi o benchmark cego com o Deepgram real (1º parcial só chega em ~216 ms, depois de todo o áudio) — fac9c82; catch-up de rotinas no boot — 5b7fcd9. 227 testes (+1 alheio, data-dependente).
 - 08:10 (16/09) — benchmark real com a Mente: 7/10, 320 ms, meta OK. M-21 (refinamento encadeado) e M-22 (redator de segredos) commitados; 231 testes. Fila de merge: fac9c82, 5b7fcd9, 3735934, redator, regex.
 - 08:00 (16/09) — main mergeada (tudo meu já está nela). Prioridade do Cérebro: áudio liso + barge-in. Barge-in não cortou o briefing: 3 causas achadas, corrigidas e instrumentadas (M-24); M-23 delegado ao Gemini. 233 testes.
+- 08:25 (16/09) — Vigília: rotina bloqueia o João (66–122 s). M-25: demanda interrompe a rotina e a reagenda; 237 testes.
