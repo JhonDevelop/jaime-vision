@@ -808,7 +808,7 @@ function abrirModulo(nome){if(MOD.aberto===nome)nome=null;MOD.aberto=nome;
   const el=$('modulo');el.hidden=!nome;if(!nome)return;el.innerHTML='';renderModulo();el.scrollTop=0;}
 document.querySelectorAll('#modulos .mod').forEach(m=>m.onclick=()=>abrirModulo(m.dataset.mod));
 function renderModulo(){const n=MOD.aberto;if(!n)return;
-  if(n==='financas')renderFinancas();else if(n==='afazeres')renderAfazeres();else if(n==='agenda')renderAgenda();else if(n==='musica')renderMusica();else if(n==='cerebro')renderCerebroMod();}
+  if(n==='financas')renderFinancas();else if(n==='afazeres')renderAfazeres();else if(n==='agenda')renderAgenda();else if(n==='musica'){renderMusica();carregarMusica();}else if(n==='cerebro')renderCerebroMod();}
 let painelT=null;
 function carregarPainelLogo(){clearTimeout(painelT);painelT=setTimeout(carregarPainel,400);}
 async function carregarPainel(){const d=await fetch('/hud/painel').then(r=>r.ok?r.json():null).catch(()=>null);if(!d)return;
@@ -820,7 +820,7 @@ function renderAbas(){const d=MOD.painel;if(!d)return;const f=d.financas||{};
   const na=(d.afazeres||[]).filter(l=>!MOD.feitos.has(l.replace(/^- \[ \]\s*/,'').trim())).length;$('mAfa').textContent=na?`${na} aberta${na===1?'':'s'}`:'nada aberto';
   const l=(d.agenda&&d.agenda.lembretes||[])[0];$('mAge').textContent=l?`${l.quando} · ${l.o_que}`:`${(d.agenda&&d.agenda.rotinas||[]).length} rotinas`;
   $('mCer').textContent=($('notas').textContent||'—')+' notas';}
-carregarPainel();setInterval(carregarPainel,10000);
+carregarPainel();setInterval(carregarPainel,10000);carregarMusica();setInterval(carregarMusica,30000);
 
 // FINANÇAS — saldo grande, rosca por categoria, barras por mês, últimos lançamentos (canvas puro)
 async function trocarMes(mes){MOD.mesFin=mes;if(!mes){MOD.fin=MOD.painel&&MOD.painel.financas;}else{MOD.fin=await fetch('/hud/financas?mes='+encodeURIComponent(mes)).then(r=>r.ok?r.json():null).catch(()=>null)||MOD.fin;}
@@ -876,11 +876,22 @@ function renderAgenda(){const el=$('modulo'),d=MOD.painel||{},a=d.agenda||{},hoj
   el.innerHTML=`<h2>Agenda <small>${esc(d.agora||'')}</small></h2><div class="agenda">
     <div><h3>próximos lembretes</h3><div class="lemb">${(a.lembretes||[]).map(l=>`<b class="${l.quando.startsWith(hoje)?'hoje':''}">${esc(l.quando)}</b><span>${esc(l.o_que)}</span>`).join('')||'<div class="vazio">nenhum lembrete — diga "me lembra às 15h de…"</div>'}</div></div>
     <div><h3>rotinas</h3><div class="rot">${(a.rotinas||[]).map(r=>`<code title="${esc(r.cron)}">${esc(cronLegivel(r.cron))}</code><span>${esc(r.ordem)}</span>`).join('')||'<div class="vazio">nenhuma rotina em 30-Tarefas/Rotinas.md</div>'}</div></div></div>`;}
-// MÚSICA — placeholder: o Spotify precisa da conta do João (backend virá depois)
-function renderMusica(){$('modulo').innerHTML=`<h2>Música <small>Spotify · não conectado</small></h2>
-  <div class="musica"><div class="disco"></div><div><h4>Spotify (conectar)</h4>
-    <p>Este módulo vai mostrar o que está tocando, controlar play/pause e montar playlists por voz. Para isso o J.A.I.M.E precisa da <b>conta Spotify do João</b> (login OAuth) — o backend ainda não existe, então nada aqui envia dados a lugar nenhum.</p>
-    <button disabled title="o backend do Spotify vem na próxima etapa">conectar Spotify · em breve</button></div></div>`;}
+// MÚSICA — GET /hud/musica: conectado → o que toca + artistas do gosto; senão o card "conectar" (precisa da conta do João)
+MOD.musica=null;
+async function carregarMusica(){const d=await fetch('/hud/musica').then(r=>r.ok?r.json():null).catch(()=>null);if(!d)return;MOD.musica=d;
+  $('mMus').textContent=d.conectado?(d.tocando&&!/^Nada/.test(d.tocando)?d.tocando:'conectado'):'conectar';$('mMus').parentElement.classList.toggle('alerta',!d.conectado);
+  if(MOD.aberto==='musica')renderMusica();}
+function renderMusica(){const el=$('modulo'),d=MOD.musica;
+  if(!d||!d.conectado){el.innerHTML=`<h2>Música <small>Spotify · não conectado</small></h2>
+    <div class="musica"><div class="disco"></div><div><h4>Spotify (conectar)</h4>
+      <p>Este módulo mostra o que está tocando, controla play/pause e lê o gosto (artistas mais ouvidos). Para isso o J.A.I.M.E precisa da <b>conta Spotify do João</b> (login OAuth). Nada aqui envia dados a lugar nenhum enquanto não conectar.</p>
+      <p style="margin-top:8px">Para conectar, no terminal da máquina:</p><pre class="codigo" style="margin-top:6px;max-height:none">${esc((d&&d.dica)||'python -m jaime conectar spotify')}</pre>
+      <button disabled title="o login acontece no terminal, com a conta do João">Spotify · aguardando a conta do João</button></div></div>`;return;}
+  const toca=d.tocando&&!/^Nada/.test(d.tocando);
+  el.innerHTML=`<h2>Música <small>Spotify · conectado${d.erro?' · erro: '+esc(d.erro):''}</small></h2>
+    <div class="musica"><div class="disco" style="opacity:${toca?1:.4};animation-play-state:${toca?'running':'paused'}"></div><div>
+      <h4>${toca?esc(d.tocando):'nada tocando agora'}</h4><p>${toca?'tocando agora no Spotify do João':'diga "toca alguma coisa" ou dê play no Spotify'}</p>
+      <h3>artistas que você mais ouve</h3><p>${(d.top_artistas||[]).map(esc).join(' · ')||'—'}</p></div></div>`;}
 // CÉREBRO — o grafo estilo Obsidian de /hud/vault (tecla G) + números do vault
 function renderCerebroMod(){const el=$('modulo'),G=GRAFO,porPasta={};G.nos.forEach(n=>porPasta[n.pasta]=(porPasta[n.pasta]||0)+1);
   const top=[...G.nos].sort((a,b)=>b.grau-a.grau).slice(0,5);
