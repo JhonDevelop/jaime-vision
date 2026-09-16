@@ -43,9 +43,15 @@ BARGE_IN_SUST_X = 1.15        # (sem VAD) o eco oscila em torno de 1,0× a próp
 BARGE_IN_JANELA_MS = 640      # janela do corte por energia (precisa de BARGE_IN_MS qualificados dentro dela)
 # Piso de voz: energia sozinha corta com toque de telefone (16/09 10:09: 64 ms de VAD, rms 9× o eco, sim 0,39). Metade
 # dos frames da janela precisa ter alguma probabilidade de voz — o VAD esparso do João passa, campainha/telefone não.
-BARGE_IN_VAD_PISO = 0.3
+BARGE_IN_VAD_PISO = 0.35
 BARGE_IN_VAD_FRACAO = 0.5
 BARGE_IN_JANELA_SUST_MS = 1000  # janela do corte por voz sustentada
+# VOZ DE VERDADE, não barulho (16/09, pedido do João: "qualquer barulho ele interrompe"). Energia alta o suficiente
+# qualquer coisa tem: porta, teclado, prato, carro, música de fundo. O que só a fala tem é o VAD FORTE — probabilidade
+# ≥ BARGE_IN_PROB numa boa parte da janela. Sem esse mínimo, não corta, por mais alto que esteja.
+# É uma FRAÇÃO da janela, não um tempo fixo: quando o João fala por cima do áudio do Jaime o VAD forte dispara em
+# ~1 de cada 4 frames (16/09 09:46), enquanto o toque do telefone deu 64 ms em 640 (0,1) e ruído de porta/teclado menos.
+BARGE_IN_VOZ_FORTE_FRACAO = 0.2
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
@@ -147,6 +153,7 @@ class OuvidoDuplex(Ouvido):
         self._janela_energia: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._janela_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
         self._janela_vad: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
+        self._janela_vad_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
         self._janela_piso: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._barge_emitido = 0.0
         self._eco_rms = 0.0
@@ -284,18 +291,24 @@ class OuvidoDuplex(Ouvido):
         self._janela_energia.append(acima_do_eco and not provavel_eco)
         self._janela_sust.append(rms >= BARGE_IN_SUST_X * max(self._eco_rms, 80.0) and not provavel_eco)
         self._janela_vad.append(prob >= BARGE_IN_PROB)
+        self._janela_vad_sust.append(prob >= BARGE_IN_PROB)
         self._janela_piso.append(prob >= BARGE_IN_VAD_PISO)
         self._barge_ms = sum(self._janela_energia) * FRAME_MS
         sustentado_ms = sum(self._janela_sust) * FRAME_MS
         piso = sum(self._janela_piso) / max(1, len(self._janela_piso))
         st["janela_max"] = max(st.get("janela_max", 0), self._barge_ms); st["sust_max"] = max(st.get("sust_max", 0), sustentado_ms)
         st["vad_max"] = max(st.get("vad_max", 0), sum(self._janela_vad) * FRAME_MS); st["piso_max"] = max(st.get("piso_max", 0.0), piso)
-        energia = self._barge_ms >= BARGE_IN_MS
-        sustentado = sustentado_ms >= BARGE_IN_SUSTENTADO_MS
+        # Só VOZ corta. Energia alta qualquer barulho tem (porta, teclado, prato, carro, música); o que só a fala
+        # tem é VAD forte numa fração real da janela. Sem isso, não corta, por mais alto que esteja (pedido do João, 16/09).
+        forte = sum(self._janela_vad) / max(1, len(self._janela_vad))
+        forte_sust = sum(self._janela_vad_sust) / max(1, len(self._janela_vad_sust))
+        st["forte_max"] = round(max(st.get("forte_max", 0.0), forte), 2)
+        energia = self._barge_ms >= BARGE_IN_MS and forte >= BARGE_IN_VOZ_FORTE_FRACAO
+        sustentado = sustentado_ms >= BARGE_IN_SUSTENTADO_MS and forte_sust >= BARGE_IN_VOZ_FORTE_FRACAO
         if (not energia and not sustentado) or piso < BARGE_IN_VAD_FRACAO:
             return False
         st["cortou"] = True; st["motivo"] = "energia" if energia else "sustentado"
-        self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_piso.clear()
+        self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_vad_sust.clear(); self._janela_piso.clear()
         restantes = self._tts.parar()
         self._nao_ditas = restantes
         self.interrompido = True
@@ -309,7 +322,7 @@ class OuvidoDuplex(Ouvido):
         """Fecha as estatísticas de barge-in da fala que acabou. Voz ouvida por ≥ 400 ms sem cortar vira uma linha no
         diário — é o dado que faltava para calibrar os limiares (16/09: o João falou por cima do briefing e nada cortou)."""
         st, self._barge_stats = self._barge_stats, {}
-        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_piso.clear()
+        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_vad_sust.clear(); self._janela_piso.clear()
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
         linha = ""
         if max(st.get("voz_ms", 0), st.get("acima_ms", 0)) >= 400 and not st.get("cortou"):

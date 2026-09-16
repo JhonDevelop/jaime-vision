@@ -130,3 +130,19 @@ def test_linha_exata_da_vigilia_1009_toque_de_telefone_nao_corta():
         cortou = any(o._barge(0.95 if i % 4 == 0 else 0.45, 1321.0, F) for i in range(30))
         assert cortou and o._tts.parou == 1
     asyncio.run(rodar())
+
+
+def test_barulho_alto_sem_voz_nao_corta_o_raciocinio():
+    """16/09, João: 'qualquer barulho ele interrompe'. Porta, prato, teclado, carro — energia bem acima do eco,
+    sustentada, mas sem VAD forte. Só a fala tem voz forte numa fração real da janela; barulho não corta."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 300.0, F)                      # calibra o eco
+        # 2 s de barulho a 5× o eco, com o VAD tropeçando de leve (prob 0.4: passa no piso, não é voz forte)
+        assert not any(o._barge(0.4, 1500.0, F) for _ in range(60))
+        assert o._tts.parou == 0
+        # a voz do João, no mesmo nível, corta
+        assert any(o._barge(0.95, 1500.0, F) for _ in range(20)) and o._tts.parou == 1
+    asyncio.run(rodar())
