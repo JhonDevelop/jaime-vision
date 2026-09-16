@@ -50,11 +50,16 @@ def test_trancado_conversa_ambiente_fica_em_silencio():
         assert j.pedidos[-1] == "abre o finder"
     asyncio.run(rodar())
 
-def test_trancado_com_janela_ativa_ainda_responde():
+def test_trancado_com_janela_ativa_so_a_senha_ou_o_nome_passam():
     async def rodar():
-        j, o = _ouvido(); o.ativo_ate = float("inf")             # "Jaime, está aí?" já foi dito
-        await _fala(o, "abre o finder")
-        assert j.pedidos == ["abre o finder"]                     # chega a _porta, que pede a senha
+        j, o = _ouvido(); o.ativo_ate = float("inf")             # "Jaime" já foi dito, mas continua trancado
+        await _fala(o, "abre o finder")                           # frase solta: silêncio (não "Palavra-passe, por favor.")
+        await _fala(o, "Ele se, olha, uma frase")
+        assert j.pedidos == [] and o._tts.falas == []
+        await _fala(o, SENHA); assert j.pedidos == [SENHA]
+        await _fala(o, "jaime, abre o finder"); assert j.pedidos[-1] == "abre o finder"
+        j.acesso.tentar(SENHA)                                    # destrancado: a janela volta a valer para frases soltas
+        await _fala(o, "abre o terminal"); assert j.pedidos[-1] == "abre o terminal"
     asyncio.run(rodar())
 
 # ── _porta: voz incerta e canal digitado ───────────────────────────────────────

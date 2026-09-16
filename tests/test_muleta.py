@@ -43,3 +43,13 @@ def test_sem_ferramenta_ou_resposta_rapida_nao_tem_muleta():
     assert _turno(_Rapido()).falas == ["Duas mensagens."]
     j = _JaimeComFerramenta(demora=0.1)                                         # ferramenta, mas a resposta veio antes
     assert _turno(j).falas == ["Foram três mensagens."]
+
+
+def test_sem_ferramenta_mas_modelo_lento_tambem_tem_muleta(monkeypatch):
+    from jaime.voice import escuta
+    monkeypatch.setattr(escuta, "MULETA_S", 0.3)
+    class _Lento(_JaimeComFerramenta):
+        async def ask_stream(self, texto, canal="voice", contexto=""):
+            await asyncio.sleep(0.8); yield "Sou um robô assistente."
+    tts = _turno(_Lento())
+    assert tts.falas[0] in MULETAS and tts.falas[-1] == "Sou um robô assistente."
