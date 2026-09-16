@@ -398,7 +398,7 @@ class TTS:
             x = np.frombuffer(fatia, dtype=np.int16).astype(np.float32)
             if not len(x):
                 return
-            rms = float(np.sqrt(np.mean(x * x))) / 6000.0        # fala normal do TTS ~ 0,4-0,9
+            rms = float(np.sqrt(np.mean(x * x))) / 4200.0        # medido 16/09: a fala normal do TTS bate 0,55-0,75 nesta escala
             bus.emitir("voz", falando=True, estado="falando", nivel=max(0.0, min(1.0, rms)))
         except Exception:
             pass
