@@ -90,6 +90,7 @@ class Jaime:
         self._lock = asyncio.Lock()
         self._ordem_em_curso = ""        # rotina que está com o orquestrador agora (canal "rotina"); "" fora disso
         self._rotina_cedida = ""         # rotina interrompida para atender o João — não se fala o que sobrou dela
+        self._ultima_espera_lock = 0.0   # segundos que a última demanda esperou pelo lock (vai para a linha de latência)
         self.canal = "cli"
         self.apresentacao: str = ""
         self.proposta_renomear: str = ""      # nome proposto, à espera do "confirmo"
@@ -453,7 +454,9 @@ class Jaime:
             curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo
         if curta is not None:
             bus.emitir("fala", texto=curta); bus.emitir("fala_fim"); yield curta; return
+        t_lock = asyncio.get_event_loop().time()
         async with self._lock:
+            self._ultima_espera_lock = asyncio.get_event_loop().time() - t_lock   # quanto esta demanda esperou o orquestrador
             self.canal = canal
             self._ordem_em_curso = texto if canal == "rotina" else ""
             self.vigia.lote_executado = False

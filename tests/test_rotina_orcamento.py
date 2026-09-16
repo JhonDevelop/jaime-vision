@@ -278,3 +278,16 @@ def test_rotina_nao_roda_duas_vezes_em_dez_minutos(vault):
     asyncio.run(ag._rodar_ordem("briefing")); asyncio.run(ag._rodar_ordem("briefing"))
     assert j.ordens == ["briefing"]                                        # a 2ª (tique + APScheduler acordando juntos) não roda
     assert ag._disparada_ha_pouco("briefing") and not ag._disparada_ha_pouco("briefing", datetime.now() + _td(minutes=11))
+
+
+def test_rotina_sempre_registra_o_fim(vault):
+    class _Falha(_Jaime):
+        async def ask(self, ordem, canal="rotina", contexto=""): raise RuntimeError("modelo caiu")
+    ag = Agenda(_Falha(vault))
+    with pytest.raises(RuntimeError):
+        asyncio.run(ag._rodar_ordem("briefing"))
+    d = vault.read(vault.daily_rel())
+    assert "Rotina falhou após 0 s: briefing — RuntimeError: modelo caiu" in d
+    j = _Jaime(vault); ag = Agenda(j); j._rotina_cedida = "revisão"
+    asyncio.run(ag._rodar_ordem("revisão"))
+    assert "Rotina interrompida pela demanda após 0 s: revisão" in vault.read(vault.daily_rel())

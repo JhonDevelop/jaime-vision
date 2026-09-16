@@ -267,11 +267,13 @@ class OuvidoDuplex(Ouvido):
         if not st:
             st.update(voz_ms=0, acima_ms=0, veto_ms=0, rms_max=0.0, sim_max=0.0, eco=0.0, cortou=False)
         st["eco"] = self._eco_rms
-        st["rms_max"] = max(st["rms_max"], rms)          # de TODOS os frames: um corte por ruído sem VAD saía como 'rms máx 0' (10:26)
+        # estatísticas de TODOS os frames (as janelas decidem por energia): 'voz' é só o VAD ≥ 0,82; 'acima do eco', rms,
+        # similaridade e veto valem para qualquer frame — antes 'rms máx 1421 vs eco 877×1,4' saía com 'acima do eco 0 ms' (13:30)
+        st["rms_max"] = max(st["rms_max"], rms); st["sim_max"] = max(st["sim_max"], sim)
+        if acima_do_eco: st["acima_ms"] += FRAME_MS
+        if provavel_eco: st["veto_ms"] += FRAME_MS
         if prob >= BARGE_IN_PROB:
-            st["voz_ms"] += FRAME_MS; st["sim_max"] = max(st["sim_max"], sim)
-            if acima_do_eco: st["acima_ms"] += FRAME_MS
-            if provavel_eco: st["veto_ms"] += FRAME_MS
+            st["voz_ms"] += FRAME_MS
         agora = time.time()
         if agora - self._barge_emitido >= 0.5:
             self._barge_emitido = agora
@@ -310,7 +312,7 @@ class OuvidoDuplex(Ouvido):
         self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_piso.clear()
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
         linha = ""
-        if st.get("voz_ms", 0) >= 400 and not st.get("cortou"):
+        if max(st.get("voz_ms", 0), st.get("acima_ms", 0)) >= 400 and not st.get("cortou"):
             linha = (f"Barge-in não cortou: voz por {st['voz_ms']} ms durante a minha fala (acima do eco {st['acima_ms']} ms, "
                      f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f}; "
                      f"janela máx {st.get('janela_max', 0)}/{BARGE_IN_MS} ms, sustentada máx {st.get('sust_max', 0)}/{BARGE_IN_SUSTENTADO_MS} ms, "

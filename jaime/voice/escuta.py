@@ -423,6 +423,9 @@ class Ouvido:
             self.ativo_ate = time.time() + self.s.janela_ativa_s
             if t_fim_fala and self._tts:
                 motivo = f"usada: «{ja_dito or (antecipacao.rascunho if antecipacao else '')}»" if usou_cache else getattr(self, "_motivo_antecip", "")
+                espera = float(getattr(self.jaime, "_ultima_espera_lock", 0.0) or 0.0)
+                if espera >= 0.2:
+                    motivo = (motivo + " · " if motivo else "") + f"lock esperado {espera * 1000:.0f} ms"   # rotina segurava o orquestrador
                 t_som = getattr(self._tts, "t_primeiro_som", 0.0) or getattr(self._tts, "t_inicio_audio", 0.0)
                 self.latencias.registrar(t_fim_fala, t_texto, t_som, antecipado=usou_cache, texto=texto, motivo=motivo)
             if self.interrompido:

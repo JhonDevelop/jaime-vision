@@ -276,9 +276,14 @@ class Agenda:
             from ..brain.ouvido_passivo import prompt_consolidar
             await self.jaime.ask(prompt_consolidar(self.jaime.vault), canal=canal); return
         t0 = time.time()
-        resposta = await self.jaime.ask(ordem, canal=canal)
+        try:
+            resposta = await self.jaime.ask(ordem, canal=canal)
+        except BaseException as e:               # inclusive CancelledError: a rotina SEMPRE deixa um fim registrado (Vigília 16/09 13:58)
+            self.vault.diario(f"Rotina falhou após {time.time() - t0:.0f} s: {ordem[:60]} — {type(e).__name__}: {str(e)[:80]}", "Log")
+            raise
         if getattr(self.jaime, "_rotina_cedida", "") == ordem:
             self.jaime._rotina_cedida = ""       # o João falou no meio: a rotina foi reagendada; não se fala o pedaço que sobrou
+            self.vault.diario(f"Rotina interrompida pela demanda após {time.time() - t0:.0f} s: {ordem[:60]}", "Log")
             return
         self.vault.diario(f"Rotina concluída em {time.time() - t0:.0f} s: {ordem[:60]}", "Log")
         if self.ouvido:
