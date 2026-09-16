@@ -212,6 +212,18 @@
 - Em aberto (Vigília, etapa 7): `Uso.md`/`Prioridades.md` só são reescritos nos ganchos "fecha o dia"/"fecha a semana";
   ontem o fecha-dia não rodou (M-15) e hoje só chega às 18:00. Se as rotinas rodarem hoje, resolve-se sozinho.
 
+#### M-26 · Barge-in ainda não corta ao vivo (Vigília 08:27, com os dados do M-24) — **CORRIGIDO (17f30b3)**
+- 6 linhas "Barge-in não cortou" 08:13–08:16: voz 416–3296 ms; rms máx 1202–1603 vs eco 486–1026 (1,2–2,5×, e o limiar
+  era 1,8×); vetos por similaridade a 0,82–0,88 (limiar 0,80) que eram o João. Alto-falante, sem fone, sem AEC.
+- Solução: `BARGE_IN_ECO_X` 1,8 → 1,25; `BARGE_IN_ECO_SIM` 0,80 → 0,92; regra nova: voz contínua ≥ 1,0× o eco por 700 ms
+  corta (eco não fica 2–3 s acima da própria média). Cada corte também vai ao diário com o motivo (energia/sustentado)
+  para flagrar corte pelo próprio eco.
+- Não fiz (por ora) a sugestão 2 da Vigília (STT durante a fala do Jaime): os frames enviados ao Deepgram entrariam no
+  turno do João com o eco transcrito junto (contaminação) — exigiria um 2º stream só de detecção. Fica como M-27 se
+  os limiares novos não bastarem.
+- Validar: linhas "Barge-in cortou (energia|sustentado)" quando o João fala por cima; zero "Barge-in cortou" sem o João
+  falar (seria eco); "Você não terminou de falar" não volta.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -246,7 +258,8 @@
 | 7j | M-22 senha no diário | segurança | mergeado |
 | 7k | M-24 barge-in com afplay (referência, calibração, dados) | prioridade do dia | pronto, aguardando merge |
 | 7l | M-23 markdown na fala das rotinas | qualidade da voz | delegado ao Gemini |
-| 7m | M-25 rotina bloqueia a demanda | 1–2 min de espera | pronto, aguardando merge |
+| 7m | M-25 rotina bloqueia a demanda | 1–2 min de espera | mergeado |
+| 7n | M-26 limiares do barge-in | prioridade do dia | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -269,3 +282,4 @@
 - 08:10 (16/09) — benchmark real com a Mente: 7/10, 320 ms, meta OK. M-21 (refinamento encadeado) e M-22 (redator de segredos) commitados; 231 testes. Fila de merge: fac9c82, 5b7fcd9, 3735934, redator, regex.
 - 08:00 (16/09) — main mergeada (tudo meu já está nela). Prioridade do Cérebro: áudio liso + barge-in. Barge-in não cortou o briefing: 3 causas achadas, corrigidas e instrumentadas (M-24); M-23 delegado ao Gemini. 233 testes.
 - 08:25 (16/09) — Vigília: rotina bloqueia o João (66–122 s). M-25: demanda interrompe a rotina e a reagenda; 237 testes.
+- 08:40 (16/09) — Vigília trouxe os números do M-24: limiares recalibrados + regra de voz sustentada (M-26); 242 testes.
