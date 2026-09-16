@@ -11,6 +11,18 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
+## 16/09 — painéis pessoais (não ERP): finanças, música, cockpit
+- **Finanças pessoais** (`jaime/financas/`): livro-caixa no vault (`70-Financas/lancamentos.csv`), o João fala "gastei 50 de
+  gasolina" e o Jaime registra, adivinha categoria, calcula saldo/entradas/saídas/por categoria/por mês. Ferramentas
+  `mcp__financas__registrar_financa` / `resumo_financas`. Endpoints `/hud/financas` e `/hud/painel` (finanças+afazeres+agenda).
+- **Spotify** (`jaime/conexoes/spotify.py`): conector OAuth PRONTO (tocar/pausar/o que toca/gosto), `mcp__musica__*`,
+  `python -m jaime conectar spotify`, `/hud/musica`. Falta só o João criar o app em developer.spotify.com (Redirect
+  http://127.0.0.1:8899/callback), pôr SPOTIFY_CLIENT_ID/SECRET no .env e conectar.
+- **HUD renomeado para J.A.I.M.E** (com pontos). O nó `J.A.I.M.E · HUD` está montando o cockpit visual (abas Finanças com
+  gráficos, Afazeres, Agenda, Música, Cérebro em grafo Obsidian) consumindo esses endpoints — sobre o cérebro 3D atual.
+- meu-nectar.com.br não existe (DNS não resolve); o Néctar público é um ERP — o João disse que NÃO quer ERP, só os painéis pessoais.
+- 251 testes verdes. Serviço reiniciado limpo (pid da vez).
+
 ## 16/09 ~07:40 — áudio, barge-in, velocidade, equipe
 - **Áudio picotado resolvido**: era reabertura do PortAudio no Intel (-9986) + underrun de streaming. Agora a saída é
   `afplay` robusto (frase inteira sintetizada, coexiste com o mic, killable no barge-in); `JAIME_SAIDA_AUDIO=afplay`.
