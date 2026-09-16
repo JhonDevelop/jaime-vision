@@ -104,7 +104,7 @@ O painel de vidro abre **sobre** o cérebro 3D, que continua vivo atrás.
 | Finanças | `painel.financas` / `GET /hud/financas?mes=` | saldo grande (vermelho se negativo), entradas/saídas, rosca dos gastos por categoria e barras entradas×saídas por mês em canvas puro (varrem ao mudar os dados), últimos lançamentos; filtro "tudo / este mês" |
 | Afazeres | `painel.afazeres` (linhas `- [ ] … @projeto ⏳ prazo`) | lista com caixa, chip do projeto e prazo (vermelho se venceu); marcar é visual e fica no localStorage — o Inbox só muda quando o Jaime fecha a tarefa |
 | Agenda | `painel.agenda` | próximos lembretes (verde = hoje) e rotinas com o cron legível ("08:00 · seg–sex") |
-| Música | — | card "Spotify (conectar)": explica que precisa da conta do João; backend vem depois |
+| Música | `GET /hud/musica` (30 s) | não conectado: card "Spotify (conectar)" com o comando `python -m jaime conectar spotify`; conectado: o que toca (disco gira só se toca) e artistas mais ouvidos |
 | Cérebro | `GRAFO` (de `/hud/vault`) | notas, ligações, nota tocada agora, contagem por pasta, mais ligadas; botões para o grafo (G) e a memória (B) |
 | Abas | `painel` | cada aba mostra o valor vivo: saldo, tarefas abertas, próximo lembrete, "conectar", nº de notas |
 
