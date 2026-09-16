@@ -876,7 +876,11 @@ function renderAgenda(){const el=$('modulo'),d=MOD.painel||{},a=d.agenda||{},hoj
   el.innerHTML=`<h2>Agenda <small>${esc(d.agora||'')}</small></h2><div class="agenda">
     <div><h3>próximos lembretes</h3><div class="lemb">${(a.lembretes||[]).map(l=>`<b class="${l.quando.startsWith(hoje)?'hoje':''}">${esc(l.quando)}</b><span>${esc(l.o_que)}</span>`).join('')||'<div class="vazio">nenhum lembrete — diga "me lembra às 15h de…"</div>'}</div></div>
     <div><h3>rotinas</h3><div class="rot">${(a.rotinas||[]).map(r=>`<code title="${esc(r.cron)}">${esc(cronLegivel(r.cron))}</code><span>${esc(r.ordem)}</span>`).join('')||'<div class="vazio">nenhuma rotina em 30-Tarefas/Rotinas.md</div>'}</div></div></div>`;}
-function renderMusica(){$('modulo').innerHTML='<h2>Música</h2><div class="vazio">em obra</div>'}
+// MÚSICA — placeholder: o Spotify precisa da conta do João (backend virá depois)
+function renderMusica(){$('modulo').innerHTML=`<h2>Música <small>Spotify · não conectado</small></h2>
+  <div class="musica"><div class="disco"></div><div><h4>Spotify (conectar)</h4>
+    <p>Este módulo vai mostrar o que está tocando, controlar play/pause e montar playlists por voz. Para isso o J.A.I.M.E precisa da <b>conta Spotify do João</b> (login OAuth) — o backend ainda não existe, então nada aqui envia dados a lugar nenhum.</p>
+    <button disabled title="o backend do Spotify vem na próxima etapa">conectar Spotify · em breve</button></div></div>`;}
 function renderCerebroMod(){$('modulo').innerHTML='<h2>Cérebro</h2><div class="vazio">em obra</div>'}
 // ── teclado sob demanda ───────────────────────────────────────────────────
 const tecladoAberto=()=>$('teclado').classList.contains('aberto');
