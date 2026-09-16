@@ -111,8 +111,16 @@ def _skills(acao: str) -> int:
 
 def _conectar(servico: str) -> int:
     """`jaime conectar google`: OAuth do seu projeto → token local + registro em 01-Estado/Conexoes.md."""
+    if servico == "spotify":
+        from .conexoes.spotify import conectar as conectar_sp
+        from .conexoes.registro import Registro
+        from .brain.vault import Vault
+        from datetime import date
+        nome = conectar_sp(settings.spotify_client_id, settings.spotify_client_secret, settings.spotify_token)
+        Registro(Vault(settings.vault)).registrar("Spotify", "tocar, ler o que toca e o gosto musical", f"OAuth {date.today():%d/%m/%Y} ({nome})", "developer.spotify.com › app › remover; ou apagar ~/Jaime/spotify-token.json")
+        print(f"✔ Spotify conectado como {nome}. Token em {settings.spotify_token}"); return 0
     if servico != "google":
-        print("uso: python -m jaime conectar google"); return 2
+        print("uso: python -m jaime conectar google | spotify"); return 2
     from .conexoes.google import conectar
     from .conexoes.registro import Registro
     from .brain.vault import Vault

@@ -272,6 +272,16 @@ async def hud_financas(mes: str = ""):
     """Painel Finanças: saldo, entradas/saídas, gastos por categoria e evolução por mês (para os gráficos)."""
     return jaime.financas.resumo(mes)
 
+@app.get("/hud/musica")
+async def hud_musica():
+    """Painel Música: se conectado, o que toca e o gosto; senão, o card de conectar."""
+    if not jaime.spotify.conectado:
+        return {"conectado": False, "dica": "python -m jaime conectar spotify"}
+    try:
+        return {"conectado": True, "tocando": jaime.spotify.o_que_toca(), "top_artistas": jaime.spotify.top("artists")}
+    except Exception as e:
+        return {"conectado": True, "erro": f"{type(e).__name__}"}
+
 @app.get("/hud/painel")
 async def hud_painel():
     """Cockpit do J.A.I.M.E num JSON: finanças, afazeres (tarefas) e agenda (próximos lembretes/rotinas)."""
