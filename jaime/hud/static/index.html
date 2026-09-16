@@ -881,7 +881,17 @@ function renderMusica(){$('modulo').innerHTML=`<h2>Música <small>Spotify · nã
   <div class="musica"><div class="disco"></div><div><h4>Spotify (conectar)</h4>
     <p>Este módulo vai mostrar o que está tocando, controlar play/pause e montar playlists por voz. Para isso o J.A.I.M.E precisa da <b>conta Spotify do João</b> (login OAuth) — o backend ainda não existe, então nada aqui envia dados a lugar nenhum.</p>
     <button disabled title="o backend do Spotify vem na próxima etapa">conectar Spotify · em breve</button></div></div>`;}
-function renderCerebroMod(){$('modulo').innerHTML='<h2>Cérebro</h2><div class="vazio">em obra</div>'}
+// CÉREBRO — o grafo estilo Obsidian de /hud/vault (tecla G) + números do vault
+function renderCerebroMod(){const el=$('modulo'),G=GRAFO,porPasta={};G.nos.forEach(n=>porPasta[n.pasta]=(porPasta[n.pasta]||0)+1);
+  const top=[...G.nos].sort((a,b)=>b.grau-a.grau).slice(0,5);
+  el.innerHTML=`<h2>Cérebro <small>vault Obsidian · ${G.nos.length} notas · ${G.arestas.length} ligações</small></h2><div class="cer">
+    <div><div class="num">${G.nos.length}<small>NOTAS</small></div><div class="num">${G.arestas.length}<small>LIGAÇÕES</small></div>
+      <p style="color:var(--mu);font-size:12px;margin-top:6px">${G.atual?'lendo agora: <b style="color:var(--tx)">'+esc(G.atual.nome)+'</b>':'nenhuma nota tocada neste momento'}</p>
+      <button id="btGrafoMod">${G.on?'voltar ao cérebro 3D':'abrir o grafo (G)'}</button> <button id="btMenteMod">memória e vitrine (B)</button></div>
+    <div><h3>por pasta</h3><div class="pastas">${G.pastas.map(p=>`<i style="background:${corCss(CORES_PASTA[p]||0x6b93a8)}"></i><span>${esc(p)}</span><b>${porPasta[p]||0}</b>`).join('')||'<div class="vazio">carregando o vault…</div>'}</div>
+      <h3>mais ligadas</h3><div class="pastas">${top.map(n=>`<i style="background:${n.cor}"></i><span>${esc(n.nome)}</span><b>${n.grau}</b>`).join('')}</div></div></div>`;
+  $('btGrafoMod').onclick=()=>{toggleGrafo();abrirModulo(null);};$('btMenteMod').onclick=()=>{abrirModulo(null);toggleMente();};}
+
 // ── teclado sob demanda ───────────────────────────────────────────────────
 const tecladoAberto=()=>$('teclado').classList.contains('aberto');
 function abrirTeclado(motivo,inicial){
