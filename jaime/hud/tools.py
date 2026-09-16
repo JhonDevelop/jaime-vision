@@ -34,4 +34,11 @@ def build_interface_server():
         bus.emitir("painel", tela=t)
         return _txt(f"Abrindo {t}.")
 
-    return create_sdk_mcp_server(name="interface", version="1.0.0", tools=[mostrar, abrir_tela])
+    @tool("fechar", "FECHA o pop-up ou a tela que você abriu no cockpit. Use quando o João pedir para tirar aquilo da "
+                    "tela, fechar, limpar ou voltar ao cérebro. Quem abriu fecha: nunca diga a ele para fechar na mão.",
+          {})
+    async def fechar(args):
+        bus.emitir("fechar")
+        return _txt("Fechei.")
+
+    return create_sdk_mcp_server(name="interface", version="1.1.0", tools=[mostrar, abrir_tela, fechar])

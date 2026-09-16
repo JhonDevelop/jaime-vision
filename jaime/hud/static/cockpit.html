@@ -350,6 +350,7 @@ function sse(){const es=new EventSource('/hud/stream');
    case 'acesso': case 'estado': if(e.liberado!=null)setAcesso(e.liberado); break;
    case 'painel': if(e.tela)abrir(e.tela); break;                                    /* “mostra minhas finanças” */
    case 'mostrar': if(e.html){mostrarHTML(e.titulo,e.html);rac('mostrei',e.titulo||'')} break;   /* ele criou a tela */
+   case 'fechar': fecharPop(); toggleKb(false); abrir('inicio'); rac('fechei',''); break;   /* ele fecha o que abriu */
    case 'teclado': if(e.aberto)toggleKb(true); break;
   }};
  es.onerror=()=>{};}
