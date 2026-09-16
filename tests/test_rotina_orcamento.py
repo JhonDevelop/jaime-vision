@@ -222,3 +222,28 @@ def test_rotinas_perdidas_no_sono_rodam_no_boot(vault):
             ag.stop()
     # com o relógio real, o que está nas últimas 3 h depende da hora: só garantimos que o boot não quebra
     asyncio.run(rodar())
+
+
+def test_rotina_registra_duracao_reagenda_e_nao_fala_o_que_sobrou_quando_cedida(vault):
+    from datetime import timedelta
+    from jaime.agenda.scheduler import FUSO, GRACE_ROTINA_S
+    class _Ouvido:
+        def __init__(self): self.falas = []
+        def falar(self, t): self.falas.append(t)
+    j = _Jaime(vault); ag = Agenda(j, ouvido=_Ouvido())
+    asyncio.run(ag._rodar_ordem("briefing"))
+    hoje = vault.read(vault.daily_rel())
+    assert "Rotina disparada: briefing" in hoje and "Rotina concluída em 0 s: briefing" in hoje and ag.ouvido.falas == ["ok"]
+    j._rotina_cedida = "revisão de tarefas"                     # o João falou no meio
+    asyncio.run(ag._rodar_ordem("revisão de tarefas"))
+    assert ag.ouvido.falas == ["ok"] and j._rotina_cedida == "" and "Rotina concluída em 0 s: revisão" not in vault.read(vault.daily_rel())
+    async def rodar():
+        ag.start()
+        try:
+            quando = ag.reagendar("briefing", minutos=10)
+            job = ag._sched.get_job("reagendada:briefing")
+            assert job is not None and job.misfire_grace_time == GRACE_ROTINA_S
+            assert abs((quando - datetime.now(FUSO)) - timedelta(minutes=10)) < timedelta(seconds=5)
+        finally:
+            ag.stop()
+    asyncio.run(rodar())

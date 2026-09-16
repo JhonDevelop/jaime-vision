@@ -84,6 +84,8 @@ class Jaime:
         self.identidade = Identidade(settings.vault, settings.root)
         self._client: ClaudeSDKClient | None = None
         self._lock = asyncio.Lock()
+        self._ordem_em_curso = ""        # rotina que está com o orquestrador agora (canal "rotina"); "" fora disso
+        self._rotina_cedida = ""         # rotina interrompida para atender o João — não se fala o que sobrou dela
         self.canal = "cli"
         self.apresentacao: str = ""
         self.proposta_renomear: str = ""      # nome proposto, à espera do "confirmo"
@@ -392,14 +394,46 @@ class Jaime:
         """Resposta em fluxo. Ao terminar (ou ser cortada), deixa UMA linha `🔈 jaime ›` no log — sem ela, o log
         mostra só o que o João disse e ninguém consegue observar o que o Jaime respondeu (Mente, 15/09)."""
         partes: list[str] = []
+        lock = getattr(self, "_lock", None)
+        if canal != "rotina" and getattr(self, "_ordem_em_curso", "") and lock is not None and lock.locked():
+            # Utilidade sempre ganha se há demanda (CLAUDE.md §Vontades 1): a rotina que segura o orquestrador cede a vez.
+            # Vigília 16/09 07:56: 4 turnos do João esperaram 66–122 s pelo briefing.
+            await self._ceder_rotina(canal)
         try:
             async for t in self._ask_stream(texto, canal, contexto):
                 partes.append(t); yield t
         finally:
+            if canal == "rotina":
+                self._ordem_em_curso = ""
             resposta = re.sub(r"\s+", " ", "".join(partes)).strip()
             if resposta:
                 tranca = "" if self.acesso.liberado else " 🔒"
                 print(f"🔈 jaime{tranca} › {resposta[:160]}{'…' if len(resposta) > 160 else ''}")
+
+    async def _ceder_rotina(self, canal: str) -> None:
+        """Interrompe a rotina em curso (mesmo `interrupt` do barge-in), espera o orquestrador liberar e reagenda a rotina."""
+        ordem = self._ordem_em_curso
+        self._rotina_cedida = ordem
+        try:
+            self.vault.diario(f"Rotina «{ordem[:50]}» interrompida: demanda do João ({canal}); volto a ela em 10 min", "Log")
+        except Exception:
+            pass
+        cli = getattr(self, "_client", None)
+        if cli is not None and hasattr(cli, "interrupt"):
+            try:
+                await cli.interrupt()
+            except Exception:
+                pass
+        for _ in range(50):                      # até 5 s pelo modelo parar; depois entra na fila normal
+            if not self._lock.locked():
+                break
+            await asyncio.sleep(0.1)
+        agenda = getattr(self, "agenda", None)
+        if agenda is not None and hasattr(agenda, "reagendar"):
+            try:
+                agenda.reagendar(ordem, minutos=10)
+            except Exception:
+                pass
 
     async def _ask_stream(self, texto: str, canal: str = "cli", contexto: str = ""):
         """contexto: o que o João está vendo na tela agora (app/janela) — vai só ao modelo, não ao diário."""
@@ -413,6 +447,7 @@ class Jaime:
             bus.emitir("fala", texto=curta); bus.emitir("fala_fim"); yield curta; return
         async with self._lock:
             self.canal = canal
+            self._ordem_em_curso = texto if canal == "rotina" else ""
             self.vigia.lote_executado = False
             if (r := self.confianca.responder(texto)) and not self.vigia.lote:
                 # resposta à proposta "posso passar a fazer X sem perguntar?"

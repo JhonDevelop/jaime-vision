@@ -218,9 +218,23 @@ class Agenda:
             # ouvido passivo: à noite, silencioso — o resultado aparece no primeiro "está aí" do dia seguinte
             from ..brain.ouvido_passivo import prompt_consolidar
             await self.jaime.ask(prompt_consolidar(self.jaime.vault), canal=canal); return
+        t0 = time.time()
         resposta = await self.jaime.ask(ordem, canal=canal)
+        if getattr(self.jaime, "_rotina_cedida", "") == ordem:
+            self.jaime._rotina_cedida = ""       # o João falou no meio: a rotina foi reagendada; não se fala o pedaço que sobrou
+            return
+        self.vault.diario(f"Rotina concluída em {time.time() - t0:.0f} s: {ordem[:60]}", "Log")
         if self.ouvido:
             await asyncio.to_thread(self.ouvido.falar, resposta)
+
+    def reagendar(self, ordem: str, minutos: int = 10) -> datetime:
+        """Volta a rodar `ordem` daqui a `minutos` (rotina interrompida por uma demanda do João)."""
+        from apscheduler.triggers.date import DateTrigger
+        quando = datetime.now(FUSO) + timedelta(minutes=minutos)
+        if self._sched:
+            self._sched.add_job(self._rodar_ordem, DateTrigger(run_date=quando), args=[ordem, "rotina"],
+                                id=f"reagendada:{ordem[:30]}", replace_existing=True, misfire_grace_time=GRACE_ROTINA_S)
+        return quando
 
     # ── lembretes ────────────────────────────────────────
     def lembretes(self) -> list[tuple[datetime, str]]:
