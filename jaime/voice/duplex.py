@@ -267,8 +267,9 @@ class OuvidoDuplex(Ouvido):
         if not st:
             st.update(voz_ms=0, acima_ms=0, veto_ms=0, rms_max=0.0, sim_max=0.0, eco=0.0, cortou=False)
         st["eco"] = self._eco_rms
+        st["rms_max"] = max(st["rms_max"], rms)          # de TODOS os frames: um corte por ruído sem VAD saía como 'rms máx 0' (10:26)
         if prob >= BARGE_IN_PROB:
-            st["voz_ms"] += FRAME_MS; st["rms_max"] = max(st["rms_max"], rms); st["sim_max"] = max(st["sim_max"], sim)
+            st["voz_ms"] += FRAME_MS; st["sim_max"] = max(st["sim_max"], sim)
             if acima_do_eco: st["acima_ms"] += FRAME_MS
             if provavel_eco: st["veto_ms"] += FRAME_MS
         agora = time.time()
