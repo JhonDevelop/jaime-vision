@@ -239,6 +239,16 @@
 - Validar: zero "Barge-in cortou" sem o João falar; "cortou (energia|sustentado)" quando ele fala por cima; se voltar
   "não cortou" com acima_ms ≥ 320, aí o problema é o 1,4× e o caminho sustentado deve pegar.
 
+#### M-30 · Energia e sustentação passam e nada corta (Vigília 09:27) — **CORRIGIDO**: contagem por janela
+- 8 "não cortou" 09:15–09:21 com 352–1376 ms acima do eco, veto 0, rms com folga. O contador `_barge_ms` somava 32 ms por
+  frame bom e subtraía 32 por frame ruim; a sustentação zerava em qualquer frame ruim. prob/rms oscilam a cada 32 ms →
+  nunca chegava a 320/700 (a 09:19, 81% dos frames bons: 1376/1696 ms).
+- Solução: janelas deslizantes — 320 ms qualificados em 640 ms (energia) ou 700 ms a 1,0× em 1000 ms (sustentado); corte
+  avaliado a cada frame. "Não cortou" diz o gate que faltou: `janela máx N/320 ms, sustentada máx N/700 ms`.
+- Validar: com o João falando por cima ≥ 0,5 s, "cortou (energia)" em ≤ 640 ms; sem ele falar, nenhum corte.
+- Registro positivo (Vigília): etapa 5 PASSA ao vivo (fala→1ª frase 0,60–0,96 s em 7 turnos); fila com 8 itens sem perda.
+- Aberto para o estudo: P-0008 (ferramenta 'corpo' obrigatório, recorrência do P-0002) — não é meu; anotado.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -276,7 +286,8 @@
 | 7m | M-25 rotina bloqueia a demanda | 1–2 min de espera | mergeado |
 | 7n | M-26 limiares do barge-in | prioridade do dia | pronto, aguardando merge |
 | 7o | M-28 latência conta a muleta | medição da etapa 5 | pronto, aguardando merge |
-| 7p | M-29 corte por eco (mín. 320 ms, 1,4×) | etapa 3 | pronto, aguardando merge |
+| 7p | M-29 corte por eco (mín. 320 ms, 1,4×) | etapa 3 | mergeado |
+| 7q | M-30 contagem por janela deslizante | etapa 3 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -302,3 +313,4 @@
 - 08:40 (16/09) — Vigília trouxe os números do M-24: limiares recalibrados + regra de voz sustentada (M-26); 242 testes.
 - 08:35 (16/09) — M-28 (1º som do turno, muleta incluída); 243 testes. Fila de merge: 5f0e06d, 17f30b3, M-28.
 - 09:05 (16/09) — 2 cortes por eco (160/224 ms) → M-29; 248 testes. Fila de merge: 8bd2ffb (M-28), 7d9d4c6 (M-29).
+- 09:35 (16/09) — Vigília: energia/sustentação passam, não corta → contador consecutivo era o bug; janelas deslizantes (M-30); 254 testes.
