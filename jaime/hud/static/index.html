@@ -176,6 +176,27 @@
   .lanc b{font-weight:500;color:var(--am);text-align:right}.lanc b.entra{color:var(--gn)}.lanc em{font-style:normal;color:var(--mu);margin-left:6px}
   .mes{display:flex;gap:6px;margin-left:auto}.mes button{cursor:pointer;border:1px solid var(--bd);background:transparent;color:var(--mu);border-radius:14px;padding:3px 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase}.mes button.on{color:var(--am);border-color:rgba(255,179,71,.5)}
   .vazio{color:var(--mu);font-size:12px;padding:6px 0}
+  .tarefas{display:flex;flex-direction:column;gap:2px}
+  .tarefa{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:7px 8px;border-radius:8px;border:1px solid transparent;cursor:pointer;font-size:13px;color:var(--tx);transition:.2s}
+  .tarefa:hover{border-color:var(--bd);background:rgba(79,216,255,.05)}
+  .tarefa i{width:16px;height:16px;border:1px solid rgba(79,216,255,.5);border-radius:4px;display:inline-block;position:relative;transition:.2s}
+  .tarefa.feita i{background:var(--gn);border-color:var(--gn);box-shadow:0 0 10px rgba(92,255,157,.5)}.tarefa.feita i::after{content:"✔";color:#04080f;font-size:11px;position:absolute;inset:0;text-align:center;line-height:16px}
+  .tarefa.feita span{color:var(--mu);text-decoration:line-through}
+  .tarefa .proj{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cy);border:1px solid rgba(79,216,255,.25);border-radius:10px;padding:1px 8px}
+  .tarefa .prazo{font-size:11px;color:var(--am)}.tarefa .prazo.vencido{color:var(--rd)}
+  .agenda{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px}
+  .lemb{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;color:var(--tx)}.lemb b{color:var(--am);font-weight:500;white-space:nowrap}.lemb b.hoje{color:var(--gn)}
+  .rot{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:12px;color:var(--tx)}.rot code{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:10.5px;color:var(--mu)}.rot small{color:var(--mu);margin-left:6px}
+  .musica{display:flex;align-items:center;gap:22px;padding:10px 4px}
+  .disco{width:96px;height:96px;border-radius:50%;flex:none;background:conic-gradient(from 0deg,rgba(79,216,255,.25),rgba(255,179,71,.25),rgba(79,216,255,.25));border:1px solid var(--bd);position:relative;animation:gira 9s linear infinite;opacity:.55}
+  .disco::after{content:"";position:absolute;inset:36px;border-radius:50%;background:var(--bg);border:1px solid var(--bd)}
+  @keyframes gira{to{transform:rotate(360deg)}}
+  .musica h4{font-size:15px;font-weight:400;color:var(--tx)}.musica p{font-size:12.5px;color:var(--mu);margin-top:4px;max-width:520px}
+  .musica button{margin-top:10px;cursor:not-allowed;border:1px solid rgba(255,179,71,.5);background:transparent;color:var(--am);border-radius:20px;padding:6px 14px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
+  .cer{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;font-size:12.5px;color:var(--tx)}
+  .cer .num{font-size:30px;font-weight:200;color:var(--cy)}.cer .num small{font-size:11px;color:var(--mu);letter-spacing:.12em;margin-left:6px}
+  .cer button{cursor:pointer;border:1px solid rgba(79,216,255,.4);background:transparent;color:var(--cy);border-radius:20px;padding:7px 16px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin-top:8px}
+  .pastas{display:grid;grid-template-columns:auto 1fr auto;gap:3px 10px;font-size:11.5px;color:var(--mu)}.pastas i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-top:4px}.pastas b{color:var(--tx);font-weight:500;text-align:right}
 </style>
 </head>
 <body>
@@ -796,7 +817,7 @@ async function carregarPainel(){const d=await fetch('/hud/painel').then(r=>r.ok?
   renderAbas();if(MOD.aberto)renderModulo();}
 function renderAbas(){const d=MOD.painel;if(!d)return;const f=d.financas||{};
   const sf=$('mFin');sf.textContent=brl(f.saldo);sf.parentElement.classList.toggle('alerta',(f.saldo||0)<0);
-  const na=d.afazeres_total||0;$('mAfa').textContent=na?`${na} aberta${na===1?'':'s'}`:'nada aberto';
+  const na=(d.afazeres||[]).filter(l=>!MOD.feitos.has(l.replace(/^- \[ \]\s*/,'').trim())).length;$('mAfa').textContent=na?`${na} aberta${na===1?'':'s'}`:'nada aberto';
   const l=(d.agenda&&d.agenda.lembretes||[])[0];$('mAge').textContent=l?`${l.quando} · ${l.o_que}`:`${(d.agenda&&d.agenda.rotinas||[]).length} rotinas`;
   $('mCer').textContent=($('notas').textContent||'—')+' notas';}
 carregarPainel();setInterval(carregarPainel,10000);
@@ -814,7 +835,7 @@ function renderFinancas(){const el=$('modulo'),f=MOD.fin||{},agora=new Date(),me
         <h3>gastos por categoria</h3>
         <div style="display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center"><canvas id="rosca" width="300" height="300"></canvas>
           <div class="legenda" id="roscaLeg"></div></div></div>
-      <div><h3>entradas × saídas por mês</h3><canvas id="barras" width="760" height="300"></canvas>
+      <div><h3>entradas × saídas por mês</h3><canvas id="barras" width="400" height="180"></canvas>
         <h3>últimos lançamentos</h3><div class="lanc" id="lancs"></div></div>
     </div>`;
   el.querySelectorAll('.mes button').forEach(b=>b.onclick=()=>trocarMes(b.dataset.mes));
@@ -827,22 +848,29 @@ function desenharFinancas(){if(MOD.aberto!=='financas')return;const f=MOD.fin||{
     if(!cats.length){c.beginPath();c.strokeStyle='rgba(79,216,255,.12)';c.arc(150,150,110,0,Math.PI*2);c.stroke();}
     c.fillStyle='#d6ecf7';c.font='300 30px Inter, system-ui, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(brl(f.saidas).replace('R$ ',''),150,142);
     c.fillStyle='#6b93a8';c.font='11px Inter, system-ui, sans-serif';c.fillText('SAÍDAS',150,172);}
-  const bc=$('barras');if(bc){const c=bc.getContext('2d'),W=760,H=300,ms=(f.por_mes||[]).slice(-8);c.clearRect(0,0,W,H);const max=Math.max(1,...ms.flatMap(m=>[m[1],m[2]]));
-    const pad=36,base=H-30,larg=(W-pad*2)/Math.max(1,ms.length),bw=Math.min(28,larg*0.3);
+  const bc=$('barras');if(bc){const c=bc.getContext('2d'),W=400,H=180,ms=(f.por_mes||[]).slice(-8);c.clearRect(0,0,W,H);const max=Math.max(1,...ms.flatMap(m=>[m[1],m[2]]));
+    const pad=30,base=H-24,larg=(W-pad*2)/Math.max(1,ms.length),bw=Math.min(22,larg*0.3);
     c.strokeStyle='rgba(79,216,255,.12)';c.lineWidth=1;[0.25,0.5,0.75,1].forEach(q=>{const y=base-(base-20)*q;c.beginPath();c.moveTo(pad,y);c.lineTo(W-pad,y);c.stroke();});
     c.font='10px Inter, system-ui, sans-serif';c.textAlign='center';
     ms.forEach((m,i)=>{const x=pad+larg*i+larg/2;const he=(base-20)*m[1]/max*k,hs=(base-20)*m[2]/max*k;
       c.fillStyle='#5cff9d';c.fillRect(x-bw-2,base-he,bw,he);c.fillStyle='#ffb347';c.fillRect(x+2,base-hs,bw,hs);
       c.fillStyle='#6b93a8';c.fillText(m[0].slice(2).replace('-','/'),x,base+14);});
     if(!ms.length){c.fillStyle='#6b93a8';c.textAlign='center';c.fillText('sem meses registrados',W/2,H/2);}
-    c.textAlign='left';c.fillStyle='#5cff9d';c.fillRect(pad,8,10,10);c.fillStyle='#6b93a8';c.fillText('entradas',pad+14,17);c.fillStyle='#ffb347';c.fillRect(pad+80,8,10,10);c.fillStyle='#6b93a8';c.fillText('saídas',pad+94,17);}}
+    c.textAlign='left';c.fillStyle='#5cff9d';c.fillRect(pad,6,9,9);c.fillStyle='#6b93a8';c.fillText('entradas',pad+13,14);c.fillStyle='#ffb347';c.fillRect(pad+70,6,9,9);c.fillStyle='#6b93a8';c.fillText('saídas',pad+83,14);}}
 
-// (módulos seguintes entram nos próximos commits)
-function renderAfazeres(){$('modulo').innerHTML='<h2>Afazeres</h2><div class="vazio">em obra</div>'}
+// AFAZERES — tarefas abertas do Inbox (linhas '- [ ] descrição @projeto ⏳ prazo'); marcar é visual (localStorage), o vault fica com o Jaime
+function parseTarefa(l){const t=l.replace(/^- \[ \]\s*/,'').trim();const m=t.match(/@([\wÀ-ú.\-]+)/);const pz=t.match(/⏳\s*([^\s]+(?:\s+\d{1,2}:\d{2})?)/);
+  return {chave:t,texto:t.replace(/@[\wÀ-ú.\-]+/,'').replace(/⏳\s*[^\s]+(\s+\d{1,2}:\d{2})?/,'').replace(/\s+/g,' ').trim(),projeto:m?m[1]:'',prazo:pz?pz[1]:''};}
+function prazoVencido(p){const m=p.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);if(!m)return false;const d=new Date(m[3]?+m[3]:new Date().getFullYear(),+m[2]-1,+m[1],23,59);return d<new Date();}
+function renderAfazeres(){const el=$('modulo'),d=MOD.painel||{},lista=(d.afazeres||[]).map(parseTarefa);
+  const abertas=lista.filter(t=>!MOD.feitos.has(t.chave)),feitas=lista.filter(t=>MOD.feitos.has(t.chave));
+  el.innerHTML=`<h2>Afazeres <small>${abertas.length} aberta${abertas.length===1?'':'s'}${feitas.length?' · '+feitas.length+' marcada'+(feitas.length===1?'':'s')+' aqui (o Inbox só muda quando o Jaime fecha)':''}</small></h2>
+    <div class="tarefas">${[...abertas,...feitas].map(t=>`<div class="tarefa ${MOD.feitos.has(t.chave)?'feita':''}" data-k="${esc(t.chave)}"><i></i><span>${esc(t.texto)}</span>${t.projeto?`<span class="proj">${esc(t.projeto)}</span>`:'<span></span>'}${t.prazo?`<span class="prazo ${prazoVencido(t.prazo)?'vencido':''}">⏳ ${esc(t.prazo)}</span>`:'<span></span>'}</div>`).join('')||'<div class="vazio">nada em aberto no Inbox — diga "cria uma tarefa…"</div>'}</div>`;
+  el.querySelectorAll('.tarefa').forEach(x=>x.onclick=()=>{const k=x.dataset.k;if(MOD.feitos.has(k))MOD.feitos.delete(k);else MOD.feitos.add(k);
+    try{localStorage.setItem('jaime.afazeres.feitos',JSON.stringify([...MOD.feitos]))}catch(e){}renderAfazeres();renderAbas();});}
 function renderAgenda(){$('modulo').innerHTML='<h2>Agenda</h2><div class="vazio">em obra</div>'}
 function renderMusica(){$('modulo').innerHTML='<h2>Música</h2><div class="vazio">em obra</div>'}
 function renderCerebroMod(){$('modulo').innerHTML='<h2>Cérebro</h2><div class="vazio">em obra</div>'}
-
 // ── teclado sob demanda ───────────────────────────────────────────────────
 const tecladoAberto=()=>$('teclado').classList.contains('aberto');
 function abrirTeclado(motivo,inicial){
@@ -963,7 +991,7 @@ function ligarStream(){
 ligarStream();
 
 // ── estado inicial ────────────────────────────────────────────────────────
-function aplicarNome(n){if(!n)return;UI.nome=n;$('nome').textContent=n.toUpperCase();document.title=n.toUpperCase();ROTULO.ouvindo='ouvindo · diga "'+n+'" para falar comigo';}
+function aplicarNome(n){if(!n)return;UI.nome=n;const visual=n.toUpperCase()==='JAIME'?'J.A.I.M.E':n.toUpperCase();$('nome').textContent=visual;document.title=visual;ROTULO.ouvindo='ouvindo · diga "'+n+'" para falar comigo';}
 function carregarEstado(){fetch('/hud/estado').then(r=>r.json()).then(s=>{aplicarNome(s.nome);
   $('maq').textContent=s.maquina.host;if(s.modelo&&$('cxModelo').textContent==='—')$('cxModelo').textContent=(s.modelo||'').replace('claude-','');
   $('sit').textContent=s.situacao||'…';$('prox').textContent=s.proximos||'';setAcesso(s.liberado);
