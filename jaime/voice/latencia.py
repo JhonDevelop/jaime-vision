@@ -32,19 +32,33 @@ def gerar_audio_say(texto: str, sr: int = SR) -> bytes:
 
 async def medir_turno(pcm: bytes, fluxo, antecipador=None, tts=None, ritmo_real: bool = False) -> dict:
     parciais: list[tuple[float, str]] = []
-    fluxo.on_parcial = lambda t: parciais.append((time.time(), t))
+    tarefas: list[asyncio.Task] = []
+    loop = asyncio.get_running_loop()
+    def chegou(t: str) -> None:
+        # como o duplex: cada parcial é avaliado ao chegar (heurística já; modelo em segundo plano). Avaliar só o último
+        # parcial deixava o benchmark cego quando os eventos chegavam durante o finalizar() (Vigília 16/09: 'nenhuma' 10/10).
+        parciais.append((time.time(), t))
+        if antecipador and antecipador.pode_avaliar(t):
+            tarefas.append(loop.create_task(antecipador.avaliar(t, agora=time.time())))
+    fluxo.on_parcial = chegou
     t0 = time.time()
     for i in range(0, len(pcm), FRAME * 2):
         await fluxo.enviar(pcm[i:i + FRAME * 2])
         if ritmo_real:
             await asyncio.sleep(FRAME / SR)
     t_fim_fala = time.time()
-    antecip = None
-    if antecipador and parciais:
-        antecip = await antecipador.avaliar(parciais[-1][1], agora=time.time(), esperar=True)
     texto = (await fluxo.finalizar()).strip()
     t_texto = time.time()
-    rascunho = antecip.rascunho if antecip and antecip.especulavel else ""
+    antecip = None
+    if antecipador:
+        if texto and antecipador.pode_avaliar(texto):
+            tarefas.append(loop.create_task(antecipador.avaliar(texto, agora=time.time())))
+        for tf in tarefas:
+            try: await tf
+            except Exception: pass
+        await antecipador.esperar_modelo()
+        antecip = antecipador.confere(texto) or antecipador.ultima
+    rascunho = antecip.rascunho if antecip and antecip.especulavel and antecipador.confere(texto) else ""
     t_tts = 0.0
     if tts:
         # sem cache, o que o João espera é o 1º byte do TTS em streaming (não a frase inteira)
@@ -60,7 +74,8 @@ async def medir_turno(pcm: bytes, fluxo, antecipador=None, tts=None, ritmo_real:
             "antecipador_s": antecip.latencia_s if antecip else None, "duracao_audio_s": len(pcm) / 2 / SR,
             # para a Vigília validar sem adivinhar: o que o antecipador viu e decidiu neste turno
             "antecipacao": (f"{antecip.origem} · especulável={'sim' if antecip.especulavel else 'não'} · completude {antecip.completude:.1f}"
-                            f" · ação «{antecip.acao_prevista}» · rascunho «{antecip.rascunho}» · parcial «{antecip.texto[:40]}»") if antecip else "nenhuma"}
+                            f" · ação «{antecip.acao_prevista}» · rascunho «{antecip.rascunho}» · parcial «{antecip.texto[:40]}»"
+                            f" · {len(parciais)} parciais") if antecip else f"nenhuma ({len(parciais)} parciais; último «{parciais[-1][1][:40] if parciais else ''}»)"}
 
 def _med(vals):
     v = [x for x in vals if x is not None]

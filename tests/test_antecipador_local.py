@@ -148,12 +148,14 @@ def test_benchmark_medir_turno_com_fluxo_falso_e_antecipador_real():
     from jaime.voice.latencia import medir_turno, FRASES
     from jaime.voice import stt_stream as ss
     class Fluxo(ss.FluxoSTT):
+        """Como o Deepgram de verdade: os parciais chegam ATRASADOS, durante o finalizar(), e o último é o texto todo."""
         conectado = True
         def __init__(self, final): self.final = final; self.palavras = final.split(); self.n = 0
-        async def enviar(self, pcm):
-            if self.n < len(self.palavras):
-                self.n += 1; self._parcial(" ".join(self.palavras[:self.n]).rstrip(".?!"))
-        async def finalizar(self): return self.final
+        async def enviar(self, pcm): self.n += 1
+        async def finalizar(self):
+            for k in range(1, len(self.palavras) + 1):
+                self._parcial(" ".join(self.palavras[:k]).rstrip(".?!")); await asyncio.sleep(0)
+            self._parcial(""); return self.final
     class TTS:
         def pre_sintetizar(self, t): return b"x"
     async def rodar():
