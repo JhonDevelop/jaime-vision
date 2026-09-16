@@ -70,8 +70,21 @@ def build_cerebro_server(vault: Vault, estado: Estado | None = None, jaime=None)
             return _txt("Nome vazio ou orquestrador indisponível.")
         return _txt(jaime.propor_renomear(novo))
 
+    @tool("aprofundar", "Enche uma nota rasa do vault com conhecimento DENSO e real: reúne as fontes (o texto da nota, os "
+                        "arquivos que ela cita na máquina, o diário e as conversas) e reescreve a nota estruturada e factual. "
+                        "Use quando seu conhecimento sobre um assunto do João estiver vago, ou quando ele pedir para você estudar/"
+                        "aprofundar algo. rel: caminho da nota (ex.: 20-Projetos/Estamparia.md); 'projetos' aprofunda todos os projetos.",
+          {"rel": str})
+    async def aprofundar(args):
+        from .aprofundar import Aprofundador
+        s = getattr(jaime, "s", None)
+        ap = Aprofundador(vault, s=s)
+        alvo = (args.get("rel") or "").strip()
+        r = await (ap.aprofundar_projetos() if alvo.lower() in ("projetos", "20-projetos", "") else ap.aprofundar(alvo))
+        return _txt(r)
+
     return create_sdk_mcp_server(
-        name="cerebro", version="1.3.0",
+        name="cerebro", version="1.4.0",
         tools=[lembrar, buscar_memoria, ler_nota, registrar_diario, criar_tarefa, tarefas_abertas,
-               ler_estado, atualizar_estado, pedir_teclado, renomear],
+               ler_estado, atualizar_estado, pedir_teclado, renomear, aprofundar],
     )

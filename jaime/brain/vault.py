@@ -140,7 +140,10 @@ class Vault:
             ("Identidade", self.read("00-Jaime/Identidade.md")),
             ("Regras", self.read("00-Jaime/Regras.md")),
             ("Perfil do João", self.read("10-Eu/Perfil.md")),
-            ("Projetos", "\n".join(f"- [[{n}]] — {d}" for n, d in self.projetos())),
+            ("Pessoas próximas", self.read("10-Eu/Pessoas.md")),
+            ("Datas importantes", self.read("10-Eu/Datas.md")),
+            ("Projetos", "\n".join(f"- [[{n}]] — {d}" for n, d in self.projetos())
+             + "\n(use ler_nota para o dossiê completo de cada um; se estiver raso, aprofundar enche a nota)"),
             ("Conhecimento (índice)", "\n".join(l for l in self.read("50-Conhecimento/INDEX.md").splitlines() if l.startswith("- "))),
             ("Tarefas abertas", "\n".join(self.tarefas_abertas()[:15])),
             ("Diário de hoje", self.read(self.daily_rel())),
