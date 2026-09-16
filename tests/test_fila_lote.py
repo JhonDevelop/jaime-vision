@@ -145,7 +145,7 @@ def test_barge_in_interrompe_o_modelo_guarda_na_fila_e_retoma_com_sim():
         turno = asyncio.create_task(o._tratar_texto("jaime, me explica o plano da semana", b"", t_fim_fala=time.time(), t_texto=time.time()))
         await asyncio.sleep(0.045)                                   # 1ª frase já saiu; o modelo ainda gera
         for _ in range(10): o._barge(0.1, 200.0, b"\x00" * 1024)     # calibra o eco
-        for _ in range(8): o._barge(0.99, 2000.0, b"\x00" * 1024)    # o João fala por cima
+        for _ in range(12): o._barge(0.99, 2000.0, b"\x00" * 1024)   # o João fala por cima (≥ 320 ms)
         await turno
         assert o._tts.parou == 1 and j.interrupts == 1
         d = o.fila.itens[0]

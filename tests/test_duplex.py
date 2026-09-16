@@ -232,7 +232,8 @@ def test_barge_in_corta_a_fala_quando_o_joao_fala_por_cima():
         for _ in range(10): o._barge(0.1, 200.0, F)          # calibra o eco: ~200 de RMS
         assert not o._barge(0.95, 240.0, F)                   # voz, mas no nível do eco (1,2×): ignora
         cortou = False
-        for _ in range(8): cortou = o._barge(0.95, 900.0, F) or cortou    # 256 ms bem acima do eco
+        for _ in range(8): assert not o._barge(0.95, 900.0, F)               # 256 ms: ainda não (mínimo 320 ms)
+        for _ in range(4): cortou = o._barge(0.95, 900.0, F) or cortou    # 384 ms bem acima do eco
         assert cortou and o._tts.parou == 1 and o.interrompido and not o.mudo and o.det.falando
         o.barge_in = "off"; o.mudo = True
         assert not any(o._barge(0.99, 5000.0, F) for _ in range(20))

@@ -30,10 +30,11 @@ SILENCIO_FECHOU_MS = 450      # antecipador diz que a frase fechou
 SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
 SILENCIO_ABERTO_MS = 1500     # antecipador diz que o João ainda vai continuar ("…e também")
 BARGE_IN_PROB = 0.82          # VAD enquanto o Jaime fala
-BARGE_IN_MS = 160             # voz contínua necessária para cortar
+BARGE_IN_MS = 320             # voz qualificada contínua para cortar por energia (2 cortes por eco em 16/09 tinham 160 e 224 ms;
+                              # as falas reais do João por cima tinham 416–3296 ms)
 # Calibrado com as linhas "Barge-in não cortou" do diário (16/09 08:13–08:16, alto-falante, sem fone): a voz do João
 # ficou entre 1,2× e 2,5× o eco (1,8× segurava quase tudo) e os vetos por similaridade a 0,82–0,88 eram o João.
-BARGE_IN_ECO_X = 1.25         # RMS do João precisa ser 1,25× o eco medido (sem AEC)
+BARGE_IN_ECO_X = 1.4          # RMS do João precisa ser 1,4× o eco medido (sem AEC); 1,25 cortou por eco 2× em 16/09 08:46
 BARGE_IN_ECO_SIM = 0.92       # o supressor só VETA quando tem quase certeza de que é o próprio eco
 BARGE_IN_SUSTENTADO_MS = 700  # voz ≥ 1,0× o eco por este tempo corta mesmo sem passar de 1,25×: eco não fica 2–3 s acima da própria média
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta

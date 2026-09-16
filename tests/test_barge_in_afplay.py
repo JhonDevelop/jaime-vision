@@ -43,3 +43,16 @@ def test_voz_sustentada_no_nivel_do_eco_corta_mesmo_sem_passar_o_limiar():
         cortou = [o._barge(0.95, 1600.0, F) for _ in range(24)]      # 1,07× o eco, 768 ms
         assert cortou.index(True) * 32 >= 640 and o._tts.parou == 1 and o._barge_stats["motivo"] == "sustentado"
     asyncio.run(rodar())
+
+
+def test_estouro_curto_acima_do_eco_nao_corta():
+    """16/09 08:46–08:47: dois cortes por eco com 160 e 224 ms de 'voz' a 1,75× e 2,9× o eco. Menos de 320 ms não corta."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 400.0, F)
+        assert not any(o._barge(0.95, 1200.0, F) for _ in range(7))      # 224 ms a 3× o eco: estouro, não fala
+        for _ in range(10): o._barge(0.1, 300.0, F)                       # silêncio: o contador esvazia
+        assert o._tts.parou == 0 and o._barge_ms == 0
+    asyncio.run(rodar())
