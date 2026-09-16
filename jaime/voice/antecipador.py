@@ -67,7 +67,7 @@ RASCUNHOS: list[tuple[re.Pattern, "callable"]] = [
      lambda m: ("mensagem para " + m.group("pessoa"), f"Preparando a mensagem para {m.group('pessoa').capitalize()}.")),
     (re.compile(r"\b(?:previs[aã]o do tempo|clima|vai chover|temperatura|tempo (?:hoje|amanhã|amanha))\b", re.I),
      lambda m: ("clima", "Deixa eu ver o tempo.")),
-    (re.compile(r"\b(?:cria|crie|criar|anota|anote|adiciona|adicione)\s+(?:uma\s+)?tarefa\b", re.I),
+    (re.compile(r"\b(?:cria|crie|criar|anota|anote|adiciona|adicione)\s+(?:uma\s+|1\s+)?tarefa\b", re.I),
      lambda m: ("criar tarefa", "Criando a tarefa.")),
     (re.compile(r"\bresumo\s+do\s+dia\b|\bcomo\s+(?:est[aá]|t[aá])\s+o\s+dia\b", re.I),
      lambda m: ("resumo do dia", "Vou resumir o dia.")),
