@@ -130,6 +130,8 @@ class OuvidoDuplex(Ouvido):
         self._t_texto = 0.0
         self._barge_ms = 0
         self._supressor_eco = SupressorDeEco()
+        self._barge_stats: dict = {}                      # por fala do Jaime: voz ouvida, acima do eco, vetada, cortou
+        self._barge_emitido = 0.0
         self._eco_rms = 0.0
         self._eco_amostras = 0
         self.turnos = 0
@@ -193,6 +195,8 @@ class OuvidoDuplex(Ouvido):
                                    gravando=self.det.falando, janela_ativa=self.janela_ativa)
                     if self.mudo:
                         self._barge(prob, rms, frame); continue
+                    if self._barge_stats:
+                        self._fim_da_fala()               # o Jaime acabou de falar: resumo do barge-in dessa fala
                     self._alimentar(prob, frame)
         except Exception as e:
             self.erro = f"{type(e).__name__}: {e}"
@@ -230,6 +234,11 @@ class OuvidoDuplex(Ouvido):
         """Enquanto o Jaime fala: o João falou por cima? Mede o eco no começo e exige voz bem acima dele."""
         if self.barge_in == "off" or not self._tts:
             return False
+        if not getattr(self._tts, "t_inicio_audio", 0.0):
+            # a fala ainda não começou a soar (latência do TTS): nada para calibrar — antes o eco era medido
+            # neste silêncio e o limiar ficava no chão (16/09).
+            self._eco_amostras = 0; self._eco_rms = 0.0
+            return False
         if self._eco_amostras < 10:                       # ~320 ms iniciais de cada fala: calibra o eco
             self._eco_rms = (self._eco_rms * self._eco_amostras + rms) / (self._eco_amostras + 1); self._eco_amostras += 1
             return False
@@ -237,6 +246,18 @@ class OuvidoDuplex(Ouvido):
         res = self._supressor_eco.eh_eco(frame)
         sim = res[1] if res else 0.0
         provavel_eco = self.barge_in != "fone" and sim >= BARGE_IN_ECO_SIM
+        st = self._barge_stats
+        if not st:
+            st.update(voz_ms=0, acima_ms=0, veto_ms=0, rms_max=0.0, sim_max=0.0, eco=0.0, cortou=False)
+        st["eco"] = self._eco_rms
+        if prob >= BARGE_IN_PROB:
+            st["voz_ms"] += FRAME_MS; st["rms_max"] = max(st["rms_max"], rms); st["sim_max"] = max(st["sim_max"], sim)
+            if acima_do_eco: st["acima_ms"] += FRAME_MS
+            if provavel_eco: st["veto_ms"] += FRAME_MS
+        agora = time.time()
+        if agora - self._barge_emitido >= 0.5:
+            self._barge_emitido = agora
+            bus.emitir("barge", **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
         if prob >= BARGE_IN_PROB and acima_do_eco and not provavel_eco:
             self._barge_ms += FRAME_MS
         else:
@@ -244,6 +265,7 @@ class OuvidoDuplex(Ouvido):
         if self._barge_ms < BARGE_IN_MS:
             return False
         self._barge_ms = 0
+        st["cortou"] = True
         restantes = self._tts.parar()
         self._nao_ditas = restantes
         self.interrompido = True
@@ -252,6 +274,22 @@ class OuvidoDuplex(Ouvido):
         bus.emitir("voz", estado="interrompido", falando=False, restantes=restantes)
         self.det.cancelar(); self._alimentar(prob, frame)
         return True
+
+    def _fim_da_fala(self) -> None:
+        """Fecha as estatísticas de barge-in da fala que acabou. Voz ouvida por ≥ 400 ms sem cortar vira uma linha no
+        diário — é o dado que faltava para calibrar os limiares (16/09: o João falou por cima do briefing e nada cortou)."""
+        st, self._barge_stats = self._barge_stats, {}
+        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0
+        bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
+        if st.get("voz_ms", 0) >= 400 and not st.get("cortou"):
+            linha = (f"Barge-in não cortou: voz por {st['voz_ms']} ms durante a minha fala (acima do eco {st['acima_ms']} ms, "
+                     f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f})")
+            vault = getattr(self.jaime, "vault", None)
+            if vault is not None:
+                try: self.loop.call_soon_threadsafe(vault.diario, linha, "Log")
+                except Exception:
+                    try: vault.diario(linha, "Log")
+                    except Exception: pass
 
     def _cancelar_modelo(self) -> None:
         """O modelo pode estar no meio da resposta: pede ao Agent SDK para interromper (não bloqueia)."""

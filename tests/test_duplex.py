@@ -226,6 +226,9 @@ def test_barge_in_corta_a_fala_quando_o_joao_fala_por_cima():
         loop = asyncio.get_running_loop()
         o, _ = _ouvido(loop, _Fluxo([], ""), None)
         o.barge_in = "on"; o.mudo = True
+        for _ in range(20): assert not o._barge(0.99, 5000.0, F)   # a fala ainda não começou a soar: nem calibra nem corta
+        assert o._eco_amostras == 0
+        o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 200.0, F)          # calibra o eco: ~200 de RMS
         assert not o._barge(0.95, 300.0, F)                   # voz, mas no nível do eco: ignora
         cortou = False
