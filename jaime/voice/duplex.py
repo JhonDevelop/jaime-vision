@@ -36,7 +36,11 @@ BARGE_IN_MS = 320             # voz qualificada contínua para cortar por energi
 # ficou entre 1,2× e 2,5× o eco (1,8× segurava quase tudo) e os vetos por similaridade a 0,82–0,88 eram o João.
 BARGE_IN_ECO_X = 1.4          # RMS do João precisa ser 1,4× o eco medido (sem AEC); 1,25 cortou por eco 2× em 16/09 08:46
 BARGE_IN_ECO_SIM = 0.92       # o supressor só VETA quando tem quase certeza de que é o próprio eco
-BARGE_IN_SUSTENTADO_MS = 700  # voz ≥ 1,0× o eco por este tempo corta mesmo sem passar de 1,25×: eco não fica 2–3 s acima da própria média
+BARGE_IN_SUSTENTADO_MS = 700  # voz ≥ 1,0× o eco por este tempo corta mesmo sem passar do limiar: eco não fica 2–3 s acima da própria média
+# As contagens são por JANELA deslizante, não por frames consecutivos: prob e rms oscilam a cada 32 ms e um contador que
+# soma/subtrai (ou zera) nunca chegava ao mínimo — 16/09 09:15–09:21: 8 falas com 352–1376 ms acima do eco e nenhum corte.
+BARGE_IN_JANELA_MS = 640      # janela do corte por energia (precisa de BARGE_IN_MS qualificados dentro dela)
+BARGE_IN_JANELA_SUST_MS = 1000  # janela do corte por voz sustentada
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
@@ -135,7 +139,8 @@ class OuvidoDuplex(Ouvido):
         self._barge_ms = 0
         self._supressor_eco = SupressorDeEco()
         self._barge_stats: dict = {}                      # por fala do Jaime: voz ouvida, acima do eco, vetada, cortou
-        self._sustentado_ms = 0
+        self._janela_energia: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
+        self._janela_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
         self._barge_emitido = 0.0
         self._eco_rms = 0.0
         self._eco_amostras = 0
@@ -263,20 +268,18 @@ class OuvidoDuplex(Ouvido):
         if agora - self._barge_emitido >= 0.5:
             self._barge_emitido = agora
             bus.emitir("barge", **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
-        if prob >= BARGE_IN_PROB and acima_do_eco and not provavel_eco:
-            self._barge_ms += FRAME_MS
-        else:
-            self._barge_ms = max(0, self._barge_ms - FRAME_MS)
-        # voz contínua no nível do eco ou acima, por muito tempo: é o João falando por cima (2,6–3,3 s medidos)
-        if prob >= BARGE_IN_PROB and rms >= max(self._eco_rms, 80.0):
-            self._sustentado_ms += FRAME_MS
-        else:
-            self._sustentado_ms = 0
-        sustentado = self._sustentado_ms >= BARGE_IN_SUSTENTADO_MS
-        if self._barge_ms < BARGE_IN_MS and not sustentado:
+        self._janela_energia.append(prob >= BARGE_IN_PROB and acima_do_eco and not provavel_eco)
+        # voz no nível do eco ou acima, por muito tempo: é o João falando por cima (2,6–3,3 s medidos)
+        self._janela_sust.append(prob >= BARGE_IN_PROB and rms >= max(self._eco_rms, 80.0))
+        self._barge_ms = sum(self._janela_energia) * FRAME_MS
+        sustentado_ms = sum(self._janela_sust) * FRAME_MS
+        st["janela_max"] = max(st.get("janela_max", 0), self._barge_ms); st["sust_max"] = max(st.get("sust_max", 0), sustentado_ms)
+        energia = self._barge_ms >= BARGE_IN_MS
+        sustentado = sustentado_ms >= BARGE_IN_SUSTENTADO_MS
+        if not energia and not sustentado:
             return False
-        st["cortou"] = True; st["motivo"] = "sustentado" if sustentado and self._barge_ms < BARGE_IN_MS else "energia"
-        self._barge_ms = 0; self._sustentado_ms = 0
+        st["cortou"] = True; st["motivo"] = "energia" if energia else "sustentado"
+        self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear()
         restantes = self._tts.parar()
         self._nao_ditas = restantes
         self.interrompido = True
@@ -290,12 +293,13 @@ class OuvidoDuplex(Ouvido):
         """Fecha as estatísticas de barge-in da fala que acabou. Voz ouvida por ≥ 400 ms sem cortar vira uma linha no
         diário — é o dado que faltava para calibrar os limiares (16/09: o João falou por cima do briefing e nada cortou)."""
         st, self._barge_stats = self._barge_stats, {}
-        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._sustentado_ms = 0
+        self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear()
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
         linha = ""
         if st.get("voz_ms", 0) >= 400 and not st.get("cortou"):
             linha = (f"Barge-in não cortou: voz por {st['voz_ms']} ms durante a minha fala (acima do eco {st['acima_ms']} ms, "
-                     f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f})")
+                     f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f}; "
+                     f"janela máx {st.get('janela_max', 0)}/{BARGE_IN_MS} ms, sustentada máx {st.get('sust_max', 0)}/{BARGE_IN_SUSTENTADO_MS} ms)")
         elif st.get("cortou"):
             # também quando corta: é assim que se vê um corte pelo próprio eco (o João reclama "você não terminou de falar")
             linha = (f"Barge-in cortou ({st.get('motivo', '?')}): voz {st['voz_ms']} ms, rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}, "

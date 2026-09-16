@@ -54,5 +54,35 @@ def test_estouro_curto_acima_do_eco_nao_corta():
         for _ in range(10): o._barge(0.1, 400.0, F)
         assert not any(o._barge(0.95, 1200.0, F) for _ in range(7))      # 224 ms a 3× o eco: estouro, não fala
         for _ in range(10): o._barge(0.1, 300.0, F)                       # silêncio: o contador esvazia
-        assert o._tts.parou == 0 and o._barge_ms == 0
+        assert o._tts.parou == 0 and o._barge_ms < 320
+    asyncio.run(rodar())
+
+
+def test_linha_exata_da_vigilia_0919_corta_mesmo_com_prob_e_rms_oscilando():
+    """09:19: 'voz por 1696 ms, acima do eco 1376 ms, vetada 0 ms, rms 1230 vs eco 358×1.4, sim 0.85' e nenhum corte.
+    Frames qualificados intercalados com frames ruins (prob/rms oscilam a cada 32 ms) precisam cortar mesmo assim."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 358.0, F)                       # eco 358
+        cortou_em = None
+        for i in range(53):                                               # 1696 ms; 81% dos frames acima do eco (1376 ms)
+            bom = (i % 5) != 4
+            r = o._barge(0.95 if bom else 0.5, 1230.0 if bom else 300.0, F)
+            if r: cortou_em = i * 32; break
+        assert cortou_em is not None and cortou_em <= 640, cortou_em      # cortou dentro de 640 ms, não "no fim do segmento"
+        assert o._tts.parou == 1 and o._barge_stats["motivo"] == "energia"
+    asyncio.run(rodar())
+
+def test_nao_cortou_diz_qual_gate_faltou():
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 1000.0, F)
+        for _ in range(15): o._barge(0.95, 1100.0, F)                     # 480 ms a 1,1×: nem energia (1,4×) nem sustentada (700)
+        o.mudo = False; o._fim_da_fala(); await asyncio.sleep(0.01)
+        l = next(t for _, t in j.vault.linhas if t.startswith("Barge-in não cortou"))
+        assert "janela máx 0/320 ms, sustentada máx 480/700 ms" in l
     asyncio.run(rodar())
