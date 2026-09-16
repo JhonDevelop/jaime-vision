@@ -40,7 +40,7 @@ def test_voz_sustentada_no_nivel_do_eco_corta_mesmo_sem_passar_o_limiar():
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
         o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
         for _ in range(10): o._barge(0.1, 1500.0, F)
-        cortou = [o._barge(0.95, 1600.0, F) for _ in range(24)]      # 1,07× o eco, 768 ms
+        cortou = [o._barge(0.95, 1750.0, F) for _ in range(24)]      # 1,17× o eco (abaixo de 1,4×), 768 ms
         assert cortou.index(True) * 32 >= 640 and o._tts.parou == 1 and o._barge_stats["motivo"] == "sustentado"
     asyncio.run(rodar())
 
@@ -84,5 +84,32 @@ def test_nao_cortou_diz_qual_gate_faltou():
         for _ in range(15): o._barge(0.95, 1100.0, F)                     # 480 ms a 1,1×: nem energia (1,4×) nem sustentada (700)
         o.mudo = False; o._fim_da_fala(); await asyncio.sleep(0.01)
         l = next(t for _, t in j.vault.linhas if t.startswith("Barge-in não cortou"))
-        assert "janela máx 0/320 ms, sustentada máx 480/700 ms" in l
+        assert "janela máx 0/320 ms, sustentada máx 0/700 ms, vad máx 480/640 ms" in l    # 1,1×: nem 1,4× (energia) nem 1,15× (sustentada)
+    asyncio.run(rodar())
+
+
+def test_linha_exata_da_vigilia_0946_vad_esparso_corta_pela_energia():
+    """09:46: 'voz por 864 ms, acima do eco 832 ms, vetada 0, rms 1321 vs eco 335×1.4, sim 0.81, janela máx 224/320'.
+    O João fala junto com o áudio do Jaime: o VAD dispara em 1 de cada 4 frames, mas o rms fica 3,9× acima do eco o tempo todo."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.1, 335.0, F)
+        cortou_em = None
+        for i in range(60):
+            r = o._barge(0.95 if i % 4 == 0 else 0.4, 1321.0, F)
+            if r: cortou_em = i * 32; break
+        assert cortou_em is not None and cortou_em <= 352 and o._barge_stats["motivo"] == "energia"
+    asyncio.run(rodar())
+
+def test_eco_alto_do_proprio_jaime_nao_corta_pela_sustentada():
+    """A janela sustentada não usa VAD: o eco do próprio Jaime oscila em torno de 1,0× da média — abaixo de 1,15× não conta."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        for _ in range(10): o._barge(0.9, 1000.0, F)
+        assert not any(o._barge(0.9, 1000.0 * (1.1 if i % 2 else 0.9), F) for i in range(60))   # 2 s de eco oscilando
+        assert o._tts.parou == 0
     asyncio.run(rodar())
