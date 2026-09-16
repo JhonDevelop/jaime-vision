@@ -369,14 +369,31 @@ class TTS:
             self._tocar_afplay(bytes(tocado) + resto if tocado or resto else bytes(pcm))
 
     def _abrir_stream(self):
-        """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases."""
+        """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases.
+        Robusto: se o modo baixa latência falhar (AUHAL -9986 no Intel quando o aparelho está contendido),
+        tenta latência alta e depois o padrão antes de deixar o reprodutor cair no afplay."""
         import sounddevice as sd
         with self._lock_stream:
             if self._stream is None:
-                self._taxa = int(sd.query_devices(kind="output")["default_samplerate"]) or PCM_SR
-                self._stream = sd.RawOutputStream(samplerate=self._taxa, channels=1, dtype="int16",
-                                                  blocksize=0, latency="low")
-                self._stream.start()
+                try:
+                    self._taxa = int(sd.query_devices(kind="output")["default_samplerate"]) or PCM_SR
+                except Exception:
+                    self._taxa = PCM_SR
+                ultimo = None
+                for lat in ("low", "high", None):
+                    try:
+                        kw = dict(samplerate=self._taxa, channels=1, dtype="int16", blocksize=0)
+                        if lat is not None:
+                            kw["latency"] = lat
+                        st = sd.RawOutputStream(**kw); st.start()
+                        self._stream = st
+                        break
+                    except Exception as e:
+                        ultimo = e
+                        try: st.close()
+                        except Exception: pass
+                if self._stream is None:
+                    raise ultimo or RuntimeError("sem stream de saída")
             return self._stream
 
     def _fechar_stream(self) -> None:

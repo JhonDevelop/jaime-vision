@@ -81,7 +81,7 @@ def test_senha_com_voz_incerta_repete_uma_vez_depois_pede_para_digitar():
     assert j._porta(SENHA).startswith("Não consegui confirmar") and not j.acesso.liberado
     assert j.diario_linhas and "digitar" in j.diario_linhas[-1][0]
     j.falante_atual = "João"                                      # repetiu, a EMA fechou em João
-    assert j._porta(SENHA).startswith("Acesso liberado") and j.acesso.liberado
+    assert j._porta(SENHA).startswith("Bem-vindo de volta") and j.acesso.liberado
 
 def test_senha_de_outra_voz_conhecida_continua_recusada_mas_desconhecido_sem_perfil_passa():
     j = _jaime_porta("Gabriel")
@@ -89,10 +89,10 @@ def test_senha_de_outra_voz_conhecida_continua_recusada_mas_desconhecido_sem_per
     j = _jaime_porta("desconhecido")
     assert j._porta(SENHA) == "Isso só com o João." and not j.acesso.liberado
     j = _jaime_porta("")                                          # sem perfil de voz: comportamento antigo
-    assert j._porta(SENHA).startswith("Acesso liberado")
+    assert j._porta(SENHA).startswith("Bem-vindo de volta")
 
 def test_senha_digitada_no_hud_ignora_a_voz_da_ultima_fala():
     j = _jaime_porta("desconhecido")
-    assert j._porta(SENHA, canal="hud").startswith("Acesso liberado") and j.acesso.liberado
+    assert j._porta(SENHA, canal="hud").startswith("Bem-vindo de volta") and j.acesso.liberado
     j = _jaime_porta("Gabriel")
-    assert j._porta(SENHA, canal="telegram").startswith("Acesso liberado")
+    assert j._porta(SENHA, canal="telegram").startswith("Bem-vindo de volta")
