@@ -259,6 +259,15 @@
   acima de 1,4× da própria média por 320 ms seria uma passagem muito mais alta que o início da frase — subir a calibração
   para a média de 640 ms se acontecer).
 
+#### M-32 · Toque de telefone corta a fala (Vigília 10:28) — **CORRIGIDO**: piso de voz
+- 10:09 "cortou (energia): voz 64 ms, rms 3202 vs eco 349, sim 0,39" no minuto da notificação de telefone; sem "🎙 você".
+  Energia sozinha não distingue ruído forte de fala.
+- Solução: ≥ 50% dos frames da janela com prob. de voz ≥ 0,3 (`BARGE_IN_VAD_PISO/FRACAO`); o VAD esparso do João passa
+  (testado com 1 em 4 frames a 0,95 e o resto a 0,45), campainha não. Diário ganha "piso de voz". Não fiz a sugestão 2
+  (ignorar corte 3 s após notificação de telefone): o piso resolve o caso e não depende do bus.
+- Validar: sem "cortou" durante toques/notificações; "cortou (energia)" segue quando o João fala por cima.
+- Desde o M-31 na main: nenhum "não cortou" — o gate de energia resolveu 09:46–09:51.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -298,7 +307,8 @@
 | 7o | M-28 latência conta a muleta | medição da etapa 5 | pronto, aguardando merge |
 | 7p | M-29 corte por eco (mín. 320 ms, 1,4×) | etapa 3 | mergeado |
 | 7q | M-30 contagem por janela deslizante | etapa 3 | mergeado |
-| 7r | M-31 janela por energia, sem VAD | etapa 3 | pronto, aguardando merge |
+| 7r | M-31 janela por energia, sem VAD | etapa 3 | mergeado |
+| 7s | M-32 piso de voz (ruído não corta) | etapa 3 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -326,3 +336,4 @@
 - 09:05 (16/09) — 2 cortes por eco (160/224 ms) → M-29; 248 testes. Fila de merge: 8bd2ffb (M-28), 7d9d4c6 (M-29).
 - 09:35 (16/09) — Vigília: energia/sustentação passam, não corta → contador consecutivo era o bug; janelas deslizantes (M-30); 254 testes.
 - 10:05 (16/09) — Vigília: janela máx 224/320 com 832 ms acima do eco → VAD esparso; M-31 (janelas por energia); 256 testes.
+- 10:35 (16/09) — Vigília: telefone tocando cortou (energia 9×, VAD 64 ms) → M-32 piso de voz; 257 testes.
