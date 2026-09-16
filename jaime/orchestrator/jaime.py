@@ -404,6 +404,7 @@ class Jaime:
     async def _ask_stream(self, texto: str, canal: str = "cli", contexto: str = ""):
         """contexto: o que o João está vendo na tela agora (app/janela) — vai só ao modelo, não ao diário."""
         assert self._client, "Chame start() antes."
+        self.acesso.tocar()      # QUALQUER interação renova a sessão — respostas rápidas não deixam mais o cérebro trancar sozinho no meio do uso
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")
         curta = self._porta(texto, canal)
         if curta is None and self.acesso.liberado:
