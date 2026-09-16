@@ -5,6 +5,7 @@ Cada resposta é montada com o que ele já sabe (hora, momento, clima em cache, 
 um pouco para não soar gravada. Só entra quando a frase é SÓ isso — "bom dia, abre o Finder" vai ao modelo."""
 from __future__ import annotations
 import random, re
+from ..hud.events import bus
 from datetime import datetime
 
 SAUDACAO_RX = re.compile(r"^\s*(bom dia|boa tarde|boa noite|oi|olá|ola|opa|e aí|eai|fala)\s*[,!.]*\s*(jaime|senhor)?\s*[,!.]*\s*$", re.I)
@@ -16,8 +17,30 @@ QUEM_RX = re.compile(r"^\s*(quem (é|e) você|o que você (é|e|faz)|você (é|e
 def _periodo(h: int) -> str:
     return "Bom dia" if 5 <= h < 12 else "Boa tarde" if 12 <= h < 18 else "Boa noite"
 
+
+NAV_RX = re.compile(r"^\s*(mostra|mostrar|abre|abrir|abra|vai para|vai pro|me mostra|abre a tela|abre o painel|abre o|abre a)\s+(?:o |a |os |as |painel |tela |aba |de |dos |das )*([\wçãéíóúâê ]+?)\s*[?.!]*\s*$", re.I)
+TELAS = {"financ": "financas", "dinheiro": "financas", "gasto": "financas", "saldo": "financas",
+         "afazer": "afazeres", "tarefa": "afazeres", "to do": "afazeres", "todo": "afazeres",
+         "agenda": "agenda", "lembrete": "agenda", "compromisso": "agenda", "calend": "agenda",
+         "music": "musica", "spotify": "musica", "som": "musica", "toca": "musica",
+         "cerebro": "agentes", "cérebro": "agentes", "agente": "agentes", "grafo": "agentes", "rede": "agentes", "matrix": "agentes", "cluster": "agentes",
+         "teclado": "teclado", "escrever": "teclado", "digitar": "teclado",
+         "inicio": "inicio", "início": "inicio", "home": "inicio", "principal": "inicio", "voz": "inicio"}
+def _nav(texto):
+    m = NAV_RX.match(texto or "")
+    if not m: return None
+    alvo = m.group(2).lower().strip()
+    for chave, tela in TELAS.items():
+        if chave in alvo:
+            return tela
+    return None
+
 def responder(texto: str, jaime, agora: datetime | None = None) -> str | None:
     """Devolve a resposta curta, ou None se a frase precisa do modelo."""
+    if (tela := _nav(texto)):
+        bus.emitir("painel", tela=tela)
+        nomes = {"financas": "as finanças", "afazeres": "os afazeres", "agenda": "a agenda", "musica": "a música", "agentes": "o cérebro", "teclado": "o teclado", "inicio": "a tela inicial"}
+        return f"Abrindo {nomes.get(tela, tela)}."
     t = (texto or "").strip()
     agora = agora or datetime.now()
     trat = random.choice(["senhor", "João"])

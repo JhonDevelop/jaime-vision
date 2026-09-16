@@ -326,6 +326,14 @@ async def hud_teclado(body: dict):
     bus.emitir("teclado", aberto=bool(body.get("aberto")), motivo=str(body.get("motivo") or "")[:120])
     return {"ok": True}
 
+@app.post("/hud/dizer")
+async def hud_dizer(body: dict):
+    """Teclado do cockpit: o texto entra como um turno do João (canal hud). Local, sem token."""
+    texto = str(body.get("texto") or "").strip()
+    if not texto:
+        return {"resposta": ""}
+    return {"resposta": await jaime.ask(texto, canal="hud")}
+
 @app.post("/hud/falar")
 async def hud_falar(body: dict):
     texto = (body.get("texto") or "").strip()
