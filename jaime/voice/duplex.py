@@ -29,9 +29,10 @@ from .eco import SupressorDeEco
 SILENCIO_FECHOU_MS = 450      # antecipador diz que a frase fechou
 SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
 SILENCIO_ABERTO_MS = 1500     # antecipador diz que o João ainda vai continuar ("…e também")
-BARGE_IN_PROB = 0.85          # VAD mais exigente enquanto o Jaime fala
-BARGE_IN_MS = 200             # voz contínua necessária para cortar
-BARGE_IN_ECO_X = 2.5          # RMS do João precisa ser 2,5× o eco medido (sem AEC)
+BARGE_IN_PROB = 0.82          # VAD enquanto o Jaime fala
+BARGE_IN_MS = 160             # voz contínua necessária para cortar
+BARGE_IN_ECO_X = 1.8          # RMS do João precisa ser 1,8× o eco medido (sem AEC)
+BARGE_IN_ECO_SIM = 0.80       # o supressor só VETA quando tem quase certeza de que é o próprio eco
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
@@ -233,8 +234,10 @@ class OuvidoDuplex(Ouvido):
             self._eco_rms = (self._eco_rms * self._eco_amostras + rms) / (self._eco_amostras + 1); self._eco_amostras += 1
             return False
         acima_do_eco = self.barge_in == "fone" or rms >= BARGE_IN_ECO_X * max(self._eco_rms, 80.0)
-        eh_eco, _ = self._supressor_eco.eh_eco(frame)
-        if prob >= BARGE_IN_PROB and acima_do_eco and not eh_eco:
+        res = self._supressor_eco.eh_eco(frame)
+        sim = res[1] if res else 0.0
+        provavel_eco = self.barge_in != "fone" and sim >= BARGE_IN_ECO_SIM
+        if prob >= BARGE_IN_PROB and acima_do_eco and not provavel_eco:
             self._barge_ms += FRAME_MS
         else:
             self._barge_ms = max(0, self._barge_ms - FRAME_MS)

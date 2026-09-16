@@ -48,6 +48,10 @@ class TTS:
         self._falhas = 0
         self._ultima_falha = 0.0
         self._afplay = shutil.which("afplay")
+        # saída: JAIME_SAIDA_AUDIO = auto (sounddevice, cai p/ afplay ao falhar) | afplay (robusto no Intel) | sounddevice
+        self._saida = os.environ.get("JAIME_SAIDA_AUDIO", "afplay" if self._afplay else "sounddevice").lower()
+        self._usar_afplay = self._saida == "afplay"     # sticky: reabrir o PortAudio no Intel dá -9986 e pica o som
+        self._afplay_proc = None                         # processo do afplay em curso (para o barge-in cortar)
         self._stream = None          # stream de saída, aberto enquanto durar a resposta
         self._taxa = PCM_SR          # taxa nativa do aparelho, descoberta ao abrir
         self._anterior = ""          # última frase sintetizada (previous_text da ElevenLabs)
@@ -168,6 +172,10 @@ class TTS:
             self._pendentes = 0
             self.interrompida = restantes > 0
             self._cond.notify_all()
+        proc = self._afplay_proc                              # barge-in: mata a fala em curso pelo afplay
+        if proc is not None:
+            try: proc.terminate()
+            except Exception: pass
         self._fechar_stream()
         self._parando.clear()
         self._anterior = ""
@@ -244,7 +252,7 @@ class TTS:
             g, texto = self._pedidos.get()
             if g != self._geracao:
                 continue                        # parar() passou por aqui: frase descartada
-            pcm = self._sintetizar_com_cache(texto, streaming=True)
+            pcm = self._sintetizar_com_cache(texto, streaming=False)   # frase inteira: sem underrun de rede (voz lisa)
             if g != self._geracao:
                 continue
             self._prontos.put((g, texto, pcm))
@@ -323,50 +331,38 @@ class TTS:
             return b"".join(resp.iter_bytes())
 
     def _tocar(self, pcm, g: int | None = None) -> None:
-        """`pcm`: bytes inteiros ou iterador de blocos (streaming). Escreve em blocos de ~50 ms; `parar()` corta no próximo.
-        `g` é a geração da frase: se `parar()` avançou a geração, o resto é descartado mesmo que `_parando` já tenha baixado."""
-        if isinstance(pcm, (bytes, bytearray)):
-            blocos = [bytes(pcm)]
-        else:
-            blocos = pcm
+        """`pcm`: bytes inteiros (frase já sintetizada). `g` é a geração: se `parar()` avançou, descarta.
+        No Intel a reabertura do PortAudio dá -9986 e pica o som — por isso o padrão é afplay (frase inteira,
+        liso, coexiste com o microfone), com corte por kill no barge-in. `JAIME_SAIDA_AUDIO=sounddevice` força o outro."""
+        buf = bytes(pcm) if isinstance(pcm, (bytes, bytearray)) else b"".join(bytes(t) for t in pcm)
         if g is None:
             g = self._geracao
         cortada = lambda: self._parando.is_set() or g != self._geracao
-        tocado = bytearray()
+        if cortada() or not buf:
+            return
+        if self.ao_tocar:
+            try: self.ao_tocar(buf)                          # referência p/ o supressor de eco (voice/eco.py)
+            except Exception: pass
+        if not self.t_inicio_audio:
+            self.t_inicio_audio = time.time()
+        if self._usar_afplay:
+            return self._tocar_afplay(buf, cortada)
         try:
-            bloco = int(self._taxa * BLOCO_S) * 2          # bytes por bloco (int16 mono)
-            bloco_pcm = int(PCM_SR * BLOCO_S) * 2
-            for trecho in blocos:
-                if cortada():
-                    return                                  # barge-in: cala no próximo bloco
-                for inicio in range(0, len(trecho), bloco_pcm):
+            dados = self._na_taxa_do_aparelho(buf)
+            bloco = int(self._taxa * BLOCO_S) * 2
+            for i in range(0, len(dados), bloco):
+                with self._lock_stream:
                     if cortada():
                         return
-                    pcm_24k = bytes(trecho[inicio:inicio + bloco_pcm])
-                    if self.ao_tocar:
-                        try:
-                            self.ao_tocar(pcm_24k)          # referência para o supressor de eco (voice/eco.py)
-                        except Exception:
-                            pass                            # observador não pode derrubar a reprodução
-                    dados = self._na_taxa_do_aparelho(pcm_24k)
-                    tocado += pcm_24k
-                    for i in range(0, len(dados), bloco):
-                        # Abrir e escrever sob o mesmo lock: parar() nunca fecha o aparelho no meio de um write(),
-                        # e uma frase antiga nunca reabre o aparelho depois de parar().
-                        with self._lock_stream:
-                            if cortada():
-                                return
-                            st = self._abrir_stream()
-                            if not self.t_inicio_audio:
-                                self.t_inicio_audio = time.time()
-                            st.write(dados[i:i + bloco])
+                    st = self._abrir_stream()
+                    st.write(dados[i:i + bloco])
         except Exception as e:
             if cortada():
                 return
-            print(f"⚠ placa de som falhou ({type(e).__name__}); tocando pelo afplay")
+            print(f"⚠ placa de som falhou ({type(e).__name__}); passando para o afplay (o resto da sessão)")
+            self._usar_afplay = True                          # sticky: não reabre mais o PortAudio nesta sessão
             self._fechar_stream()
-            resto = b"".join(bytes(t) for t in blocos) if not isinstance(pcm, (bytes, bytearray)) else b""
-            self._tocar_afplay(bytes(tocado) + resto if tocado or resto else bytes(pcm))
+            self._tocar_afplay(buf, cortada)
 
     def _abrir_stream(self):
         """Um stream por resposta, não por frase: abrir custa 0,09 s e é o que emenda as frases.
@@ -413,21 +409,40 @@ class TTS:
         return np.interp(np.arange(n) * PCM_SR / self._taxa,
                          np.arange(len(x)), x).astype(np.int16).tobytes()
 
-    def _tocar_afplay(self, pcm: bytes) -> None:
-        """Reserva: WAV temporário. Confiável, mas cobra ~1 s por frase — só quando o stream falha."""
+    def _tocar_afplay(self, pcm: bytes, cortada=None) -> None:
+        """Toca a frase inteira pelo afplay (liso, sem underrun, coexiste com o mic). Killable: o barge-in mata o
+        processo em < 100 ms. `cortada()` diz se a fala foi interrompida."""
         if not self._afplay:
+            if not self._say_nativo_pcm(pcm):
+                print("🔈 (sem afplay)")
             return
+        cortada = cortada or (lambda: self._parando.is_set())
         caminho = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 caminho = f.name
             with wave.open(caminho, "wb") as w:
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(PCM_SR); w.writeframes(pcm)
-            subprocess.run([self._afplay, caminho], check=False, stderr=subprocess.DEVNULL)
+            if cortada():
+                return
+            proc = subprocess.Popen([self._afplay, caminho], stderr=subprocess.DEVNULL)
+            self._afplay_proc = proc
+            while proc.poll() is None:
+                if cortada():
+                    try: proc.terminate()
+                    except Exception: pass
+                    break
+                time.sleep(0.03)
+        except Exception as e:
+            print(f"⚠ afplay falhou ({type(e).__name__})")
         finally:
+            self._afplay_proc = None
             if caminho:
                 try: os.unlink(caminho)
                 except OSError: pass
+
+    def _say_nativo_pcm(self, pcm: bytes) -> bool:
+        return False
 
     def _say_nativo(self, texto: str) -> bool:
         """macOS: voz local em pt-BR. Grátis, offline, sotaque pior que a ElevenLabs."""

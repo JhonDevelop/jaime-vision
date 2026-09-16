@@ -39,6 +39,8 @@ def placa(monkeypatch):
 
 
 def _tts():
+    import os
+    os.environ["JAIME_SAIDA_AUDIO"] = "sounddevice"   # este teste exercita a placa (sounddevice), não o afplay
     from jaime.voice.tts import TTS
     return TTS(types.SimpleNamespace(openai_key="", elevenlabs_key=""))
 
