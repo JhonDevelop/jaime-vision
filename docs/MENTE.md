@@ -116,9 +116,24 @@
   é o tempo até o 1º token do modelo em perguntas reflexivas — a muleta não entra sem ferramenta. Candidato M-14: muleta
   também quando o 1º token demora > 2,5 s, ou modelo rápido no roteador para "conversa".
 
-#### M-15 · Rotina "fecha o dia" 18:00 não disparou (Vigília) — em investigação
-- Zero "Rotina disparada" no diário de hoje (nem a das 13:00). `parse_rotinas` + `CronTrigger` calculam os próximos disparos
-  certos (18:00 amanhã, 22:00 hoje) → o problema é o scheduler não estar rodando/armado no serviço, não o arquivo.
+#### M-15 · Nenhuma rotina do Rotinas.md disparou, em nenhum dia — **CORRIGIDO em feat/mente (f7c2e96)**
+- Zero "Rotina disparada" em todos os diários; `parse_rotinas`/`CronTrigger` corretos. Reproduzido 18:32 com marcações de
+  5 s: entre dois ticks o relógio de parede andou **876 s** e o do loop 6 s — o Mac dormiu. No macOS `time.monotonic()`
+  não conta o sono, o `call_later` do APScheduler acorda atrasado e o job é descartado pelo `misfire_grace_time` padrão
+  de 1 s (`Run time of job … was missed by 0:14:29`). Lembretes só disparavam quando o Mac estava acordado no minuto.
+- Solução: rotinas com `misfire_grace_time=3 h` + `coalesce`; lembretes 30 min. Validar: amanhã "Rotina disparada:
+  preparar o dia" (06:30) e "briefing" (07:00) no diário mesmo que o Mac tenha dormido; "fecha o dia" às 18:00.
+- Fica para o Cérebro: com o Mac dormindo, nada roda — para rotinas da madrugada vale um `caffeinate`/`pmset` ou
+  aceitar que rodem ao acordar (é o que a tolerância de 3 h faz).
+
+#### M-16 · Vontades saturadas (Vigília 22:04, etapa 9) — **CORRIGIDO em feat/mente (38de1d5)**
+- Curiosidade e Vínculo em 1,00 subindo +0,03/+0,05 a cada sonda de 10 min pela MESMA pergunta sem resposta; Maestria
+  presa em 0,00 (cada "acerto" descia 0,05 sem piso). Com três impulsos em 1,00 a Mente não discrimina.
+- Solução: perguntas, datas, Inbox e desordem só empurram quando a contagem **cresce** (idempotente; zera quando some);
+  acerto relaxa Maestria até o repouso 0,20, nunca a zero; "estudo resolvido" sobe Maestria 0,05.
+- Validar: `Vontades.md` — Vínculo/Curiosidade param de subir com a mesma pergunta e decaem para o repouso; Maestria ≥ 0,20.
+- Registro positivo (Vigília): fila + barge-in ao vivo (22:04, "Continuo o que eu dizia…?"), transcrição viva no stream
+  (75 eventos/60 s), "quero atender o João porque demanda pendente" no diário (21:57).
 
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
@@ -146,7 +161,8 @@
 | 7b | M-09 muleta tardia | 4,5 s → ~2 s com ferramenta | mergeado |
 | 7c | M-11 corta o João no meio | irritação diária | mergeado |
 | 7d | M-13 modelo apaga rascunho local | 0/10 no voz latencia | pronto, aguardando merge |
-| 7e | M-15 rotinas não disparam | etapa 8 | investigando |
+| 7e | M-15 rotinas não disparam | etapa 8 | pronto, aguardando merge |
+| 7f | M-16 vontades saturadas | etapa 9 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -162,3 +178,4 @@
 - 15:55 — M-09 (muleta logo após a ferramenta) commitado; 205 testes. M-08 aguardando o Codex.
 - 16:05 — Vigília reportou etapas 2 e 5 falhando (mesma leitura: 0/10, TTS OpenAI). Respondi; M-10 (motivo da antecipação no diário) commitado; 206 testes.
 - 18:15 — retomada após pausa. Cérebro mergeou M-09/M-10/M-11 e o M-08 do Codex. Vigília: 0/10 persiste → causa era o modelo apagando o rascunho local em `_refinar`; corrigido (216 testes). Rotinas do dia nunca dispararam (M-15) — investigando.
+- 23:50 — M-15 reproduzido (Mac dormiu 876 s; grace 1 s) e corrigido; M-16 (vontades idempotentes, piso da Maestria) corrigido; 219 testes. Cérebro avisado: 22aec49, f7c2e96, 38de1d5 aguardam merge.
