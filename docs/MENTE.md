@@ -169,6 +169,14 @@
 - Fora do meu escopo, para a Bússola: `tests/test_telemetria.py::test_prioridade_formula_frequencia_x_erro_x_tempo`
   falha desde 16/09 (depende da data de hoje vs. 2026-09-15 fixo no teste); igual na main.
 
+#### M-21 · Texto cresce enquanto o modelo pensa → rascunho local do texto novo se perdia — **CORRIGIDO (3735934)**
+- Benchmark real com fac9c82 (07:55): 3/10. Os 7 restantes terminavam "modelo · completude 0,0 · rascunho «»" em frases
+  completas ("quanto está o dólar?"). O refinamento encadeado (`_refinar` → texto mudou → `_refinar` de novo) partia do
+  parecer do modelo como base, sem rascunho; a heurística do texto atual nunca era recalculada.
+- Solução: `_refinar` recalcula `heuristico(texto atual)` e usa esse rascunho/ação/completude como candidato local.
+- Validar: benchmark real abaixo (bench4). Artefatos do STT do benchmark que não são do antecipador: "está aí?" vazando
+  para o turno seguinte (segmentação do Deepgram entre turnos sintéticos) e "site da." (Oldsen sumiu).
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -199,7 +207,7 @@
 | 7f | M-16 vontades saturadas | etapa 9 | pronto, aguardando merge |
 | 7g | M-14 muleta sem ferramenta · M-17 tranca na janela | latência/ruído | pronto, aguardando merge |
 | 7h | M-18 modelo fraco derruba rascunho local | 0/10 ao vivo | mergeado |
-| 7i | M-19 rotinas perdidas no sono · M-20 benchmark cego | etapas 8 e 2 | pronto, aguardando merge |
+| 7i | M-19 rotinas perdidas no sono · M-20 benchmark cego · M-21 refinamento encadeado | etapas 8 e 2 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
