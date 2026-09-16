@@ -153,6 +153,22 @@
 - Validar: `voz latencia` ≥ 7/10 ao vivo com Deepgram (o `say` troca ~3/10 frases: "Finder"→"vender"; isso é o STT do
   benchmark, não o antecipador).
 
+#### M-19 · Rotinas perdidas no sono do Mac não rodam ao acordar (Vigília 16/09 07:22) — **CORRIGIDO (5b7fcd9)**
+- 06:30 "preparar o dia" e 07:00 "briefing" caíram com o processo morto (subiu 07:14). `misfire_grace_time` só vale com
+  o processo vivo; jobstore em memória. Agora `start()` olha 3 h para trás: rotina prevista na janela e sem "Rotina
+  disparada" no diário de hoje é agendada uma vez, 20 s depois do boot (uma por vez). Diário: "Rotina perdida enquanto eu
+  estava desligado, vou rodar agora: …". Validar: no próximo boot após sono, as duas linhas no diário.
+
+#### M-20 · Benchmark cego: "antecipação: nenhuma" 10/10 (Vigília 07:22) — **CORRIGIDO (fac9c82)**
+- Reproduzido 07:40 com o Deepgram real. O `voz latencia` empurra o áudio inteiro em milissegundos e avaliava
+  `parciais[-1]` **antes** do `finalizar()`; nesse instante só existia o 1º parcial ("Jaime", 5 caracteres < 6) → None.
+  O resto chegava durante a espera do `finalizar()`. Agora cada parcial é avaliado ao chegar (como o duplex), o texto
+  final também, espera-se o modelo e usa-se `confere(texto)`. Print mostra nº de parciais e o último.
+- Isso NÃO afetava o vivo (o duplex sempre avaliou cada parcial); o vivo estava preso no M-13/M-18.
+- Validar: `voz latencia` com a Mente → antecipados ≥ 7/10 (rodando agora, resultado abaixo).
+- Fora do meu escopo, para a Bússola: `tests/test_telemetria.py::test_prioridade_formula_frequencia_x_erro_x_tempo`
+  falha desde 16/09 (depende da data de hoje vs. 2026-09-15 fixo no teste); igual na main.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -182,7 +198,8 @@
 | 7e | M-15 rotinas não disparam | etapa 8 | pronto, aguardando merge |
 | 7f | M-16 vontades saturadas | etapa 9 | pronto, aguardando merge |
 | 7g | M-14 muleta sem ferramenta · M-17 tranca na janela | latência/ruído | pronto, aguardando merge |
-| 7h | M-18 modelo fraco derruba rascunho local | 0/10 ao vivo | pronto, aguardando merge |
+| 7h | M-18 modelo fraco derruba rascunho local | 0/10 ao vivo | mergeado |
+| 7i | M-19 rotinas perdidas no sono · M-20 benchmark cego | etapas 8 e 2 | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
@@ -201,3 +218,4 @@
 - 23:50 — M-15 reproduzido (Mac dormiu 876 s; grace 1 s) e corrigido; M-16 (vontades idempotentes, piso da Maestria) corrigido; 219 testes. Cérebro avisado: 22aec49, f7c2e96, 38de1d5 aguardam merge.
 - 00:05 (16/09) — M-14 e M-17 commitados (07665d8); 220 testes. Quatro commits aguardam merge: 22aec49, f7c2e96, 38de1d5, 07665d8.
 - 00:30 (16/09) — Vigília: 0/10 persistia com 22aec49 no ar. Causa: rascunho fraco do modelo derrubava o local. M-18 commitado (8e71b28); 222 testes. Fila de merge: 22aec49, f7c2e96, 38de1d5, 07665d8, 8e71b28.
+- 07:50 (16/09) — Vigília: 'nenhuma' 10/10 e 06:30/07:00 sem disparar. Reproduzi o benchmark cego com o Deepgram real (1º parcial só chega em ~216 ms, depois de todo o áudio) — fac9c82; catch-up de rotinas no boot — 5b7fcd9. 227 testes (+1 alheio, data-dependente).
