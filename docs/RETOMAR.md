@@ -11,6 +11,19 @@
 - Fase 2: 12/12. Fase 3: etapas 1, 4, 5, 6, 7 feitas; **2** (objetivo autônomo real) espera um objetivo do João;
   **3** (conexões) espera o testador do Google e a página do Notion (abaixo).
 
+## 16/09 ~07:40 — áudio, barge-in, velocidade, equipe
+- **Áudio picotado resolvido**: era reabertura do PortAudio no Intel (-9986) + underrun de streaming. Agora a saída é
+  `afplay` robusto (frase inteira sintetizada, coexiste com o mic, killable no barge-in); `JAIME_SAIDA_AUDIO=afplay`.
+  Confirmado ao vivo: 0 erros de áudio desde o reinício, ele falou o briefing de clima sozinho.
+- **Barge-in de volta**: exigia 3 condições e o supressor de eco vetava tudo em caixa de som. Agora limiares menores
+  (prob 0.82, eco 1.8×, 160 ms) e o supressor só VETA com similaridade ≥ 0.80. Falta você confirmar falando por cima.
+- **Mais rápido**: `JAIME_MODEL` = Sonnet (era Opus); Opus fica só para código via Córtex. Pensar próprio usa modelo rápido.
+- **Codex ESGOTOU a cota mensal** → dispensado. Mão de obra de código = **Gemini** (Antigravity, Google AI Pro).
+- **Equipe (memória durável = nota fase3-progresso, reescrita)**: Mente (observa+corrige+delega ao Gemini), Vigília
+  (valida 9 etapas), HUD (JARVIS camadas 2–4), Gemini (harness + missões da Mente). Ordens permanentes na nota.
+- **Vigia**: já barra só o irreversível (enviar, pagar, apagar, push main, sudo). Não removi essas travas — são segurança real.
+- Suíte: 231 verdes; 1 falha não crítica (fórmula de prioridade da telemetria, do nó Bússola — 9 vs 10, arredondamento).
+
 ## 16/09 — raciocínio próprio, áudio e posicionamento
 - **Raciocínio próprio** (`jaime/mente/pensar.py` + `tools.py`, na `main`): quando ocioso, o Jaime forma UM pensamento
   sobre o mundo do João (projetos, decisões do dia, uso, problemas em aberto), grava em `01-Estado/Pensamentos.md` e no
