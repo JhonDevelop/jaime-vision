@@ -195,23 +195,37 @@ const COR={diário:'#3a86ff',ferramentas:'#38e1ff',maesters:'#7d5cff',loops:'#ff
 const corC=c=>COR[c]||'#5b6b82';
 async function carregarGrafo(){try{const d=await(await fetch('/hud/agentes')).json();
   NOS=d.nos;ARE=d.arestas;byId={};byCluster={};byFam={};$('sNos').textContent=d.total;$('sArestas').textContent=d.total_arestas;
-  // Espalhados pela TELA INTEIRA, não num anel em volta do centro: as âncoras de cluster caem numa grade
-  // que cobre topo, laterais e base, e cada nó se espalha em volta da sua âncora. O miolo fica livre para
-  // o córtex, e o céu de cima deixa de ser um amontoado de bolinhas.
-  const cls=[...new Set(NOS.map(n=>n.pasta))],cx=W/2,cy=H/2,a0={},anc={};
-  const COLS=Math.max(4,Math.ceil(Math.sqrt(cls.length*1.6))), LIN=Math.ceil(cls.length/COLS);
-  cls.forEach((c,i)=>{a0[c]=i/cls.length*6.283;
+  // Espalhados pela TELA INTEIRA e DESAGRUPADOS: o problema não era o anel, era cada cluster ter UMA
+  // âncora só — cluster de 600 linhas de diário virava um bolo azul, os 12 maesters um pontinho roxo.
+  // Agora cada cluster é quebrado em bolsões de ~38 nós, e cada bolsão ganha a sua própria casa na grade.
+  // Assim a mesma cor aparece em vários cantos da tela, que é o que faz parecer espalhado de verdade.
+  const cls=[...new Set(NOS.map(n=>n.pasta))],cx=W/2,cy=H/2,a0={};cls.forEach((c,i)=>a0[c]=i/cls.length*6.283);
+  const POR_BOLSAO=38, bolsoes=[];
+  for(const c of cls){
+    const q=NOS.filter(n=>n.pasta===c&&!n.nucleo).length;
+    for(let k=0;k<Math.max(1,Math.ceil(q/POR_BOLSAO));k++)bolsoes.push(c);
+  }
+  // baralha os bolsões para as cores não caírem lado a lado na grade
+  for(let i=bolsoes.length-1;i>0;i--){const j=(i*7+3)%(i+1);[bolsoes[i],bolsoes[j]]=[bolsoes[j],bolsoes[i]]}
+  const COLS=Math.max(5,Math.round(Math.sqrt(bolsoes.length*(W/H)))), LIN=Math.ceil(bolsoes.length/COLS);
+  const casas={};
+  bolsoes.forEach((c,i)=>{
     const col=i%COLS, lin=Math.floor(i/COLS);
-    let ax=(col+0.5)/COLS, ay=(lin+0.5)/Math.max(1,LIN);
-    ax=0.06+ax*0.88; ay=0.10+ay*0.84;                       // margem: nada encosta na borda
-    const dx=ax-0.5, dy=ay-0.5;
-    const d=Math.hypot(dx,dy*1.25);
-    if(d<0.23){const k=0.23/Math.max(0.02,d); ax=0.5+dx*k; ay=0.5+dy*k}   // empurra para fora do córtex
-    anc[c]={x:ax*W, y:ay*H, r:Math.min(W,H)*0.17}});
+    let ax=0.05+((col+0.5)/COLS)*0.90, ay=0.09+((lin+0.5)/Math.max(1,LIN))*0.86;
+    ax+=(((i*13)%7)/7-0.5)*0.05; ay+=(((i*11)%5)/5-0.5)*0.05;       // desalinha a grade
+    const dx=ax-0.5, dy=(ay-0.5)*1.35, d=Math.hypot(dx,dy);
+    if(d<0.21){const k=0.21/Math.max(0.02,d); ax=0.5+dx*k; ay=0.5+dy/1.35*k}   // fora do miolo: ali é o córtex
+    (casas[c]=casas[c]||[]).push({x:Math.min(0.97,Math.max(0.03,ax))*W,
+                                  y:Math.min(0.95,Math.max(0.08,ay))*H,
+                                  r:Math.min(W,H)*0.115});
+  });
+  const proximo={};
   NOS.forEach(n=>{byId[n.id]=n;(byCluster[n.pasta]=byCluster[n.pasta]||[]).push(n);
     if(n.nucleo){n.x=cx;n.y=cy;n.r=9;hub=n;return}
-    const A=anc[n.pasta]||{x:cx,y:cy,r:Math.min(W,H)*0.3};
-    const t=Math.random()*6.283, rr=Math.sqrt(Math.random())*A.r*1.5;
+    const lista=casas[n.pasta]||[{x:cx,y:cy,r:Math.min(W,H)*0.3}];
+    const i=(proximo[n.pasta]=(proximo[n.pasta]||0)+1)-1;     // reparte o cluster entre as casas dele
+    const A=lista[i%lista.length];
+    const t=Math.random()*6.283, rr=Math.sqrt(Math.random())*A.r*1.35;
     n.x=Math.max(10,Math.min(W-10,A.x+Math.cos(t)*rr));
     n.y=Math.max(60,Math.min(H-40,A.y+Math.sin(t)*rr*0.8));
     n.r=Math.max(1.2,Math.min(5.5,(n.kb||.3)*2+1.2));
@@ -256,7 +270,11 @@ function nodoCluster(c){const a=byCluster[c];return a&&a.length?a[Math.floor(Mat
 function nodoFerr(f){const m=String(f||'').match(/mcp__([a-z_]+)__([a-z_]+)/);
   if(!m)return null;const lista=byFam['t_'+m[1]]||[];return lista.find(n=>n.id.endsWith(':'+m[2]))||byFam[m[1]]||null}
 
-/* ── estado dos cérebros e do universo (antes do laço: desenham desde o 1º quadro) ── */
+/* ── estado dos cérebros, do universo e da poeira ─────────────────────────────────
+   TUDO que o laço de desenho toca é declarado AQUI, antes de `loop()` começar. `let`/`const`
+   ficam em zona morta temporal até a linha da declaração: já quebrou três vezes (estrelas, CER,
+   poeira) por eu declarar embaixo e desenhar em cima. Declare aqui e pronto. ── */
+const poeira=[];
 let CER=[], cerPensando=null, cerAte=0, faisca=[], agentesVivos={esquerdo:[],direito:[],central:[]};
 const LOBO={
   central: {cor:'#63f0ff',rot:'Claude', faz:['decide · fala com o João','orquestra · escreve no vault']},
@@ -274,12 +292,46 @@ function loop(){tick++;ctx.clearRect(0,0,W,H);
   if(destaque && tick>destaqueAte) destaque=null;
   const dN=destaque==='nos'?1:(destaque?0.55:0.78), dM=destaque==='mundos'?1:(destaque?0.55:0.85);
   ceuDeFundo();
+  desenharPoeira(dN);                       // enfeite, atrás de tudo
   if(grafoPronto)grafo(0.30*dN);
   if(uniPronto)universo(dM);
   cerebro(0.62);
   cerebrosDesenhar();
   requestAnimationFrame(loop)}
 loop();
+
+
+/* ── poeira: bolinhas SEM função, só para compor a cena ──────────────────────
+   O João pediu e autorizou: estas não são nós de nada, não representam agente, nota nem ferramenta.
+   São enfeite de fundo, nos tons roxo e azul da casa, para a tela não ter buraco. Ficam fracas de
+   propósito e nunca cobrem o que é informação. */
+function semearPoeira(){
+  poeira.length=0;
+  const N=Math.round((W*H)/5200);                            // densidade por área: cabe em qualquer tela
+  for(let i=0;i<N;i++){
+    const g=2.39996*i, rr=Math.sqrt((i+0.5)/N);
+    let x=0.5+Math.cos(g)*rr*0.62, y=0.5+Math.sin(g)*rr*0.58;
+    const dx=x-0.5, dy=(y-0.5)*1.4, d=Math.hypot(dx,dy);
+    if(d<0.19){const k=0.19/Math.max(0.02,d); x=0.5+dx*k; y=0.5+dy/1.4*k}    // o miolo é do córtex
+    poeira.push({x:Math.min(0.99,Math.max(0.01,x))*W, y:Math.min(0.97,Math.max(0.06,y))*H,
+                 r:0.6+((i*7)%9)/9*1.5, f:Math.random()*6.283, v:0.004+((i*5)%7)/7*0.006,
+                 c:(i%3===0)?'#7d5cff':((i%3===1)?'#3a86ff':'#5b74c8'), br:0.25+((i*3)%6)/22});
+  }
+}
+function desenharPoeira(op){
+  if(!poeira.length)semearPoeira();
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<poeira.length;i++){const q=poeira[i];
+    q.f+=q.v;
+    const x=q.x+Math.sin(q.f)*3.2, y=q.y+Math.cos(q.f*0.8)*2.4;
+    if(i%5===0&&i>0){const a=poeira[i-1];
+      const d=Math.hypot(x-a.x,y-a.y);
+      if(d<Math.min(W,H)*0.075){ctx.globalAlpha=0.03*op;ctx.strokeStyle=q.c;ctx.lineWidth=0.4;
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(x,y);ctx.stroke()}}
+    ctx.globalAlpha=(0.16+0.22*Math.abs(Math.sin(q.f)))*q.br*op;
+    ctx.fillStyle=q.c;ctx.beginPath();ctx.arc(x,y,q.r,0,7);ctx.fill()}
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+}
 
 /* ── ciclo mental ── */
 const FASES=['Perceber','Interpretar','Decidir','Agir','Verificar','Registrar'];
