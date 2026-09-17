@@ -137,7 +137,11 @@ class _Jaime:
 
 S = SimpleNamespace(ativacao="nome", janela_ativa_s=25, nome="jaime", deepgram_key="", openai_key="")
 
-def test_barge_in_interrompe_o_modelo_guarda_na_fila_e_retoma_com_sim():
+def test_barge_in_interrompe_o_modelo_guarda_na_fila_e_retoma_com_sim(monkeypatch):
+    """A retomada existe, mas vem DESLIGADA desde 17/09 (o João não quer ouvir «continuo o que eu dizia»).
+    Aqui ela é ligada de propósito, porque o mecanismo continua tendo que funcionar para quem quiser."""
+    from jaime.voice import escuta as _escuta
+    monkeypatch.setattr(_escuta, "RETOMAR", True)
     async def rodar():
         loop = asyncio.get_running_loop()
         j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=SimpleNamespace(on_parcial=None), antecipador=None)

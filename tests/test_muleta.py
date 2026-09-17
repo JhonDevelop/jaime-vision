@@ -45,14 +45,18 @@ def test_sem_ferramenta_ou_resposta_rapida_nao_tem_muleta():
     assert _turno(j).falas == ["Foram três mensagens."]
 
 
-def test_sem_ferramenta_mas_modelo_lento_tambem_tem_muleta(monkeypatch):
+def test_sem_ferramenta_ele_fica_QUIETO_mesmo_demorando(monkeypatch):
+    """Mudou em 17/09, a pedido do João: «eu digo coisas básicas e ele fica ok, um segundo».
+    «Peraí» sem estar fazendo nada promete e não entrega — é pior que silêncio. Sem ferramenta,
+    ou ele responde, ou espera calado até ter a resposta."""
     from jaime.voice import escuta
     monkeypatch.setattr(escuta, "MULETA_S", 0.3)
     class _Lento(_JaimeComFerramenta):
         async def ask_stream(self, texto, canal="voice", contexto=""):
             await asyncio.sleep(0.8); yield "Sou um robô assistente."
     tts = _turno(_Lento())
-    assert tts.falas[0] in MULETAS and tts.falas[-1] == "Sou um robô assistente."
+    assert not any(f in MULETAS for f in tts.falas), f"falou muleta sem ferramenta: {tts.falas}"
+    assert tts.falas[-1] == "Sou um robô assistente."
 
 
 def test_latencia_conta_a_muleta_como_primeiro_som(monkeypatch):
@@ -60,6 +64,7 @@ def test_latencia_conta_a_muleta_como_primeiro_som(monkeypatch):
     quando a muleta acabava. Agora o 1º som do turno (muleta incluída) é o que vale."""
     from jaime.voice import escuta
     monkeypatch.setattr(escuta, "MULETA_S", 0.2)
+    monkeypatch.setattr(escuta, "MULETA_APOS_FERRAMENTA_S", 0.05)
     class _TTSTurno(_TTS):
         def __init__(self):
             super().__init__(); self.t_primeiro_som = 0.0
@@ -72,6 +77,9 @@ def test_latencia_conta_a_muleta_como_primeiro_som(monkeypatch):
         def __init__(self):
             super().__init__(); self.vault = SimpleNamespace(diario=lambda t, s="Log": self.linhas.append(t)); self.linhas = []
         async def ask_stream(self, texto, canal="voice", contexto=""):
+            # a muleta só existe COM ferramenta desde 17/09; o turno lento tem que usar uma para o
+            # marcador de latência ser exercitado — sem ferramenta ele fica calado, e é isso que se quer
+            bus.emitir("producao", ferramenta="ler", alvo="notificações")
             await asyncio.sleep(0.9); yield "Sou um robô assistente."
     async def rodar():
         j = _Lento(); o = OuvidoDuplex(j, S, asyncio.get_running_loop(), fluxo=SimpleNamespace(on_parcial=None), antecipador=None)

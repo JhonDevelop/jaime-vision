@@ -14,7 +14,7 @@ Ativação (JAIME_ATIVACAO):
 Regras que evitam o Jaime se ouvir e responder a si mesmo: o microfone fica mudo enquanto ele fala, e
 transcrições curtas demais ou iguais às "alucinações" clássicas do Whisper em silêncio são descartadas."""
 from __future__ import annotations
-import asyncio, random, re, threading, time
+import asyncio, os, random, re, threading, time
 from collections import deque
 from ..config import Settings
 from ..hud.events import bus
@@ -29,6 +29,7 @@ MAX_FALA_S = 20
 VAD_INICIO = 0.62           # probabilidade para começar a gravar (0,5 abria com qualquer barulho, 16/09)
 VAD_FIM = 0.40              # abaixo disto conta como silêncio (histerese)
 JANELA_VAD = 8              # frames de contexto para o Silero (256 ms)
+RETOMAR = os.environ.get("JAIME_RETOMAR", "off").lower() in ("on", "1", "true")
 MULETA_S = 5.0              # silêncio sem ferramenta antes do "deixa eu ver". Era 3 s, quando o 1º token
                             # levava 5-9 s por causa dos 65 mil tokens fixos de acervo. Com o acervo enxuto
                             # (4,7 mil) a resposta chega antes disso, e a muleta quase nunca dispara — que é
@@ -393,15 +394,16 @@ class Ouvido:
                 except asyncio.CancelledError:
                     pass
             tarefa_narrar = asyncio.create_task(narrar())
-            # "deixa eu ver…" só quando ele está de fato TRABALHANDO (usou ferramenta) e a resposta ainda não veio
-            # depois de MULETA_S — conversa curta responde direto, sem muleta
+            # MULETA: só quando ele está de fato TRABALHANDO. O João (17/09): «eu digo coisas básicas e ele
+            # fica "ok, um segundo"». Estava certo — o ramo sem ferramenta disparava "peraí" em pergunta
+            # simples, e "peraí" sem estar fazendo nada é pior que silêncio, porque promete e não entrega.
+            # Agora, sem ferramenta, não existe muleta: ou ele responde, ou fica quieto até responder.
             async def muleta():
                 try:
                     await asyncio.wait_for(usou_ferramenta.wait(), MULETA_S)
                 except asyncio.TimeoutError:
-                    pass                                   # sem ferramenta, mas MULETA_S de silêncio: também vale (5–9 s até o 1º token em perguntas reflexivas, 15/09)
-                else:
-                    await asyncio.sleep(MULETA_APOS_FERRAMENTA_S)
+                    return                                 # nada de ferramenta: conversa curta, responde direto
+                await asyncio.sleep(MULETA_APOS_FERRAMENTA_S)
                 if not primeira.is_set():
                     self._enfileirar(random.choice(MULETAS))
             asyncio.create_task(muleta())
@@ -445,6 +447,15 @@ class Ouvido:
         d = pendentes[-1]
         for outra in pendentes[:-1]:
             self.fila.descartar(outra)
+        # RETOMADA, e por que ela é DESLIGADA por padrão (João, 17/09):
+        # «eu digo coisas básicas e ele fica "ok, um segundo", e depois fica voltando em assuntos como
+        #  "continuo dizendo o que eu dizia"». Ele quer voz como a do ChatGPT: fala, responde, acabou.
+        # Cortar o Jaime no meio já é a resposta do João — ele não quer aquilo mais. Perguntar "continuo?"
+        # transforma o corte num assunto novo, que é exatamente o oposto de interromper.
+        # Quem quiser o comportamento antigo: JAIME_RETOMAR=on.
+        if not RETOMAR:
+            self.fila.descartar(d)
+            return
         modo, frase = self.fila.plano_de_retomada(d)
         if modo == "automatica":
             if frase:

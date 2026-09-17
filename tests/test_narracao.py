@@ -136,3 +136,21 @@ def test_o_painel_ve_tudo_mesmo_o_que_a_voz_cala():
     finally:
         bus.emitir = orig
     assert any(t == "cerebro" and "narracao" in kw for t, kw in vistos)
+
+
+# ── voz como a do ChatGPT: fala, responde, acabou ─────────────────────────
+def test_a_retomada_vem_desligada():
+    """João, 17/09: «não quero que ele fique voltando em "continuo dizendo o que eu dizia"».
+    Cortar o Jaime JÁ É a resposta dele; perguntar "continuo?" transforma o corte em assunto novo."""
+    from jaime.voice.escuta import RETOMAR
+    assert RETOMAR is False
+
+def test_sem_ferramenta_nao_existe_muleta():
+    """«Peraí» sem estar fazendo nada promete e não entrega — é pior que silêncio."""
+    import inspect
+    from jaime.voice import escuta
+    fonte = inspect.getsource(escuta)
+    i = fonte.index("async def muleta()")
+    corpo = fonte[i:i + 700]
+    assert "return" in corpo.split("except asyncio.TimeoutError:")[1][:80], \
+        "o ramo sem ferramenta ainda dispara muleta"
