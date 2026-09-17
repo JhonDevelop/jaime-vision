@@ -62,3 +62,23 @@ def test_voz_que_falha_nao_derruba_a_delegacao():
         def falar(self, t): raise RuntimeError("alto-falante fora do ar")
     c = Cerebros(_Vault(), _Equipe(), ouvido=_Ruim())
     assert c.delegar("direito", "pesquisa x") == "feito"
+
+
+# ── a muleta cede o lugar ao narrador ─────────────────────────────────────
+def test_o_narrador_fala_antes_da_muleta_pensar_em_disparar():
+    """Dizer 'lendo os arquivos' é verdade sobre o trabalho; 'deixa eu ver' é enfeite.
+    Quem está trabalhando conta o que faz — então o narrador tem que chegar primeiro."""
+    from jaime.voice.narrador import PRIMEIRA_S
+    from jaime.voice.escuta import MULETA_S
+    assert PRIMEIRA_S < MULETA_S, "a muleta estaria roubando a vez do narrador"
+
+def test_a_muleta_so_dispara_depois_que_a_resposta_realmente_demorou():
+    """Com o acervo enxuto o 1º token chega rápido; a muleta vira exceção, não hábito."""
+    from jaime.voice.escuta import MULETA_S
+    assert MULETA_S >= 5.0
+
+def test_o_narrador_diz_o_que_esta_fazendo_de_verdade():
+    from jaime.voice.narrador import frase_para
+    assert frase_para("Read") == "lendo os arquivos"
+    assert frase_para("Bash") == "rodando um comando"
+    assert "pesquisando" in frase_para("WebSearch")

@@ -6,7 +6,9 @@ seguida, nunca em turnos curtos (< PRIMEIRA_S), e para quando a fala de verdade 
 from __future__ import annotations
 import re, time
 
-PRIMEIRA_S = 5.0          # só narra se a tarefa já dura isto
+PRIMEIRA_S = 2.5          # narra antes de a muleta pensar em disparar (MULETA_S = 5 s), porque dizer
+                          # "lendo os arquivos" é verdade sobre o que ele faz, e "deixa eu ver" é enfeite.
+                          # Quem está trabalhando conta o que está fazendo; quem não está, fica quieto.
 NARRAR_A_CADA_S = 8.0
 
 FRASES = [

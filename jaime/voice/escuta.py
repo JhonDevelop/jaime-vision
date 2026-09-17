@@ -29,7 +29,10 @@ MAX_FALA_S = 20
 VAD_INICIO = 0.62           # probabilidade para começar a gravar (0,5 abria com qualquer barulho, 16/09)
 VAD_FIM = 0.40              # abaixo disto conta como silêncio (histerese)
 JANELA_VAD = 8              # frames de contexto para o Silero (256 ms)
-MULETA_S = 3.0              # só em tarefas com ferramenta: espera até isto pela 1ª ferramenta do turno
+MULETA_S = 5.0              # silêncio sem ferramenta antes do "deixa eu ver". Era 3 s, quando o 1º token
+                            # levava 5-9 s por causa dos 65 mil tokens fixos de acervo. Com o acervo enxuto
+                            # (4,7 mil) a resposta chega antes disso, e a muleta quase nunca dispara — que é
+                            # o certo: "peraí" sem estar fazendo nada é ruído, não presença.
 MULETA_APOS_FERRAMENTA_S = 0.4   # ferramenta usada e nada dito: "deixa eu ver…" quase na hora (antes 2 s → 1º som em ~4,5 s)
 MULETAS = ["Deixa eu ver…", "Só um segundo.", "Hmm… deixa eu olhar isso.", "Peraí, já te digo."]
 
