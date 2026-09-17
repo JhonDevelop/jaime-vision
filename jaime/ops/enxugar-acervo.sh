@@ -18,7 +18,19 @@ k=sum(1 for p in pathlib.Path('.claude/skills').iterdir() if p.is_dir())
 print(f"{n} agentes · {k} skills · ~{(a+s)//4} tokens somados ao contexto de CADA turno")
 PY
 }
-if [ "${1:-}" != "--tirar" ]; then peso; echo; echo "para cortar:  bash $0 --tirar <palavra> [palavra...]"; exit 0; fi
+lados(){ .venv/bin/python - <<'PY2'
+from pathlib import Path
+from jaime.cerebros.tripulacao import classificar
+c = classificar(Path("."))
+for lado in ("central", "esquerdo", "direito"):
+    print(f"  {lado:<9} {len(c[lado]):>4} agentes")
+PY2
+}
+if [ "${1:-}" = "--lados" ]; then peso; echo; lados; exit 0; fi
+if [ "${1:-}" != "--tirar" ]; then peso; echo; lados; echo
+  echo "cortar por palavra:  bash $0 --tirar windows powershell azure"
+  echo "teto sem apagar:     JAIME_AGENTES_MAX=200 no .env (maesters entram sempre)"
+  exit 0; fi
 shift
 echo "antes:"; peso
 for termo in "$@"; do
