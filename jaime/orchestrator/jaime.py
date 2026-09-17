@@ -65,6 +65,10 @@ from ..evolucao import Evolucao
 from ..tools_evolucao import build_evolucao_server
 from ..hud.events import bus
 from ..hud.tools import build_interface_server
+from ..cerebros import Cerebros
+from ..cerebros.tools import build_cerebros_server
+from ..espelho import Espelho
+from ..espelho.tools import build_espelho_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -125,6 +129,8 @@ class Jaime:
         # fase 3: filhos — terminais que ele cria no Maestri (Claude Code, Codex…) para trabalhar em paralelo
         from ..equipe.filhos import Equipe
         self.equipe = Equipe(self, settings.root, vigia=self.vigia)
+        self.cerebros = Cerebros(self.vault, self.equipe)   # central Claude · esquerdo Codex · direito Gemini
+        self.espelho = Espelho(self.vault)                  # o que ele aprendeu do jeito do João
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
         self.financas = Livro(self.vault)      # livro-caixa pessoal do João (painel Finanças)
@@ -189,7 +195,9 @@ class Jaime:
                          "mente": build_mente_server(self.pensar),
                          "financas": build_financas_server(self.financas),
                          "musica": build_musica_server(self.spotify),
-                         "interface": build_interface_server()},
+                         "interface": build_interface_server(),
+                         "cerebros": build_cerebros_server(self.cerebros),
+                         "espelho": build_espelho_server(self.espelho)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

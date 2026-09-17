@@ -79,6 +79,40 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .fin-mov .c{color:var(--tx)}.fin-mov .c small{display:block;color:var(--mu);font-size:11px;margin-top:2px}
 .fin-mov .v{font-weight:600;white-space:nowrap}
 .vazio{border:1px dashed #1d2b3d;border-radius:10px;padding:18px;color:var(--mu);font-size:12px;text-align:center}
+/* checklist dos afazeres */
+.ck{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;margin:8px 0;border:1px solid var(--line);
+ border-radius:14px;background:rgba(10,14,22,.55);transition:.18s;cursor:default}
+.ck:hover{border-color:#25405a;background:rgba(14,20,30,.7);transform:translateX(2px)}
+.ck i{flex:none;width:18px;height:18px;margin-top:1px;border-radius:7px;border:1.5px solid #2c4258;position:relative}
+.ck.on i{background:var(--ok);border-color:var(--ok)}
+.ck.on i::after{content:"✓";position:absolute;inset:0;color:#04060c;font-size:12px;font-weight:700;
+ display:flex;align-items:center;justify-content:center}
+.ck.on span{color:var(--mu);text-decoration:line-through;text-decoration-color:#2c4258}
+.ck span{flex:1;font-size:13px;line-height:1.45}
+.ck em{font-style:normal;display:block;margin-top:3px;font-size:10.5px;color:var(--am);letter-spacing:.06em}
+.ck-cab{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.ck-cab b{font-size:26px;color:#fff}.ck-cab span{color:var(--mu);font-size:11.5px}
+.ck-prog{height:6px;border-radius:4px;background:#101823;overflow:hidden;margin:10px 0 18px}
+.ck-prog i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#2ec98a,#49e6a0)}
+/* agenda física */
+.ag-leg{display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 16px;font-size:10.5px;color:var(--mu)}
+.ag-leg b{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:middle}
+.ag-dia{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;background:rgba(10,14,22,.5)}
+.ag-dia.hoje{border-color:#2d5a78;background:rgba(14,26,38,.75);box-shadow:0 0 26px rgba(56,225,255,.07)}
+.ag-dia.fds{opacity:.82}
+.ag-top{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+.ag-top b{font-size:19px;color:#fff;min-width:26px}
+.ag-top span{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu)}
+.ag-top .hj{color:#04060c;background:var(--cy);border-radius:10px;padding:1px 8px;font-size:9px;letter-spacing:.14em}
+.ag-faixas{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:620px){.ag-faixas{grid-template-columns:1fr}}
+.ag-faixa{border-left:2px solid var(--line);padding-left:10px;min-height:26px}
+.ag-faixa h4{margin:0 0 6px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--mu);font-weight:400}
+.ag-it{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:11.5px}
+.ag-it i{flex:none;width:7px;height:7px;border-radius:3px}
+.ag-it u{text-decoration:none;color:var(--mu);font-size:10px;min-width:34px}
+.ag-it s{text-decoration:none;flex:1;color:var(--tx)}
+.ag-vazio{color:#3d4d61;font-size:10.5px;font-style:italic}
 h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-transform:uppercase}
 </style></head><body>
 <div id="stage"><canvas id="cv"></canvas></div>
@@ -88,6 +122,7 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
   <span class="chip">modelo<b id="modelo">—</b></span>
   <span class="chip">humor<b id="humor">—</b></span>
   <div class="spacer"></div>
+  <span class="chip btn" id="at-cerebros" onclick="verCerebros()"><u>B</u>cérebros</span>
   <span class="chip btn" id="at-agentes" onclick="abrir('agentes')"><u>N</u>nós</span>
   <span class="chip btn" id="at-financas" onclick="abrir('financas')"><u>F</u>finanças</span>
   <span class="chip btn" id="at-afazeres" onclick="abrir('afazeres')"><u>A</u>afazeres</span>
@@ -106,7 +141,7 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
 </div>
 <div id="rac"><div class="cab">raciocínio</div><div id="racL"></div></div>
 <div id="fala"><div id="falaTx">Sistemas operacionais.</div><div id="voceTx"></div></div>
-<div id="hint"><b>T</b> teclado · <b>U</b> mundos · <b>N</b> nós · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · clique num mundo para entrar · ou é só falar</div>
+<div id="hint"><b>T</b> teclado · <b>B</b> cérebros · <b>U</b> mundos · <b>N</b> nós · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · clique num mundo para entrar · ou é só falar</div>
 <div id="kb"><input id="kbIn" placeholder="Escreva para o J.A.I.M.E e tecle Enter (ou a palavra-passe)…" autocomplete="off"></div>
 
 <div id="pop" onclick="if(event.target===this)fecharPop()"><div id="popBox">
@@ -201,7 +236,13 @@ function nodoCluster(c){const a=byCluster[c];return a&&a.length?a[Math.floor(Mat
 function nodoFerr(f){const m=String(f||'').match(/mcp__([a-z_]+)__([a-z_]+)/);
   if(!m)return null;const lista=byFam['t_'+m[1]]||[];return lista.find(n=>n.id.endsWith(':'+m[2]))||byFam[m[1]]||null}
 
-/* ── estado do universo (declarado antes do laço: ele desenha desde o 1º quadro) ── */
+/* ── estado dos cérebros e do universo (antes do laço: desenham desde o 1º quadro) ── */
+let CER=[], cerPensando=null, cerAte=0, faisca=[], agentesVivos={esquerdo:[],direito:[],central:[]};
+const LOBO={
+  central: {cor:'#63f0ff',rot:'Claude', faz:['decide · fala com o João','orquestra · escreve no vault']},
+  esquerdo:{cor:'#7d5cff',rot:'Codex',  faz:['a técnica','código · execução','teste · refatoração']},
+  direito: {cor:'#ffb347',rot:'Gemini', faz:['o evolutivo','pesquisa · alternativas','crítica · criação']}};
+
 let UNI=null, uniPronto=false, estrelas=[], uniT=0, uniHover=null;
 for(let i=0;i<260;i++)estrelas.push({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.2,f:Math.random()*6});
 
@@ -216,6 +257,7 @@ function loop(){tick++;ctx.clearRect(0,0,W,H);
   if(grafoPronto)grafo(0.30*dN);
   if(uniPronto)universo(dM);
   cerebro(0.62);
+  cerebrosDesenhar();
   requestAnimationFrame(loop)}
 loop();
 
@@ -253,6 +295,7 @@ function marcar(id){document.querySelectorAll('#top .chip.btn').forEach(c=>{
   if(c.id!=='at-teclado')c.classList.toggle('on',c.id==='at-'+id)})}
 function abrir(v){
   if(v==='teclado'){toggleKb(true);return}
+  if(v==='cerebros'){verCerebros();return}
   if(v==='universo'||v==='agentes'||v==='inicio'||v==='cerebro'){
     fecharPop();
     destaque = v==='universo' ? 'mundos' : (v==='agentes' ? 'nos' : null);
@@ -265,11 +308,8 @@ async function render(v){
   mostrarNativo(TELAS[v],'<div class="mut">carregando…</div>');
   try{
    if(v==='financas'){const f=await(await fetch('/hud/financas')).json(); mostrarNativo('Finanças',finHTML(f))}
-   else if(v==='afazeres'){const d=await(await fetch('/hud/painel')).json();
-    mostrarNativo('Afazeres',`<div class="mut">${d.afazeres_total} em aberto</div>${(d.afazeres||[]).map(t=>`<div class="li"><span>◻ ${esc(t)}</span></div>`).join('')||'<div class="mut">Nada em aberto.</div>'}`)}
-   else if(v==='agenda'){const d=await(await fetch('/hud/painel')).json();
-    mostrarNativo('Agenda',`<h1 class="sec">Lembretes</h1>${(d.agenda.lembretes||[]).map(l=>`<div class="li"><span>${esc(l.o_que)}</span><b>${esc(l.quando)}</b></div>`).join('')||'<div class="mut">Sem lembretes.</div>'}
-     <h1 class="sec" style="margin-top:20px">Rotinas</h1>${(d.agenda.rotinas||[]).map(r=>`<div class="li"><span>${esc(r.ordem)}</span><b class="mut">${esc(r.cron)}</b></div>`).join('')}`)}
+   else if(v==='afazeres'){const d=await(await fetch('/hud/painel')).json(); mostrarNativo('Afazeres',afazeresHTML(d))}
+   else if(v==='agenda'){const w=await(await fetch('/hud/semana')).json(); mostrarNativo('Agenda da semana',semanaHTML(w))}
    else if(v==='musica'){const m=await(await fetch('/hud/musica')).json();
     mostrarNativo('Música',m.conectado?`<div class="big" style="font-size:20px">♪ ${esc(m.tocando||'nada tocando')}</div>
      <h1 class="sec" style="margin-top:18px">Seu gosto</h1>${(m.top_artistas||[]).map(a=>`<div class="li"><span>${esc(a)}</span></div>`).join('')}
@@ -390,6 +430,161 @@ function verMundo(m){
     ||'<div class="vazio">Este mundo ainda está vazio — ele preenche sozinho.</div>'}
    ${m.total>(m.corpos||[]).length?`<div class="mut" style="margin-top:12px;font-size:11px">e mais ${m.total-m.corpos.length} não mostrados</div>`:''}`)}
 
+
+/* ── OS TRÊS CÉREBROS: central Claude, esquerdo Codex, direito Gemini ──────────
+   Ficam em volta do núcleo. O que está PENSANDO pulsa e manda partículas para o centro:
+   é o trabalho subindo para o Central, que é quem decide e quem fala com o João.
+   Cada entrega avaliada acende um agente novo, que orbita o lobo até se consolidar no cérebro. */
+async function carregarCerebros(){try{const d=await(await fetch('/hud/cerebros')).json();
+  CER=d.hemisferios||[];
+  CER.forEach(h=>{const n=Math.min(9,Math.round((h.acertos||0)/2)+(h.acordado?2:0));
+    agentesVivos[h.id]=Array.from({length:n},(_,i)=>({a:i/n*6.283,v:0.010+Math.random()*0.012,m:0}))});
+  }catch(e){}}
+function lobo(cx,cy,rx,ry,esp,cor,a,brilho){
+  // um lobo do córtex: contorno arredondado + sulcos por dentro (o que faz parecer tecido, não bolha)
+  ctx.beginPath();
+  ctx.ellipse(cx,cy,rx,ry,0,0,7);
+  ctx.globalAlpha=0.10*a*brilho;ctx.fillStyle=cor;ctx.fill();
+  ctx.globalAlpha=0.55*a*brilho;ctx.strokeStyle=cor;ctx.lineWidth=1.3;ctx.stroke();
+  ctx.globalAlpha=0.28*a*brilho;ctx.lineWidth=0.9;
+  for(let i=1;i<=4;i++){const f=i/5;
+    ctx.beginPath();
+    ctx.ellipse(cx+esp*rx*0.16*f,cy-ry*0.10*f,rx*(1-f*0.72),ry*(1-f*0.52),esp*0.22,0,7);
+    ctx.stroke()}
+}
+function cerebrosDesenhar(){
+  if(!CER.length)return;
+  const cx=W/2, cy=H/2, R=Math.min(W,H);
+  const rx=R*0.105, ry=R*0.082, gap=rx*1.06;
+  if(cerPensando && tick>cerAte) cerPensando=null;
+  const porId={}; CER.forEach(h=>porId[h.id]=h);
+  ctx.globalCompositeOperation='lighter';
+
+  // ── os dois hemisférios, um de cada lado do eixo ──
+  for(const id of ['esquerdo','direito']){
+    const h=porId[id]; if(!h)continue;
+    const L=LOBO[id], esp=(id==='esquerdo'?-1:1);
+    const x=cx+esp*gap, y=cy+ry*0.34;
+    h._x=x; h._y=y; h._rx=rx; h._ry=ry;
+    const pensa=(cerPensando===id), viva=h.acordado?1:0.34;
+    const brilho=pensa?(1.25+0.35*Math.sin(tick*0.17)):1;
+    lobo(x,y,rx,ry,esp,L.cor,viva,brilho);
+    // os agentes daquele lado, orbitando o lobo até se consolidarem nele
+    for(const a of (agentesVivos[id]||[])){
+      a.a+=a.v*(pensa?2.6:1); a.m=Math.min(1,a.m+0.0016);
+      const ax=x+Math.cos(a.a)*(rx*(1.12-a.m*0.36)), ay=y+Math.sin(a.a)*(ry*(1.22-a.m*0.42));
+      ctx.globalAlpha=(0.30+0.5*Math.abs(Math.sin(a.a*2)))*viva;
+      ctx.fillStyle=L.cor;ctx.beginPath();ctx.arc(ax,ay,1.5+a.m*1.2,0,7);ctx.fill()}
+  }
+  // ── corpo caloso: o que liga os dois lados ao central ──
+  const eN=porId['esquerdo'], dN=porId['direito'];
+  if(eN&&dN){ctx.globalAlpha=0.22;ctx.strokeStyle='#63f0ff';ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.moveTo(eN._x+rx*0.72,cy+ry*0.10);
+    ctx.quadraticCurveTo(cx,cy-ry*0.60,dN._x-rx*0.72,cy+ry*0.10);ctx.stroke()}
+
+  // ── o córtex central, por cima: é ele quem decide e quem fala ──
+  const c=porId['central'];
+  if(c){
+    const x=cx, y=cy-ry*1.28; c._x=x; c._y=y;
+    const pensa=(cerPensando==='central')||falando;
+    const vol=falando?Math.max(nivel,0.15):nivel;
+    lobo(x,y,rx*0.70,ry*0.52,0,LOBO.central.cor,1,pensa?1.3+vol*0.7:1);
+    ctx.globalAlpha=0.26+vol*0.4;ctx.fillStyle=LOBO.central.cor;
+    ctx.beginPath();ctx.arc(x,y,5+vol*7,0,7);ctx.fill();
+    for(const a of (agentesVivos.central||[])){a.a+=a.v;
+      ctx.globalAlpha=0.5;ctx.fillStyle=LOBO.central.cor;
+      ctx.beginPath();ctx.arc(x+Math.cos(a.a)*rx*0.8,y+Math.sin(a.a)*ry*0.6,1.5,0,7);ctx.fill()}
+  }
+
+  // ── os nomes e AS RESPONSABILIDADES, escritas ──
+  ctx.globalCompositeOperation='source-over';ctx.textAlign='center';
+  for(const h of CER){
+    const L=LOBO[h.id]; if(!L||h._x==null)continue;
+    const pensa=(cerPensando===h.id), baixo=(h.id==='central')?h._y-ry*0.80:h._y+ry+15;
+    ctx.globalAlpha=pensa?1:0.85;ctx.fillStyle=L.cor;ctx.font='bold 10.5px monospace';
+    ctx.fillText(h.nome.toUpperCase()+' · '+L.rot, h._x, baixo);
+    ctx.globalAlpha=pensa?0.92:0.55;ctx.fillStyle='#9db4cc';ctx.font='9px monospace';
+    (L.faz||[]).forEach((linha,i)=>ctx.fillText(linha, h._x, baixo+12+i*11));
+    const st=pensa?'pensando…':(h.acordado?'acordado':'dormindo');
+    ctx.globalAlpha=pensa?1:0.5;ctx.fillStyle=pensa?L.cor:'#5b6b82';ctx.font=(pensa?'bold ':'')+'9px monospace';
+    ctx.fillText(st, h._x, baixo+12+((L.faz||[]).length)*11+3);
+    ctx.globalAlpha=0.45;ctx.fillStyle='#5b6b82';
+    ctx.fillText((h.acertos||0)+'✓ '+(h.erros||0)+'✗ · '+((agentesVivos[h.id]||[]).length)+' agentes',
+                 h._x, baixo+12+((L.faz||[]).length)*11+15);
+  }
+
+  // ── faíscas: o trabalho de um lado subindo para o Central ──
+  ctx.globalCompositeOperation='lighter';
+  const alvo=(porId['central']&&porId['central']._x!=null)?porId['central']:{_x:cx,_y:cy};
+  faisca=faisca.filter(f=>{f.t+=0.022;if(f.t>=1)return false;
+    const e=f.t*f.t*(3-2*f.t);
+    ctx.globalAlpha=Math.sin(f.t*3.14);ctx.fillStyle=f.c;
+    ctx.beginPath();ctx.arc(f.ax+(alvo._x-f.ax)*e, f.ay+(alvo._y-f.ay)*e, 2.2,0,7);ctx.fill();return true});
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+}
+function cerebroEvento(e){
+  const h=CER.find(x=>x.id===e.hemisferio); if(!h)return;
+  if(e.estado==='pensando'){cerPensando=h.id;cerAte=tick+60*20;rac(h.nome,e.tarefa||'')}
+  if(e.estado==='acordou'){h.acordado=true;rac(h.nome,'acordou')}
+  if(e.estado==='entregou'||e.estado==='aprendeu'){
+    cerPensando=null;
+    for(let i=0;i<9;i++)faisca.push({ax:h._x||W/2,ay:h._y||H/2,t:-i*0.06,c:LOBO[h.id].cor});  // sobe para o Central
+    if(e.estado==='aprendeu'){                               // aprendeu: nasce um agente naquele lobo
+      h.acertos=(h.acertos||0)+1;
+      (agentesVivos[h.id]=agentesVivos[h.id]||[]).push({a:Math.random()*6.283,v:0.010+Math.random()*0.012,m:0});
+      if(agentesVivos[h.id].length>12)agentesVivos[h.id].shift();
+      rac(h.nome,'consolidou '+(e.tipo||'')+' · '+(e.peso||''))}
+    else rac(h.nome,'entregou')}
+}
+function verCerebros(){
+  mostrarNativo('Cérebros',`<div class="mut" style="margin-bottom:16px">Ele pensa com três. O Central é ele mesmo e é o único que fala com você; os outros dois são terminais de verdade no Maestri, que ele acorda quando precisa.</div>
+  ${CER.map(h=>`<div class="card" style="margin-bottom:10px;border-color:${LOBO[h.id]?LOBO[h.id].cor+'55':'#15202e'}">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+      <b style="color:${LOBO[h.id]?LOBO[h.id].cor:'#38e1ff'};font-size:14px">${esc(h.nome)}</b>
+      <span class="mut" style="font-size:11px">${esc(h.preset)} · ${h.acordado?'acordado':'dormindo'}</span></div>
+    <div style="margin:8px 0 10px;font-size:12px">${esc(h.funcao)}</div>
+    <div class="fin-nums" style="font-size:11px">
+      <div>forte em<b style="font-size:13px">${esc(h.forte_em||'—')}</b></div>
+      <div>acertos<b style="font-size:13px;color:#49e6a0">${h.acertos||0}</b></div>
+      <div>erros<b style="font-size:13px;color:#ff5c72">${h.erros||0}</b></div>
+      <div>agentes<b style="font-size:13px">${(agentesVivos[h.id]||[]).length}</b></div></div>
+    ${Object.entries(h.tipos||{}).map(([t,p])=>`<div class="fin-lin" style="grid-template-columns:100px 1fr 44px">
+      <span>${esc(t)}</span><div class="fin-trilho"><i style="width:${p*100}%;background:${LOBO[h.id]?LOBO[h.id].cor:'#38e1ff'}"></i></div>
+      <em style="font-size:11px">${p.toFixed(2)}</em></div>`).join('')}
+   </div>`).join('')}
+  <div class="mut" style="font-size:11px;margin-top:6px">O peso sobe quando o hemisfério entrega bem aquele tipo de trabalho e cai o dobro quando erra. É assim que ele aprende com quem pensar.</div>`)}
+
+
+/* ── afazeres: checklist ── */
+function afazeresHTML(d){
+  const abertos=d.afazeres||[], total=d.afazeres_total||abertos.length, feitos=(d.afazeres_feitos||[]);
+  const tudo=feitos.length+total, pct=tudo?feitos.length/tudo*100:0;
+  return `<div class="ck-cab"><b>${total}</b><span>em aberto${feitos.length?` · ${feitos.length} já feitos`:''}</span></div>
+   <div class="ck-prog"><i style="width:${pct}%"></i></div>
+   ${abertos.map(t=>{const m=String(t).match(/^(.*?)(?:\s+@(\S+))?(?:\s+⏳\s*(\S+))?\s*$/)||[];
+     return `<div class="ck"><i></i><span>${esc(m[1]||t)}${(m[2]||m[3])?`<em>${m[2]?'@'+esc(m[2]):''}${m[3]?(m[2]?' · ':'')+'prazo '+esc(m[3]):''}</em>`:''}</span></div>`}).join('')
+    ||'<div class="vazio">Nada em aberto. Diga: “Jaime, anota que eu preciso…”.</div>'}
+   ${feitos.slice(0,8).map(t=>`<div class="ck on"><i></i><span>${esc(t)}</span></div>`).join('')}`;
+}
+/* ── agenda física: a semana em dois trilhos ── */
+function semanaHTML(s){
+  const leg=Object.entries(s.cores||{}).map(([t,c])=>`<span><b style="background:${c}"></b>${esc(t)}</span>`).join('');
+  const it=x=>`<div class="ag-it" title="${esc(x.descricao||'')}"><i style="background:${x.cor}"></i>
+     <u>${esc(x.hora||'')}</u><s style="${x.feito?'color:#5b6b82;text-decoration:line-through':''}">${esc(x.titulo)}</s></div>`;
+  return `<div class="mut" style="font-size:11.5px">Dois trilhos: à esquerda o que é seu, à direita o que o J.A.I.M.E se deu para fazer. O dele não entra na sua conta.</div>
+   <div class="ag-leg">${leg}</div>
+   ${(s.dias||[]).map(d=>`<div class="ag-dia${d.hoje?' hoje':''}${d.fim_de_semana?' fds':''}">
+     <div class="ag-top"><b>${d.dia}</b><span>${esc(d.semana)}</span>${d.hoje?'<span class="hj">hoje</span>':''}
+       <span style="flex:1"></span><span>${d.joao.length}+${d.jaime.length}</span></div>
+     <div class="ag-faixas">
+       <div class="ag-faixa" style="border-left-color:#1d4257"><h4>João</h4>
+         ${d.joao.map(it).join('')||'<div class="ag-vazio">livre</div>'}</div>
+       <div class="ag-faixa" style="border-left-color:#2e2452"><h4>J.A.I.M.E</h4>
+         ${d.jaime.map(it).join('')||'<div class="ag-vazio">sem nada marcado</div>'}</div>
+     </div></div>`).join('')}
+   <div class="mut" style="font-size:10.5px;margin-top:6px">${s.total_joao} seus · ${s.total_jaime} dele nesta semana</div>`;
+}
+
 /* ── teclado ── */
 function toggleKb(forcar){const k=$('kb');const on=forcar===true?true:!k.classList.contains('show');
   k.classList.toggle('show',on);$('at-teclado').classList.toggle('on',on);if(on)$('kbIn').focus();else $('kbIn').blur()}
@@ -397,7 +592,7 @@ $('kbIn').addEventListener('keydown',async e=>{e.stopPropagation();
   if(e.key==='Enter'){const t=$('kbIn').value.trim();$('kbIn').value='';if(!t)return;
     try{await fetch('/hud/dizer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:t})})}catch{}}
   if(e.key==='Escape')toggleKb(false)});
-const ATALHOS={t:'teclado',n:'agentes',c:'inicio',u:'universo',f:'financas',a:'afazeres',g:'agenda',m:'musica'};
+const ATALHOS={t:'teclado',n:'agentes',c:'inicio',u:'universo',b:'cerebros',f:'financas',a:'afazeres',g:'agenda',m:'musica'};
 addEventListener('keydown',e=>{
   if(document.activeElement===$('kbIn'))return;
   if(e.key==='Escape'){if($('pop').classList.contains('show'))fecharPop();else abrir('inicio');return}
@@ -431,12 +626,13 @@ function sse(){const es=new EventSource('/hud/stream');
    case 'painel': if(e.tela)abrir(e.tela); break;                                    /* “mostra minhas finanças” */
    case 'mostrar': if(e.html){mostrarHTML(e.titulo,e.html);rac('mostrei',e.titulo||'')} break;   /* ele criou a tela */
    case 'fechar': fecharPop(); toggleKb(false); abrir('inicio'); rac('fechei',''); break;   /* ele fecha o que abriu */
+   case 'cerebro': cerebroEvento(e); eventos++; break;      /* qual hemisfério está pensando */
    case 'teclado': if(e.aberto)toggleKb(true); break;
   }};
  es.onerror=()=>{};}
 function setAcesso(on){$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado'}
 
-carregarGrafo(); carregarUniverso();                                   /* os nós ficam atrás dele desde o boot */
+carregarGrafo(); carregarUniverso(); carregarCerebros();                                   /* os nós ficam atrás dele desde o boot */
 (async()=>{try{const s=await(await fetch('/hud/estado')).json();setAcesso(!!s.liberado);
   if(s.modelo)$('modelo').textContent=(s.modelo||'').replace('claude-','')}catch{}sse()})();
 </script></body></html>

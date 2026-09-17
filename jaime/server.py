@@ -202,6 +202,19 @@ async def hud_agentes():
     from .hud.grafo import montar
     return montar(jaime.vault, jaime)
 
+@app.get("/hud/semana")
+async def hud_semana():
+    """A agenda física: sete dias, duas faixas por dia. A do João (compromissos, lembretes, prazos) e a do
+    J.A.I.M.E (rotinas dele, estudo, criação, melhorias) — separadas, porque o que ele decide fazer sozinho
+    não faz parte da agenda do João."""
+    from .agenda.semana import montar
+    return montar(jaime.vault, jaime)
+
+@app.get("/hud/cerebros")
+async def hud_cerebros():
+    """Os três hemisférios: quem está acordado, forte em quê, e o placar de acertos e erros de cada um."""
+    return {"hemisferios": jaime.cerebros.estado(), "resumo": jaime.cerebros.resumo()}
+
 @app.get("/hud/universo")
 async def hud_universo():
     """O universo do J.A.I.M.E: os mundos vivos dele (mente, vontade, estudo, memória, equipe, feitoria,
@@ -316,7 +329,10 @@ async def hud_painel():
     except Exception:
         lembretes = []
     rotinas = [{"cron": " ".join(c.values()), "ordem": o} for c, o in getattr(jaime.agenda, "rotinas", [])][:12]
+    import re as _re
+    feitos = _re.findall(r"^-\s+\[[xX]\]\s+(.+)$", jaime.vault.read("30-Tarefas/Inbox.md") or "", _re.M)
     return {"financas": jaime.financas.resumo(), "afazeres": tarefas, "afazeres_total": len(tarefas),
+            "afazeres_feitos": feitos[-12:],
             "agenda": {"lembretes": lembretes, "rotinas": rotinas}, "agora": datetime.now().strftime("%d/%m/%Y %H:%M")}
 
 @app.post("/hud/voz")

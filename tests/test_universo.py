@@ -5,7 +5,8 @@ from types import SimpleNamespace
 from jaime.hud.universo import montar
 
 MUNDOS = {"mente", "vontade", "estudo", "memoria", "equipe", "feitoria",
-          "vigilancia", "cuidado", "servico", "maos", "consultoria", "conexoes"}
+          "vigilancia", "cuidado", "servico", "maos", "consultoria", "conexoes",
+          "cerebros", "espelho"}
 
 def _vault(tmp):
     (tmp / "01-Estado").mkdir(parents=True); (tmp / "90-Estudo").mkdir(); (tmp / "30-Tarefas").mkdir()

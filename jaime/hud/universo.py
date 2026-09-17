@@ -195,6 +195,27 @@ def montar(vault, jaime=None) -> dict:
               f"{len(maesters)} maesters · {len(ags)-len(maesters)-1} especialistas · {len(skills)} skills",
               corpos, 0.5, 11)
 
+    # ── 13. CÉREBROS: com o que ele pensa — central, esquerdo e direito. ─────
+    def _cerebros():
+        cb = getattr(jaime, "cerebros", None)
+        est = cb.estado() if cb else []
+        corpos = [{"nome": f"{d['nome']} · {d['preset']}",
+                   "detalhe": ("acordado" if d["acordado"] else "dormindo") +
+                              f" · forte em {d['forte_em']} · {d['acertos']}✓ {d['erros']}✗",
+                   "peso": 1.0 if d["acordado"] else 0.35} for d in est]
+        acordados = sum(1 for d in est if d["acordado"])
+        mundo("cerebros", "Cérebros", "#63f0ff",
+              f"{acordados} de {len(est) or 3} acordados · central Claude, esquerdo Codex, direito Gemini",
+              corpos, acordados / 3 if est else 0.33, 13)
+
+    # ── 14. ESPELHO: o que ele aprendeu do jeito do João. ────────────────────
+    def _espelho():
+        esp = getattr(jaime, "espelho", None)
+        ts = esp.tracos() if esp else []
+        corpos = [{"nome": t.titulo, "detalhe": f"{t.valor} — {t.evidencia}", "peso": 0.9} for t in ts]
+        mundo("espelho", "Espelho", "#ffd9e8", f"{len(ts)} traços do João, contados do que ele fala",
+              corpos, min(1.0, len(ts) / 7), 14)
+
     # ── 12. CONEXÕES: as janelas dele para fora desta máquina. ───────────────
     def _conexoes():
         corpos = []
@@ -216,7 +237,9 @@ def montar(vault, jaime=None) -> dict:
         (_vigilancia, "vigilancia", "Vigilância", "#49e6a0", 7), (_cuidado, "cuidado", "Cuidado", "#b98cff", 8),
         (_servico, "servico", "Serviço", "#ff9f6b", 9), (_maos, "maos", "Mãos", "#38e1ff", 10),
         (_consultoria, "consultoria", "Consultoria", "#9aa7ff", 11),
-        (_conexoes, "conexoes", "Conexões", "#ffd08a", 12)):
+        (_conexoes, "conexoes", "Conexões", "#ffd08a", 12),
+        (_cerebros, "cerebros", "Cérebros", "#63f0ff", 13),
+        (_espelho, "espelho", "Espelho", "#ffd9e8", 14)):
         tentar(fn, mid, nome, cor, ordem)
 
     mundos.sort(key=lambda m: m["ordem"])
