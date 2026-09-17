@@ -96,12 +96,13 @@ class Acervo:
                     if p.stem in ("README", "LICENSE"):
                         continue
                     self.itens.append(Item(p.stem, "agente", self._ler_descricao(p), p, carregado))
-        sk = self.repo / ".claude/skills"
-        if sk.is_dir():
-            for d in sorted(sk.iterdir()):
-                if d.is_dir() and (d / "SKILL.md").is_file():
-                    self.itens.append(Item(d.name, "skill", self._ler_descricao(d / "SKILL.md"),
-                                           d / "SKILL.md", True))
+        for pasta, carregado in ((self.repo / ".claude/skills", True),
+                                 (self.repo / ".claude/acervo/skills", False)):
+            if pasta.is_dir():
+                for d in sorted(pasta.iterdir()):
+                    if d.is_dir() and (d / "SKILL.md").is_file():
+                        self.itens.append(Item(d.name, "skill", self._ler_descricao(d / "SKILL.md"),
+                                               d / "SKILL.md", carregado))
         # termo que está em todo mundo não distingue ninguém
         doc = {}
         for it in self.itens:
@@ -159,8 +160,11 @@ class Acervo:
         ag = [i for i in self.itens if i.tipo == "agente"]
         teto = int(os.environ.get("JAIME_AGENTES_MAX", "40") or 0)
         carregados = min(teto, len(ag)) if teto > 0 else len(ag)
-        return (f"{len(ag)} agentes no total, {carregados} carregados neste turno e "
-                f"{len(ag) - carregados} alcançáveis por busca; {sum(1 for i in self.itens if i.tipo == 'skill')} skills.")
+        sk = [i for i in self.itens if i.tipo == "skill"]
+        sk_on = sum(1 for i in sk if i.carregado)
+        return (f"{len(ag)} agentes ({carregados} carregados, {len(ag) - carregados} no acervo) e "
+                f"{len(sk)} skills ({sk_on} carregadas, {len(sk) - sk_on} no acervo). "
+                f"Tudo alcançável por mcp__acervo__buscar.")
 
 
 def build_acervo_server(acervo: Acervo):

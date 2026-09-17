@@ -64,9 +64,9 @@ def test_o_resumo_conta_quantos_ele_carrega_e_nao_quantos_arquivos_existem(repo,
     a = Acervo(repo)
     monkeypatch.setenv("JAIME_AGENTES_MAX", "2")
     r = a.resumo()
-    assert "4 agentes no total" in r and "2 carregados" in r and "2 alcançáveis por busca" in r
+    assert "4 agentes (2 carregados, 2 no acervo)" in r
     monkeypatch.setenv("JAIME_AGENTES_MAX", "0")
-    assert "4 carregados" in a.resumo()                      # 0 = carrega tudo
+    assert "4 agentes (4 carregados, 0 no acervo)" in a.resumo()   # 0 = carrega tudo
 
 def test_sinonimo_junta_portugues_e_ingles_sem_perder_o_original():
     e = _expandir(_palavras("animação bonita"))

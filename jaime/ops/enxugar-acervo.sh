@@ -1,42 +1,37 @@
 #!/bin/bash
-# Enxuga o acervo de agentes e skills. As descrições de TODOS entram no contexto a cada turno
-# do Jaime — hoje ~41 mil tokens. Apagar o que você não usa devolve isso em latência e custo.
+# Mede o que o J.A.I.M.E CARREGA por turno — não quantos arquivos existem no disco. A diferença é o ponto:
+# o acervo guarda centenas de agentes e skills fora do contexto, alcançáveis por mcp__acervo__buscar.
 #
-#   bash jaime/ops/enxugar-acervo.sh                  # só mostra o peso, não apaga nada
-#   bash jaime/ops/enxugar-acervo.sh --tirar windows powershell azure blockchain
-#   git checkout .claude/                             # desfaz tudo (está tudo versionado)
+#   bash jaime/ops/enxugar-acervo.sh                  # mede
+#   bash jaime/ops/enxugar-acervo.sh --lados          # mede e mostra por hemisfério
+#   bash jaime/ops/enxugar-acervo.sh --tirar windows powershell azure
+#   git checkout .claude/                             # desfaz (está tudo versionado)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-peso(){ python3 - <<'PY'
-import re,pathlib
-a=sum(len(p.stem)+len(m.group(1)) for p in pathlib.Path('.claude/agents').glob('*.md')
-      if (m:=re.search(r'^description:\s*(.*)$',p.read_text(errors="ignore"),re.M)))
-s=sum(len(p.name)+len(m.group(1)) for p in pathlib.Path('.claude/skills').iterdir() if p.is_dir()
-      and (p/'SKILL.md').is_file() and (m:=re.search(r'^description:\s*(.*)$',(p/'SKILL.md').read_text(errors="ignore"),re.M)))
-n=len(list(pathlib.Path('.claude/agents').glob('*.md')))-1
-k=sum(1 for p in pathlib.Path('.claude/skills').iterdir() if p.is_dir())
-print(f"{n} agentes · {k} skills · ~{(a+s)//4} tokens somados ao contexto de CADA turno")
-PY
-}
-lados(){ .venv/bin/python - <<'PY2'
+
+peso() { .venv/bin/python jaime/ops/medir_acervo.py; }
+lados() { .venv/bin/python - <<'PY'
 from pathlib import Path
 from jaime.cerebros.tripulacao import classificar
 c = classificar(Path("."))
 for lado in ("central", "esquerdo", "direito"):
     print(f"  {lado:<9} {len(c[lado]):>4} agentes")
-PY2
+PY
 }
+
 if [ "${1:-}" = "--lados" ]; then peso; echo; lados; exit 0; fi
-if [ "${1:-}" != "--tirar" ]; then peso; echo; lados; echo
+if [ "${1:-}" != "--tirar" ]; then
+  peso; echo; lados; echo
   echo "cortar por palavra:  bash $0 --tirar windows powershell azure"
-  echo "teto sem apagar:     JAIME_AGENTES_MAX=200 no .env (maesters entram sempre)"
-  exit 0; fi
+  echo "teto de carregados:  JAIME_AGENTES_MAX no .env (hoje 40; os maesters entram sempre)"
+  exit 0
+fi
 shift
 echo "antes:"; peso
 for termo in "$@"; do
   [ "$termo" = "maester" ] && { echo "recusado: os maesters são a casa"; continue; }
-  find .claude/agents -iname "*${termo}*.md" ! -iname "maester-*" -print -delete
-  find .claude/skills -maxdepth 1 -type d -iname "*${termo}*" -print -exec rm -rf {} +
+  find .claude/agents .claude/acervo/agents -iname "*${termo}*.md" ! -iname "maester-*" -print -delete 2>/dev/null || true
+  find .claude/skills .claude/acervo/skills -maxdepth 1 -type d -iname "*${termo}*" -print -exec rm -rf {} + 2>/dev/null || true
 done
 echo; echo "depois:"; peso
 echo; echo "reinicie:  launchctl kickstart -k gui/\$(id -u)/com.jaime"
