@@ -155,7 +155,10 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const cv=$('cv'),ctx=cv.getContext('2d');let W=0,H=0,DPR=Math.min(2,devicePixelRatio||1);
 function resize(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
-addEventListener('resize',resize);resize();
+let _rz=null;
+addEventListener('resize',()=>{resize();                       // redesenhar é imediato
+  clearTimeout(_rz);_rz=setTimeout(()=>{if(grafoPronto)carregarGrafo()},400)});  // recolocar, só quando parar
+resize();
 
 /* ── estado da voz que anima o cérebro ── */
 let nivel=0, alvoNivel=0, falando=false, estado='ouvindo', tick=0, modo='tudo', tVoz=-999;
@@ -192,16 +195,33 @@ const COR={diário:'#3a86ff',ferramentas:'#38e1ff',maesters:'#7d5cff',loops:'#ff
 const corC=c=>COR[c]||'#5b6b82';
 async function carregarGrafo(){try{const d=await(await fetch('/hud/agentes')).json();
   NOS=d.nos;ARE=d.arestas;byId={};byCluster={};byFam={};$('sNos').textContent=d.total;$('sArestas').textContent=d.total_arestas;
-  const cls=[...new Set(NOS.map(n=>n.pasta))],cx=W/2,cy=H/2,Rr=Math.min(W,H)*0.44,a0={};cls.forEach((c,i)=>a0[c]=i/cls.length*6.283);
+  // Espalhados pela TELA INTEIRA, não num anel em volta do centro: as âncoras de cluster caem numa grade
+  // que cobre topo, laterais e base, e cada nó se espalha em volta da sua âncora. O miolo fica livre para
+  // o córtex, e o céu de cima deixa de ser um amontoado de bolinhas.
+  const cls=[...new Set(NOS.map(n=>n.pasta))],cx=W/2,cy=H/2,a0={},anc={};
+  const COLS=Math.max(4,Math.ceil(Math.sqrt(cls.length*1.6))), LIN=Math.ceil(cls.length/COLS);
+  cls.forEach((c,i)=>{a0[c]=i/cls.length*6.283;
+    const col=i%COLS, lin=Math.floor(i/COLS);
+    let ax=(col+0.5)/COLS, ay=(lin+0.5)/Math.max(1,LIN);
+    ax=0.06+ax*0.88; ay=0.10+ay*0.84;                       // margem: nada encosta na borda
+    const dx=ax-0.5, dy=ay-0.5;
+    const d=Math.hypot(dx,dy*1.25);
+    if(d<0.23){const k=0.23/Math.max(0.02,d); ax=0.5+dx*k; ay=0.5+dy*k}   // empurra para fora do córtex
+    anc[c]={x:ax*W, y:ay*H, r:Math.min(W,H)*0.17}});
   NOS.forEach(n=>{byId[n.id]=n;(byCluster[n.pasta]=byCluster[n.pasta]||[]).push(n);
     if(n.nucleo){n.x=cx;n.y=cy;n.r=9;hub=n;return}
-    const a=a0[n.pasta]+(Math.random()-.5)*0.9,rd=Rr*(0.42+Math.random()*0.66);
-    n.x=cx+Math.cos(a)*rd;n.y=cy+Math.sin(a)*rd;n.r=Math.max(1.2,Math.min(5.5,(n.kb||.3)*2+1.2));
+    const A=anc[n.pasta]||{x:cx,y:cy,r:Math.min(W,H)*0.3};
+    const t=Math.random()*6.283, rr=Math.sqrt(Math.random())*A.r*1.5;
+    n.x=Math.max(10,Math.min(W-10,A.x+Math.cos(t)*rr));
+    n.y=Math.max(60,Math.min(H-40,A.y+Math.sin(t)*rr*0.8));
+    n.r=Math.max(1.2,Math.min(5.5,(n.kb||.3)*2+1.2));
     n.p=0;n.rotT=0;n.rot='';n.vx=(Math.random()-.5)*0.15;n.vy=(Math.random()-.5)*0.15;
     if(n.id.startsWith('mcp:'))byFam[n.id.split(':')[1]]=n;
     if(n.id.startsWith('tool:')){const f=n.id.split(':')[1];(byFam['t_'+f]=byFam['t_'+f]||[]).push(n)}});
-  for(let it=0;it<40;it++)ARE.forEach(([a,b])=>{const A=byId[a],B=byId[b];if(!A||!B||A.nucleo||B.nucleo)return;
-    const dx=B.x-A.x,dy=B.y-A.y;A.x+=dx*0.008;A.y+=dy*0.008;B.x-=dx*0.008;B.y-=dy*0.008});
+  // poucas iterações e fracas: só aproximam quem é ligado, sem desfazer o espalhamento
+  for(let it=0;it<12;it++)ARE.forEach(([a,b])=>{const A=byId[a],B=byId[b];if(!A||!B||A.nucleo||B.nucleo)return;
+    const dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy);if(d>Math.min(W,H)*0.34)return;
+    A.x+=dx*0.004;A.y+=dy*0.004;B.x-=dx*0.004;B.y-=dy*0.004});
   $('clusters').innerHTML=d.clusters.map(([c,q])=>`<span><i class="sw" style="background:${corC(c)}"></i>${c} ${q}</span>`).join('');
   grafoPronto=true}catch(e){}}
 function grafo(op){
