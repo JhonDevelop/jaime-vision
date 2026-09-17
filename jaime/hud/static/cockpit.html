@@ -437,14 +437,19 @@ function verMundo(m){
    Cada entrega avaliada acende um agente novo, que orbita o lobo até se consolidar no cérebro. */
 async function carregarCerebros(){try{const d=await(await fetch('/hud/cerebros')).json();
   CER=d.hemisferios||[];
-  // cada agente da tripulação vira um NÓ dentro do lobo — mesma linguagem dos nós do grafo
-  CER.forEach(h=>{const lista=h.agentes||[];const n=lista.length||1;
-    agentesVivos[h.id]=lista.map((nome,i)=>{
-      const g=2.39996*i;                                   // espiral de Fibonacci: espalha sem amontoar
-      const rr=Math.sqrt((i+0.6)/n);                        // raiz: densidade uniforme dentro da elipse
+  // a tripulação vira NÓS: os primeiros dentro do lobo, o resto espalhado pelos cantos vazios da tela
+  CER.forEach(h=>{const lista=h.agentes||[];
+    const DENTRO=Math.min(34,lista.length);
+    agentesVivos[h.id]=lista.slice(0,DENTRO).map((nome,i)=>{
+      const g=2.39996*i, rr=Math.sqrt((i+0.6)/DENTRO);     // Fibonacci + raiz: densidade uniforme na elipse
       return {nome, gx:Math.cos(g)*rr*0.86, gy:Math.sin(g)*rr*0.86,
               fase:Math.random()*6.283, v:0.006+Math.random()*0.010,
-              r:1.1+((i*13)%7)/5, br:0.5+((i*3)%7)/11, p:0}})});
+              r:1.1+((i*13)%7)/5, br:0.5+((i*3)%7)/11, p:0}});
+    h._fora=lista.slice(DENTRO,DENTRO+130).map((nome,i)=>{
+      const g=2.39996*i, rr=Math.sqrt((i+0.5)/130);
+      return {nome, ux:Math.cos(g)*rr, uy:Math.sin(g)*rr,   // coordenadas no disco unitário, colocadas no laço
+              fase:Math.random()*6.283, v:0.004+Math.random()*0.008,
+              r:0.9+((i*11)%6)/6, br:0.35+((i*7)%8)/16}})});
   }catch(e){}}
 function lobo(cx,cy,rx,ry,esp,cor,a,brilho){
   // um lobo do córtex: contorno arredondado + sulcos por dentro (o que faz parecer tecido, não bolha)
@@ -457,6 +462,38 @@ function lobo(cx,cy,rx,ry,esp,cor,a,brilho){
     ctx.beginPath();
     ctx.ellipse(cx+esp*rx*0.16*f,cy-ry*0.10*f,rx*(1-f*0.72),ry*(1-f*0.52),esp*0.22,0,7);
     ctx.stroke()}
+}
+
+/* ── o campo externo: a tripulação que não coube no lobo, espalhada pelos cantos vazios ──
+   É composição, não dado novo: os mesmos agentes daquele lado, ligados de volta ao lobo por fios finos.
+   Evita as caixas ocupadas (raciocínio à esquerda, estatísticas à direita, fala embaixo). */
+function campoExterno(h, L, esp, viva, pensa){
+  const fora=h._fora||[]; if(!fora.length||h._x==null)return;
+  const cx=W/2, cy=H/2;
+  // o setor de cada lado: um leque do lobo para baixo e para fora, cobrindo o canto inferior
+  const raioMin=Math.min(W,H)*0.26, raioMax=Math.max(W,H)*0.62;
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<fora.length;i++){const a=fora[i];
+    a.fase+=a.v*(pensa?2.2:1);
+    const ang=(esp<0? Math.PI*0.30 : Math.PI*0.70) + esp*(Math.atan2(a.uy,a.ux)*0.42) + a.ux*0.55;
+    const raio=raioMin+(raioMax-raioMin)*Math.abs(a.uy)*0.92+Math.sin(a.fase)*6;
+    let px=cx+esp*Math.abs(Math.cos(ang))*raio*0.98;
+    let py=cy+Math.abs(Math.sin(ang))*raio*0.62+Math.abs(a.ux)*H*0.10;
+    // não invadir o que já está escrito na tela
+    if(py>H-118 && ((esp<0&&px<352)||(esp>0&&px>W-300))) py=H-124;
+    if(py<118 && esp>0 && px>W-300) py=126;
+    px=Math.max(14,Math.min(W-14,px)); py=Math.max(70,Math.min(H-52,py));
+    a._x=px; a._y=py;
+    if(i%3===0){                                   // um em cada três puxa um fio até o lobo
+      ctx.globalAlpha=0.035*viva*(pensa?2:1);ctx.strokeStyle=L.cor;ctx.lineWidth=0.4;
+      ctx.beginPath();ctx.moveTo(h._x,h._y);ctx.lineTo(px,py);ctx.stroke()}
+    if(i>0&&fora[i-1]._x!=null){                   // e a malha entre vizinhos próximos
+      const d=Math.hypot(px-fora[i-1]._x,py-fora[i-1]._y);
+      if(d<Math.min(W,H)*0.11){ctx.globalAlpha=0.045*viva;ctx.strokeStyle=L.cor;ctx.lineWidth=0.4;
+        ctx.beginPath();ctx.moveTo(fora[i-1]._x,fora[i-1]._y);ctx.lineTo(px,py);ctx.stroke()}}
+    ctx.globalAlpha=Math.min(1,(0.16+0.26*Math.abs(Math.sin(a.fase)))*viva*a.br*(pensa?1.7:1));
+    ctx.fillStyle=L.cor;ctx.beginPath();ctx.arc(px,py,a.r,0,7);ctx.fill()}
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
 }
 function cerebrosDesenhar(){
   if(!CER.length)return;
@@ -474,6 +511,7 @@ function cerebrosDesenhar(){
     h._x=x; h._y=y; h._rx=rx; h._ry=ry;
     const pensa=(cerPensando===id), viva=h.acordado?1:0.34;
     const brilho=pensa?(1.25+0.35*Math.sin(tick*0.17)):1;
+    campoExterno(h,L,esp,viva,pensa);          // os cantos primeiro: o lobo fica por cima
     lobo(x,y,rx,ry,esp,L.cor,viva,brilho);
     // a TRIPULAÇÃO daquele lado como NÓS, na mesma linguagem do grafo: posição fixa, respiro e arestas
     const crew=agentesVivos[id]||[];
