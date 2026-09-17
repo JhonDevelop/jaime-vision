@@ -774,6 +774,10 @@ function sse(){const es=new EventSource('/hud/stream');
    case 'painel': if(e.tela)abrir(e.tela); break;                                    /* “mostra minhas finanças” */
    case 'mostrar': if(e.html){mostrarHTML(e.titulo,e.html);rac('mostrei',e.titulo||'')} break;   /* ele criou a tela */
    case 'fechar': fecharPop(); toggleKb(false); abrir('inicio'); rac('fechei',''); break;   /* ele fecha o que abriu */
+   case 'harness':                                          /* ele perseguindo um objetivo sozinho */
+     if(e.passo)rac('persigo',`${e.passo} (${e.feitos||0}/${e.total||0}${e.tentativa>1?' · '+e.tentativa+'ª':''})`);
+     else if(e.msg)rac('harness',e.msg);
+     acende(3); eventos++; break;
    case 'cerebro': cerebroEvento(e); eventos++; break;      /* qual hemisfério está pensando */
    case 'teclado': if(e.aberto)toggleKb(true); break;
   }};

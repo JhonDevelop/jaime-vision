@@ -70,6 +70,8 @@ from ..cerebros.tools import build_cerebros_server
 from ..espelho import Espelho
 from ..espelho.tools import build_espelho_server
 from ..maos.raspar import build_raspar_server
+from ..cortex.harness import Harness
+from ..cortex.tools_harness import build_harness_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -132,6 +134,7 @@ class Jaime:
         self.equipe = Equipe(self, settings.root, vigia=self.vigia)
         self.cerebros = Cerebros(self.vault, self.equipe, repo=settings.root)   # central Claude · esquerdo Codex · direito Gemini
         self.espelho = Espelho(self.vault)                  # o que ele aprendeu do jeito do João
+        self.harness = Harness(self)                        # persegue objetivo: age, verifica, corrige, replaneja
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
         self.financas = Livro(self.vault)      # livro-caixa pessoal do João (painel Finanças)
@@ -199,7 +202,8 @@ class Jaime:
                          "interface": build_interface_server(),
                          "cerebros": build_cerebros_server(self.cerebros),
                          "espelho": build_espelho_server(self.espelho),
-                         "web": build_raspar_server()},
+                         "web": build_raspar_server(),
+                         "harness": build_harness_server(self.harness)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
