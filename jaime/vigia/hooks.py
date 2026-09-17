@@ -115,6 +115,10 @@ PRIVADAS_RX = re.compile(
     r"^mcp__(financas|emocao|espelho|mente)__"                      # dinheiro, vínculo, traços dele, pensamentos
     r"|^mcp__cerebro__(lembrar|recordar|buscar|diario|registrar_diario|tarefas_abertas|ler_estado)"
     r"|^mcp__musica__"                                               # gosto dele
+    # A frota é a chave da casa: quem pode cadastrar máquina, mudar nível ou convidar decide quem o Jaime
+    # alcança. Um convidado na linha usa a máquina DELE (listar_em, ler_em, rodar_em continuam livres),
+    # mas não mexe em quem entra na frota nem no nível de ninguém — isso é do João.
+    r"|^mcp__frota__(cadastrar_maquina|convidar_maquina|tirar_da_frota)"
     r"|^mcp__(google|meta)__", re.I)
 # E os caminhos do vault que são a vida dele, mesmo lidos por ferramenta genérica.
 VAULT_PRIVADO_RX = re.compile(  # sem exigir barra no fim: "…/60-Conversas" escapava da trava

@@ -7,7 +7,7 @@ import asyncio, ipaddress, json, os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, PlainTextResponse
 from .config import settings
 from .orchestrator.jaime import Jaime
 from .brain.estado import maquina
@@ -61,6 +61,12 @@ async def lifespan(app: FastAPI):
     notificacoes = Notificacoes(jaime, ouvido)
     notif_t = asyncio.create_task(notificacoes.rodar())
     app.state.notificacoes = notificacoes
+    # hot-reload de módulos sem estado vivo (ex. ops/notificacoes.py): corrige bug sem reiniciar o serviço.
+    # voice/* fica de fora de propósito — mic, TTS e sessão do modelo não podem trocar de código no meio de uma fala.
+    from .ops.hotreload import Recarregador
+    recarregador = Recarregador()
+    recarregador.rodar()
+    app.state.hotreload = recarregador
     # fase 3 — D: telemetria local (janela ativa + pedidos), modo atento, orçamento diário e prioridades de estudo
     from .telemetria.uso import Telemetria
     from .telemetria import prioridades
@@ -125,6 +131,10 @@ app.include_router(telephony_router)
 
 # Rotas que podem ser abertas sem token: é por elas que o convidado PEDE o token.
 ABERTAS = ("/entrar", "/favicon.ico")
+# A frota não passa pelo token do servidor: cada máquina tem o SEU token, derivado do hostname dela
+# (jaime/frota/registro.py). O middleware deixa passar e a rota confere — trocar um token pelo outro aqui
+# seria dar a chave da casa a quem só deveria abrir a porta da própria máquina.
+FROTA = "/frota"
 
 
 def _cockpit() -> FileResponse:
@@ -160,7 +170,7 @@ async def porta_da_rede(request: Request, call_next):
         if not local:
             return JSONResponse({"erro": "Jaime só aceita conexões locais"}, status_code=403)
         return await call_next(request)
-    if local or request.url.path in ABERTAS:
+    if local or request.url.path in ABERTAS or request.url.path.startswith(FROTA):
         return await call_next(request)
     dado = (request.headers.get("x-jaime-token")
             or request.query_params.get("t")
@@ -276,6 +286,67 @@ async def ponte_proximo(x_jaime_token: str | None = Header(default=None)):
 async def ponte_responder(body: dict, x_jaime_token: str | None = Header(default=None)):
     _auth(x_jaime_token)
     return {"ok": jaime.ponte.responder(str(body.get("id") or ""), str(body.get("saida") or ""))}
+
+# ── a frota: vários computadores da rede (jaime/frota/) ────────────────────
+# A autenticação aqui é por MÁQUINA: o token de cada uma é derivado do hostname dela, e o hostname vem no
+# cabeçalho. Assim uma máquina não consegue se passar por outra (não tem o token da outra), e o dono e o
+# nível saem da matrícula que o João escreveu — nunca do que o agente se declara.
+def _frota_auth(host: str | None, token: str | None):
+    from .frota import confere_token
+    h = (host or "").strip()
+    if not h or not confere_token(settings.server_token, h, token or ""):
+        raise HTTPException(status_code=401, detail="token não confere com esta máquina")
+    return h
+
+@app.post("/frota/registrar")
+async def frota_registrar(body: dict, x_jaime_token: str | None = Header(default=None),
+                          x_jaime_host: str | None = Header(default=None)):
+    h = _frota_auth(x_jaime_host, x_jaime_token)
+    ok, msg = jaime.frota.registrar(h, str(body.get("usuario") or ""), str(body.get("so") or ""),
+                                    str(body.get("raiz") or ""))
+    if ok:
+        jaime.vault.diario(f"Frota: {msg}", "Log")
+        return {"ok": True, "estado": msg}
+    return {"ok": False, "erro": msg}
+
+@app.post("/frota/proximo")
+async def frota_proximo(x_jaime_token: str | None = Header(default=None),
+                        x_jaime_host: str | None = Header(default=None)):
+    """O agente de uma máquina fica pendurado aqui esperando trabalho DELA."""
+    h = _frota_auth(x_jaime_host, x_jaime_token)
+    return await jaime.frota.proximo(h) or {}
+
+@app.post("/frota/responder")
+async def frota_responder(body: dict, x_jaime_token: str | None = Header(default=None),
+                          x_jaime_host: str | None = Header(default=None)):
+    h = _frota_auth(x_jaime_host, x_jaime_token)
+    return {"ok": jaime.frota.responder(h, str(body.get("id") or ""), str(body.get("saida") or ""))}
+
+@app.get("/frota/instalar")
+async def frota_instalar(c: str = "", request: Request = None):
+    """O instalador de uma linha, servido com o token JÁ dentro — e só para quem tem o convite.
+
+    O convite é curto, de uso único e morre em 10 minutos, então pode ser ditado em voz alta; o token
+    permanente nunca é. Sem convite válido, isto devolve um script que só explica o que fazer, para quem
+    tropeçar na URL não receber credencial nenhuma."""
+    from .frota import token_da_maquina
+    from .frota.instalador import script
+    m = jaime.frota.usar_convite(c) if c else None
+    if m is None:
+        return PlainTextResponse(
+            "#!/bin/sh\necho 'Convite inválido ou expirado. Peça um novo ao João:'\n"
+            "echo '  \"Jaime, convida a máquina <nome> para a frota\"'\n", status_code=403)
+    base = str(request.base_url).rstrip("/") if request else ""
+    return PlainTextResponse(script(base, m, token_da_maquina(settings.server_token, m.host)),
+                             media_type="text/x-shellscript")
+
+@app.get("/frota/agente.py")
+async def frota_agente():
+    """O código do agente, servido do próprio servidor: a máquina nova pega sempre a versão que roda aqui,
+    e uma correção no agente chega a todas de uma vez. É código aberto para quem vai rodá-lo — de
+    propósito: quem instala tem o direito de ler o que instalou."""
+    p = Path(__file__).parent / "frota" / "agente.py"
+    return PlainTextResponse(p.read_text(encoding="utf-8"), media_type="text/x-python")
 
 @app.get("/hud/semana")
 async def hud_semana():

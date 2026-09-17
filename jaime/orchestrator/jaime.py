@@ -74,6 +74,8 @@ from ..cortex.harness import Harness
 from ..cortex.tools_harness import build_harness_server
 from ..donos import Porteiro, eh_o_socio_se_apresentando, boas_vindas, roteiro_texto
 from ..ponte import Ponte, build_ponte_server
+# `Registro` aqui já é o das conexões (linha acima): a matrícula da frota entra com apelido.
+from ..frota import Frota, Registro as MatriculaFrota, build_frota_server
 from ..acervo import Acervo, build_acervo_server
 from ..relacoes import Relacoes, Curiosidade, build_relacoes_server
 from ..relacoes.tools import build_curiosidade
@@ -143,6 +145,7 @@ class Jaime:
         self.harness = Harness(self)                        # persegue objetivo: age, verifica, corrige, replaneja
         self.porteiro = Porteiro()                          # o Gabriel montando a cópia dele (jaime/donos.py)
         self.ponte = Ponte()                                # acesso à máquina do outro dono (jaime/ponte/)
+        self.frota = Frota(MatriculaFrota(self.vault))            # os outros computadores da rede (jaime/frota/)
         self.acervo = Acervo(settings.root)                 # achar especialista sem carregar todos
         self.relacoes = Relacoes()                          # quem é quem na vida do João (grafo temporal)
         self.curiosidade = Curiosidade(self.relacoes)       # quem fala com ele, e se merece interromper
@@ -217,6 +220,7 @@ class Jaime:
                          "web": build_raspar_server(),
                          "harness": build_harness_server(self.harness),
                          "ponte": build_ponte_server(self.ponte),
+                         "frota": build_frota_server(self.frota, self.vault),
                          "acervo": build_acervo_server(self.acervo),
                          "relacoes": build_relacoes_server(self.relacoes),
                          "curiosidade": build_curiosidade(self.curiosidade),
