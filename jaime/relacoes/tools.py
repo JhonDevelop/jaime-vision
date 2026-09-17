@@ -8,6 +8,44 @@ def _txt(s: str) -> dict:
     return {"content": [{"type": "text", "text": s}]}
 
 
+def build_curiosidade(curiosidade):
+    """Ferramentas da curiosidade: quem fala com o João, quem ele ainda não conhece, e o que interrompe."""
+    from claude_agent_sdk import tool as _tool, create_sdk_mcp_server as _srv
+
+    def _t(s): return {"content": [{"type": "text", "text": s}]}
+
+    @_tool("quem_me_fala", "Quem anda mandando mensagem para o João, quantas vezes, em que horário, e de "
+                           "quem você JÁ sabe quem é. Olhe antes de decidir se um recado merece "
+                           "interromper.", {})
+    async def quem_me_fala(args):
+        return _t(curiosidade.contexto() or "ainda não observei ninguém falando com ele.")
+
+    @_tool("tenho_curiosidade", "A pergunta que você faria ao João sobre alguém que fala muito com ele e que "
+                                "você não conhece. Faça UMA de cada vez, e só quando couber na conversa — "
+                                "nunca no meio de outra coisa. Vazio quer dizer que não há o que perguntar.",
+           {"nome": str})
+    async def tenho_curiosidade(args):
+        return _t(curiosidade.curiosidade(args.get("nome") or "") or "nada a perguntar sobre essa pessoa agora.")
+
+    @_tool("aprendi_quem_e", "Guarda o que o João respondeu sobre alguém: quem a pessoa é e o que ela "
+                             "significa para ele. Vira memória de verdade, com evidência e data, e a partir "
+                             "daí você sabe se um recado dela merece interromper.",
+           {"nome": str, "quem_e": str, "relacao": str})
+    async def aprendi(args):
+        return _t(curiosidade.aprendi(args.get("nome") or "", args.get("quem_e") or "",
+                                      args.get("relacao") or "conhece"))
+
+    @_tool("vale_interromper", "Este recado merece tirar o João do que ele está fazendo? Responde sim ou não "
+                               "COM O PORQUÊ. Urgência de verdade passa mesmo de desconhecido; conversa fiada "
+                               "não passa nem de gente próxima.", {"de": str, "texto": str})
+    async def vale(args):
+        ok, porque = curiosidade.vale_avisar(args.get("de") or "", args.get("texto") or "")
+        return _t(("Avise: " if ok else "Não interrompa: ") + porque)
+
+    return _srv(name="curiosidade", version="1.0.0",
+                tools=[quem_me_fala, tenho_curiosidade, aprendi, vale])
+
+
 def build_relacoes_server(relacoes: Relacoes):
     @tool("lembrar", "Guarda ou atualiza uma pessoa/animal/lugar/projeto/organização (tipo: pessoa|animal|lugar|"
                      "projeto|organizacao). Se vier `relacao` + `com`, também liga aos dois (relacao: parentesco|"

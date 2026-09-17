@@ -77,3 +77,29 @@ def test_teto_de_agentes_mantem_os_maesters_e_corta_o_resto(repo, monkeypatch):
     monkeypatch.setenv("JAIME_AGENTES_MAX", "1")
     m = carregar_maesters(repo)
     assert list(m) == ["maester-dev"]                        # a casa entra primeiro, sempre
+
+
+# ── o diário do dia inteiro não pode pesar em todo turno ──────────────────
+def test_so_a_cauda_do_diario_entra_no_prompt(tmp_path):
+    """Medido em 17/09: o diário completo era 65% do prompt de sistema, e crescia o dia todo."""
+    from jaime.brain.vault import Vault, DIARIO_NO_PROMPT
+    v = Vault(tmp_path)
+    (tmp_path / "40-Diario").mkdir(parents=True, exist_ok=True)
+    linhas = ["# 17/09/2026", "", "## Log"] + [f"- {i:02d}:00 aconteceu a coisa {i}" for i in range(300)]
+    (tmp_path / v.daily_rel()).write_text("\n".join(linhas), encoding="utf-8")
+    cauda = v.cauda_do_diario()
+    assert "a coisa 299" in cauda and "a coisa 0" not in cauda        # o fim entra, o começo não
+    assert "# 17/09/2026" in cauda                                     # o cabeçalho fica, para situar
+    assert "linhas antes" in cauda and "ler_nota" in cauda             # e ele sabe que há mais
+    assert len(cauda.splitlines()) <= DIARIO_NO_PROMPT + 5
+
+def test_diario_curto_entra_inteiro(tmp_path):
+    from jaime.brain.vault import Vault
+    v = Vault(tmp_path)
+    (tmp_path / "40-Diario").mkdir(parents=True, exist_ok=True)
+    (tmp_path / v.daily_rel()).write_text("# hoje\n\n## Log\n- 09:00 uma coisa só\n", encoding="utf-8")
+    assert v.cauda_do_diario() == "# hoje\n\n## Log\n- 09:00 uma coisa só\n"
+
+def test_sem_diario_nao_quebra(tmp_path):
+    from jaime.brain.vault import Vault
+    assert Vault(tmp_path).cauda_do_diario() == ""

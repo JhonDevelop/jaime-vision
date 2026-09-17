@@ -25,11 +25,17 @@ from ..hud.events import bus
 from .cache_frases import CacheFrases
 
 PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100 é só Pro)
+# O sotaque vem PRIMEIRO na instrução, e é a parte não negociável. A versão anterior abria com "dicção
+# levemente mecânica" e o modelo lia isso como licença para soar estrangeiro — o João ouviu na hora e
+# reclamou (17/09). Brasileiro nativo primeiro; o jeito Jarvis vem do RITMO e da entonação contida, não de
+# maltratar as vogais.
 ESTILO_JARVIS = (
-    "Assistente de inteligência artificial, voz masculina grave. Dicção impecável e levemente mecânica, "
-    "consoantes marcadas, vogais curtas. Ritmo constante e eficiente. Entonação quase plana, com uma "
-    "única inflexão discreta no fim da frase. Português do Brasil neutro, sem regionalismo. "
-    "Calmo e preciso como um instrumento, não como uma pessoa animada.")
+    "Falante NATIVO de português do Brasil, sotaque paulista neutro, como um locutor brasileiro de rádio. "
+    "Pronúncia brasileira correta e natural: vogais abertas onde o português pede, erres e esses "
+    "brasileiros, nenhum sotaque estrangeiro, nenhuma sílaba em inglês. "
+    "Voz masculina grave, calma e madura. Ritmo constante e eficiente, sem pressa e sem arrastar. "
+    "Entonação contida — informa, não entretém: quase reta, com uma inflexão discreta só no fim da frase. "
+    "Sem entusiasmo, sem sorriso na voz, sem hesitação. Preciso e sereno.")
 VOZ_PADRAO = "JBFqnCBsd6RMkjVDRZzb"  # premade (George) — fala pt-BR com sotaque; troque em ELEVENLABS_VOICE_ID
 ADIANTAR = 2                         # quantas frases o sintetizador prepara à frente da que está tocando
 BLOCO_S = 0.05                       # escrita na placa em blocos de 50 ms: é o tempo máximo que parar() espera para calar

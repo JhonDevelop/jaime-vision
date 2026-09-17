@@ -51,6 +51,7 @@ async def rodar(jaime, ocioso=None) -> None:
                 if not pauta:
                     continue
                 ultimo[h] = time.time()
+                # pauta própria não vira fala: é trabalho que ELE puxou, não o João pediu (só o painel vê)
                 bus.emitir("cerebro", hemisferio=h, estado="pensando", tarefa=pauta[0][:90])
                 await asyncio.to_thread(cerebros.delegar, h, pauta[0])
                 bus.emitir("cerebro", hemisferio=h, estado="entregou", tarefa=pauta[0][:90])

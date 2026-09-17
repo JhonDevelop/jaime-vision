@@ -75,7 +75,8 @@ from ..cortex.tools_harness import build_harness_server
 from ..donos import Porteiro, eh_o_socio_se_apresentando, boas_vindas, roteiro_texto
 from ..ponte import Ponte, build_ponte_server
 from ..acervo import Acervo, build_acervo_server
-from ..relacoes import Relacoes, build_relacoes_server
+from ..relacoes import Relacoes, Curiosidade, build_relacoes_server
+from ..relacoes.tools import build_curiosidade
 from ..agente import Carteira, build_agente_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
@@ -144,6 +145,7 @@ class Jaime:
         self.ponte = Ponte()                                # acesso à máquina do outro dono (jaime/ponte/)
         self.acervo = Acervo(settings.root)                 # achar especialista sem carregar todos
         self.relacoes = Relacoes()                          # quem é quem na vida do João (grafo temporal)
+        self.curiosidade = Curiosidade(self.relacoes)       # quem fala com ele, e se merece interromper
         self.carteira = Carteira(self.vault)                # o que ele decidiu fazer sozinho
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
@@ -217,6 +219,7 @@ class Jaime:
                          "ponte": build_ponte_server(self.ponte),
                          "acervo": build_acervo_server(self.acervo),
                          "relacoes": build_relacoes_server(self.relacoes),
+                         "curiosidade": build_curiosidade(self.curiosidade),
                          "agente": build_agente_server(self.carteira, self.harness)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua

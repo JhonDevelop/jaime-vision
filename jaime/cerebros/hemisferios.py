@@ -178,21 +178,38 @@ class Cerebros:
         except Exception as e:
             return f"não consegui acordar o {h.nome}: {type(e).__name__}: {e}"
 
-    def narrar(self, texto: str) -> None:
-        """Fala uma linha curta sobre o que os outros dois estão fazendo.
+    def narrar(self, texto: str, *, importante: bool = False) -> None:
+        """O que os hemisférios estão fazendo vai para o COCKPIT. Em voz, quase nunca.
 
-        Sem isto o Central fica MUDO enquanto o Codex compila e o Gemini pesquisa, e o João não sabe se
-        alguém está trabalhando ou se travou. Uma frase por evento, nunca duas seguidas sobre o mesmo."""
+        O João foi direto (17/09): «não quero que ele fique me falando Gemini ou Codex entregou; o que for
+        aleatório para raciocínio dele não precisa falar, senão me corta». Estava certo — eu tinha acabado
+        de pôr o Jaime anunciando cada delegação, e trabalho que ELE mesmo puxou não interessa a ninguém.
+
+        Então: o painel mostra sempre, a boca só abre quando `importante` — e importante é uma coisa só,
+        trabalho que o João PEDIU e que acabou. Nem começo, nem passo intermediário, nem pauta própria.
+        E mesmo aí, sem nome de motor: «um dos meus agentes terminou X», não «o Codex entregou»."""
         if texto == self._ultima_narracao:
-            return
+            return                                           # repetir o mesmo aviso é justamente o que irrita
         self._ultima_narracao = texto
-        bus.emitir("cerebro", narracao=texto[:120])
-        falar = getattr(getattr(self, "ouvido", None), "falar", None)
+        bus.emitir("cerebro", narracao=texto[:120])          # o cockpit vê tudo; é para isso que ele existe
+        if not importante:
+            return
+        ouvido = getattr(self, "ouvido", None)
+        # nunca por cima dele: se o João está falando ou o Jaime já está falando, isto pode esperar
+        if getattr(ouvido, "mudo", False) or getattr(getattr(ouvido, "det", None), "falando", False):
+            return
+        falar = getattr(ouvido, "falar", None)
         if callable(falar):
             try:
                 falar(texto)
             except Exception:
                 pass
+
+    def avisar_do_joao(self, assunto: str) -> None:
+        """A ÚNICA coisa que ele fala em voz sobre os hemisférios: acabou algo que o João pediu.
+
+        Sem nome de motor, porque o João não quer saber qual foi — quer saber que ficou pronto."""
+        self.narrar(f"Um dos meus agentes terminou {assunto.strip()[:70]}.", importante=True)
 
     def delegar(self, hemisferio: str, tarefa: str) -> str:
         h = POR_ID.get(hemisferio)
@@ -201,11 +218,11 @@ class Cerebros:
         if self.equipe is None:
             return "Maestri indisponível."
         self.acordar(h.id, tarefa)
-        self.narrar(f"O {h.preset.replace('antigravity', 'Gemini').title()} está {_gerundio(tarefa)}.")
+        self.narrar(f"{h.nome}: {_gerundio(tarefa)}.")        # só no painel
         try:
             r = (str(self.equipe.maestri.pedir(alvo, tarefa)) if (alvo := self.adotados.get(h.id))
                  else str(self.equipe.delegar(self.nome_do_filho(h), tarefa)))
-            self.narrar(f"O {h.preset.replace('antigravity', 'Gemini').title()} entregou.")
+            self.narrar(f"{h.nome}: entregou.")               # idem: painel, não boca
             return r
         except Exception as e:
             self.registrar(h.id, tipo_do_pedido(tarefa), ok=False)

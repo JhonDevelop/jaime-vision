@@ -36,6 +36,9 @@ DAILY_TEMPLATE = """# {dia}
 ## Log
 """
 
+# Quantas linhas do diário de hoje entram no prompt. O dia inteiro custava 65% do contexto.
+DIARIO_NO_PROMPT = int(os.environ.get("JAIME_DIARIO_NO_PROMPT", "40"))
+
 class Vault:
     def __init__(self, root: Path):
         self.root = Path(root)
@@ -135,6 +138,23 @@ class Vault:
         return out
 
     # ── contexto de sessão ─────────────────────────────
+    def cauda_do_diario(self, linhas: int = DIARIO_NO_PROMPT) -> str:
+        """As últimas linhas do diário de hoje — não o dia inteiro.
+
+        Medido em 17/09: o diário completo eram 11.968 dos 18.288 tokens do prompt de sistema, ou seja 65%
+        dele, em TODO turno. E cresce o dia inteiro: de manhã custa pouco, à noite custa uma fortuna e
+        deixa o Jaime lento justamente quando o João mais conversou com ele. O fim do dia é o que importa
+        para o contexto da conversa de agora; o resto ele lê com ler_nota quando precisar."""
+        txt = self.read(self.daily_rel())
+        if not txt:
+            return ""
+        todas = txt.splitlines()
+        if len(todas) <= linhas:
+            return txt
+        cabeca = [l for l in todas[:3] if l.startswith("#")]
+        return "\n".join(cabeca + [f"…({len(todas) - linhas} linhas antes; ler_nota traz o dia inteiro)"]
+                          + todas[-linhas:])
+
     def contexto_inicial(self) -> str:
         blocos = [
             ("Identidade", self.read("00-Jaime/Identidade.md")),
@@ -146,6 +166,6 @@ class Vault:
              + "\n(use ler_nota para o dossiê completo de cada um; se estiver raso, aprofundar enche a nota)"),
             ("Conhecimento (índice)", "\n".join(l for l in self.read("50-Conhecimento/INDEX.md").splitlines() if l.startswith("- "))),
             ("Tarefas abertas", "\n".join(self.tarefas_abertas()[:15])),
-            ("Diário de hoje", self.read(self.daily_rel())),
+            ("Diário de hoje (o fim; use ler_nota para o dia inteiro)", self.cauda_do_diario()),
         ]
         return "\n\n".join(f"### {t}\n{c.strip()}" for t, c in blocos if c.strip())
