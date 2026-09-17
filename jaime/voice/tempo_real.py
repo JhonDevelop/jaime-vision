@@ -3,6 +3,7 @@
 Ver docs/FASE-3.md § Etapa 1. Ligado com `JAIME_VOZ_MODO=conversa` (o padrão `pipeline` usa Deepgram + Opus + TTS).
 As partes puras (gate "é comigo?", tratamento de eventos, ferramentas) são testáveis com um WebSocket falso."""
 from __future__ import annotations
+from .idiomas import IDIOMA_REALTIME
 import asyncio, base64, json, queue, threading, time
 from ..hud.events import bus
 from .escuta import interpretar_chamada, quer_teclado, quer_descansar, LIXO_WHISPER
@@ -156,7 +157,7 @@ class Conversa:
         return {"type": "session.update", "session": {
             "type": "realtime", "instructions": instrucoes(self.jaime.identidade.nome, pros), "tools": FERRAMENTAS,
             "audio": {"input": {"format": {"type": "audio/pcm", "rate": SR}, "turn_detection": {"type": "server_vad", "create_response": False, "interrupt_response": False, "silence_duration_ms": 700, "prefix_padding_ms": 300},
-                                "transcription": {"model": "gpt-4o-mini-transcribe", "language": "pt"}},
+                                "transcription": {"model": "gpt-4o-mini-transcribe", "language": IDIOMA_REALTIME}},
                       "output": {"format": {"type": "audio/pcm", "rate": SR}, "voice": self.s.realtime_voz}}}}
 
     async def rodar(self):

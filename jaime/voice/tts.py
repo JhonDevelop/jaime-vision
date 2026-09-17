@@ -31,7 +31,10 @@ PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100
 # maltratar as vogais.
 ESTILO_JARVIS = (
     "Falante NATIVO de português do Brasil, sotaque paulista neutro. Pronúncia brasileira correta: "
-    "erres e esses brasileiros, nenhum sotaque estrangeiro, nenhuma sílaba em inglês. "
+    "erres e esses brasileiros, nenhum sotaque estrangeiro no português. "
+    "MAS pronuncie nome próprio, marca, termo técnico e palavra estrangeira na pronúncia da língua de "
+    "origem — «GearHead», «escrow», «worktree», «commit», «design» e «briefing» soam como em inglês, não "
+    "aportuguesados. Sigla se fala letra por letra. "
     "Voz masculina grave. FALE RÁPIDO, no ritmo de uma conversa normal entre duas pessoas que se conhecem — "
     "como quem já sabe a resposta e não precisa pensar para dizer. "
     "Sem pausa entre as palavras, sem pausa dramática, sem alongar vogal, sem soletrar. "

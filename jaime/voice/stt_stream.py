@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio, base64, json, time
 from typing import Callable
 
+from .idiomas import query_deepgram, IDIOMA_REALTIME
+
 SR = 16000
 
 class FluxoSTT:
@@ -32,11 +34,15 @@ class FluxoSTT:
 # ── Deepgram ──────────────────────────────────────────────────────────────────
 class DeepgramAoVivo(FluxoSTT):
     nome = "deepgram"
-    URL = ("wss://api.deepgram.com/v1/listen?model=nova-3&language=pt-BR&encoding=linear16&sample_rate={sr}&channels=1"
-           "&interim_results=true&smart_format=true&punctuate=true&endpointing=300&keyterm=Jaime")
+    # O idioma e os nomes próprios vêm de jaime/voice/idiomas.py: `multi` reconhece troca de língua na
+    # mesma frase (português citando nome em inglês), e os keyterms fazem o modelo acertar "GearHead" e
+    # "escrow" em vez de inventar som parecido. Antes era pt-BR fixo com um keyterm só.
+    URL = ("wss://api.deepgram.com/v1/listen?model=nova-3&{idioma}&encoding=linear16&sample_rate={sr}&channels=1"
+           "&interim_results=true&smart_format=true&punctuate=true&endpointing=300")
 
-    def __init__(self, api_key: str, sr: int = SR, ws_factory=None):
+    def __init__(self, api_key: str, sr: int = SR, ws_factory=None, vault=None):
         self.api_key, self.sr, self.ws_factory = api_key, sr, ws_factory
+        self.vault = vault
         self.ws = None
         self._finais: list[str] = []
         self._interim = ""
@@ -59,7 +65,7 @@ class DeepgramAoVivo(FluxoSTT):
             self.ws = await self.ws_factory()
         else:
             import websockets
-            self.ws = await websockets.connect(self.URL.format(sr=self.sr), additional_headers={"Authorization": f"Token {self.api_key}"}, max_size=None)
+            self.ws = await websockets.connect(self.URL.format(sr=self.sr, idioma=query_deepgram(self.vault)), additional_headers={"Authorization": f"Token {self.api_key}"}, max_size=None)
         self._leitor = asyncio.create_task(self._ler())
         self._keepalive = asyncio.create_task(self._manter())
 
@@ -153,7 +159,7 @@ class OpenAIRealtimeTranscricao(FluxoSTT):
             import websockets
             self.ws = await websockets.connect(self.URL, additional_headers={"Authorization": f"Bearer {self.api_key}"}, max_size=None)
         await self.ws.send(json.dumps({"type": "transcription_session.update", "session": {
-            "input_audio_format": "pcm16", "input_audio_transcription": {"model": self.modelo, "language": "pt"},
+            "input_audio_format": "pcm16", "input_audio_transcription": {"model": self.modelo, "language": IDIOMA_REALTIME},
             "turn_detection": None}}))
         self._leitor = asyncio.create_task(self._ler())
 

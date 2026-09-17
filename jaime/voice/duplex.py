@@ -317,6 +317,12 @@ class OuvidoDuplex(Ouvido):
         self.det.frase_fechou = r
         bus.emitir("fim_turno", fechou=r, prob=round(self.fim_de_turno.ultima_prob, 3),
                    silencio_ms=sil, ms=round(self.fim_de_turno.ultimo_ms))
+        if r and self.fim_de_turno.ultima_prob < 0.75:
+            # P-0009 (17/09): o modelo às vezes dá "completo" com pouca convicção bem depois de uma
+            # preposição ("...no", "...da") — isto grava o caso para o próximo estudo ter dado real,
+            # em vez de eu só suspeitar. Só loga quando a confiança é baixa: não é para poluir o normal.
+            print(f"🔎 fim_turno duvidoso · prob={self.fim_de_turno.ultima_prob:.2f} sil={sil}ms "
+                  f"texto=…{self._parcial_texto[-40:]!r}")
 
     def _alimentar(self, prob: float, frame: bytes, agora: float | None = None) -> str | None:
         """Um frame do microfone com a probabilidade de voz. Pode ser chamado de qualquer thread."""

@@ -1,6 +1,8 @@
 """Transcrição: Deepgram (nuvem, rápido) se houver chave; senão faster-whisper local."""
 from __future__ import annotations
 import io, wave
+
+from .idiomas import query_deepgram, IDIOMA_WHISPER
 import httpx
 from ..config import Settings
 
@@ -22,7 +24,7 @@ class STT:
     async def transcrever(self, pcm16: bytes, sr: int = 16000) -> str:
         if self.s.deepgram_key:
             async with httpx.AsyncClient(timeout=30) as c:
-                r = await c.post("https://api.deepgram.com/v1/listen?model=nova-3&language=pt-BR&smart_format=true&keyterm=Jaime&keyterm=Jaime%20est%C3%A1%20a%C3%AD",
+                r = await c.post(f"https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&{query_deepgram(getattr(self, 'vault', None))}",
                                  headers={"Authorization": f"Token {self.s.deepgram_key}", "Content-Type": "audio/wav"},
                                  content=_wav_bytes(pcm16, sr))
                 r.raise_for_status()
@@ -33,5 +35,5 @@ class STT:
     def _whisper_sync(self, pcm16: bytes) -> str:
         import numpy as np
         audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
-        segs, _ = self._whisper.transcribe(audio, language="pt", vad_filter=True, beam_size=1)
+        segs, _ = self._whisper.transcribe(audio, language=IDIOMA_WHISPER or None, vad_filter=True, beam_size=1)
         return " ".join(s.text.strip() for s in segs).strip()
