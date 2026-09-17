@@ -124,9 +124,11 @@ def main(argv=None) -> int:
 
     while True:
         try:
-            t = _http(f"{base}/ponte/proximo", a.token, timeout=40)
-        except urlerror.URLError:
-            print("… servidor fora do ar; tento de novo em 5s"); time.sleep(5); continue
+            t = _http(f"{base}/ponte/proximo", a.token, {}, timeout=40)   # corpo vazio = POST (a rota é POST)
+        except urlerror.HTTPError as e:
+            print(f"… o servidor respondeu {e.code} ({e.reason}); tento de novo em 5s"); time.sleep(5); continue
+        except urlerror.URLError as e:
+            print(f"… não alcancei o servidor ({e.reason}); tento de novo em 5s"); time.sleep(5); continue
         except KeyboardInterrupt:
             break
         except Exception as e:

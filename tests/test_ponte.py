@@ -101,3 +101,51 @@ def test_o_estado_conta_a_verdade():
     p = Ponte(); p.registrar("Gabriel", "mac-do-gabriel", "/Users/g/Projetos", pode_rodar=False)
     e = p.estado()
     assert "Gabriel" in e and "mac-do-gabriel" in e and "rodar comando: não" in e and "viva" in e
+
+
+# ── o elo que faltava: HTTP ↔ fila, no app de verdade ─────────────────────
+def test_o_agente_busca_pela_rede_e_a_resposta_volta_pelo_mesmo_caminho():
+    """Prova o trajeto inteiro sem mock de rede: o Jaime enfileira, o agente busca por HTTP,
+    responde por HTTP, e quem pediu recebe."""
+    from fastapi import FastAPI, Header, HTTPException
+    from fastapi.testclient import TestClient
+
+    ponte = Ponte()
+    TOKEN = "segredo-de-teste"
+    app = FastAPI()
+
+    def _auth(t):
+        if t != TOKEN:
+            raise HTTPException(401, "token inválido")
+
+    @app.post("/ponte/registrar")
+    async def reg(body: dict, x_jaime_token: str | None = Header(default=None)):
+        _auth(x_jaime_token)
+        ponte.registrar(body["dono"], body["maquina"], body["raiz"], body["pode_rodar"])
+        return {"ok": True}
+
+    @app.post("/ponte/proximo")
+    async def prox(x_jaime_token: str | None = Header(default=None)):
+        _auth(x_jaime_token)
+        return await ponte.proximo(espera=2) or {}
+
+    @app.post("/ponte/responder")
+    async def resp(body: dict, x_jaime_token: str | None = Header(default=None)):
+        _auth(x_jaime_token)
+        return {"ok": ponte.responder(body["id"], body["saida"])}
+
+    with TestClient(app) as c:
+        assert c.post("/ponte/registrar", json={"dono": "Gabriel", "maquina": "mac-dele",
+                                                "raiz": "/Users/g/Proj", "pode_rodar": True},
+                      headers={"X-Jaime-Token": TOKEN}).status_code == 200
+        assert c.post("/ponte/proximo", headers={"X-Jaime-Token": "errado"}).status_code == 401
+
+        # o pedido nasce no mesmo laço em que o app vive, como acontece de verdade
+        async def trajeto():
+            tarefa = asyncio.create_task(ponte.pedir("ler", caminho="app.py"))
+            await asyncio.sleep(0.05)
+            t = await ponte.proximo(espera=2)
+            assert t and t["acao"] == "ler"
+            assert ponte.responder(t["id"], "print('projeto do Gabriel')")
+            return await tarefa
+        assert asyncio.run(trajeto()) == "print('projeto do Gabriel')"
