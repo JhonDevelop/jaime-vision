@@ -19,7 +19,7 @@ def carregar_maesters(root: Path) -> dict[str, AgentDefinition]:
     `JAIME_AGENTES_MAX` põe um teto: os 12 maesters da casa entram sempre e primeiro, depois a tripulação do
     Central, e o resto do acervo entra até o teto. Vazio ou 0 = carrega tudo (o padrão)."""
     import os
-    teto = int(os.environ.get("JAIME_AGENTES_MAX", "0") or 0)
+    teto = int(os.environ.get("JAIME_AGENTES_MAX", "40") or 0)   # 40 carregados; o resto vem por mcp__acervo__buscar
     maesters: dict[str, AgentDefinition] = {}
     carregados: dict[str, AgentDefinition] = {}
     for p in sorted((root / ".claude" / "agents").glob("*.md")):
