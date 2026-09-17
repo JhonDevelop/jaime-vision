@@ -72,6 +72,7 @@ from ..espelho.tools import build_espelho_server
 from ..maos.raspar import build_raspar_server
 from ..cortex.harness import Harness
 from ..cortex.tools_harness import build_harness_server
+from ..donos import Porteiro, eh_o_socio_se_apresentando, boas_vindas, roteiro_texto
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -135,6 +136,7 @@ class Jaime:
         self.cerebros = Cerebros(self.vault, self.equipe, repo=settings.root)   # central Claude · esquerdo Codex · direito Gemini
         self.espelho = Espelho(self.vault)                  # o que ele aprendeu do jeito do João
         self.harness = Harness(self)                        # persegue objetivo: age, verifica, corrige, replaneja
+        self.porteiro = Porteiro()                          # o Gabriel montando a cópia dele (jaime/donos.py)
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
         self.financas = Livro(self.vault)      # livro-caixa pessoal do João (painel Finanças)
@@ -385,6 +387,21 @@ class Jaime:
                                      ("gravação", self.gravador.gravando and bool(self.gravador.parar()))) if ok]
             return f"Parei: {', '.join(parou)}." if parou else "Nada rodando para parar."
         # identidade: "me chama de X" propõe; "confirmo" com proposta pendente executa; "sim" no boot confirma o nome
+        # ── o sócio se apresentando: portão próprio, que NÃO abre o cérebro do João ──
+        porteiro = getattr(self, "porteiro", None)   # dublês de teste da tranca não montam o portão
+        if porteiro is not None and porteiro.etapa in ("confirmando", "senha"):
+            resposta = porteiro.responder(texto, self.acesso)
+            if porteiro.barrado:
+                self.vault.diario("Alguém disse ser o Gabriel e errou a palavra-passe 3×. Barrei.", "Decisões")
+                porteiro.fechar()
+            if resposta is not None:
+                return resposta
+            self.vault.diario("Gabriel Mello se identificou e provou a autorização; entreguei o roteiro da cópia dele.", "Decisões")
+            bus.emitir("dono", quem="Gabriel Mello", etapa="roteiro")
+            return boas_vindas() + "\n\n" + roteiro_texto()
+        if porteiro is not None and eh_o_socio_se_apresentando(texto):
+            return porteiro.apresentou()
+
         if (novo := quer_renomear(texto)):
             return self.propor_renomear(novo)
         if self.proposta_renomear and eh_confirmacao(texto):
