@@ -69,6 +69,7 @@ from ..cerebros import Cerebros
 from ..cerebros.tools import build_cerebros_server
 from ..espelho import Espelho
 from ..espelho.tools import build_espelho_server
+from ..maos.raspar import build_raspar_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -197,7 +198,8 @@ class Jaime:
                          "musica": build_musica_server(self.spotify),
                          "interface": build_interface_server(),
                          "cerebros": build_cerebros_server(self.cerebros),
-                         "espelho": build_espelho_server(self.espelho)},
+                         "espelho": build_espelho_server(self.espelho),
+                         "web": build_raspar_server()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

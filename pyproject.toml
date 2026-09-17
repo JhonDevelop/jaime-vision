@@ -28,6 +28,8 @@ dependencies = [
   "resemblyzer>=0.1.4",
   # macOS Intel: cryptography >= 49 não publica wheel x86_64 e a compilação exige OpenSSL/Rust
   'cryptography<49; sys_platform == "darwin" and platform_machine == "x86_64"',
+  # ler página que o WebFetch não abre (jaime/maos/raspar.py) — BSD-3
+  "scrapling[fetchers]>=0.4.15",
 ]
 
 [project.optional-dependencies]
