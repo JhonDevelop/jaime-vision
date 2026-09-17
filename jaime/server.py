@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
         else:
             ouvido = Ouvido(jaime, settings, asyncio.get_running_loop())
         ouvido.observador = observador; observador.ouvido = ouvido
+        jaime.cerebros.ouvido = ouvido       # o Central narra em voz o que o Codex e o Gemini estão fazendo
         ouvido.start()
         if jaime.apresentacao:
             asyncio.get_running_loop().run_in_executor(None, _falar_quando_pronto, jaime.apresentacao)
