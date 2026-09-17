@@ -20,9 +20,10 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .chip.btn.on u{color:#04060c}
 .spacer{flex:1}
 /* legenda de fala */
-#fala{position:fixed;left:0;right:0;bottom:44px;text-align:center;z-index:15;pointer-events:none;padding:0 8%}
-#falaTx{font-size:19px;font-weight:300;color:#fff;min-height:30px;text-shadow:0 2px 22px #000;transition:opacity .5s}
-#voceTx{font-size:12px;color:var(--mu);margin-top:6px}#voceTx:not(:empty)::before{content:"você · ";color:var(--am);letter-spacing:.1em;font-size:10px}
+#fala{position:fixed;left:0;right:0;bottom:40px;text-align:center;z-index:15;pointer-events:none;padding:0 22%}
+#falaTx{font-size:14px;font-weight:300;line-height:1.45;color:#eaf3fb;min-height:20px;opacity:.92;
+ text-shadow:0 2px 18px #000,0 0 30px rgba(0,0,0,.8);transition:opacity .5s}
+#voceTx{font-size:10.5px;color:var(--mu);margin-top:5px;opacity:.85}#voceTx:not(:empty)::before{content:"você · ";color:var(--am);letter-spacing:.1em;font-size:9px}
 /* raciocínio — sempre visível, à esquerda */
 #rac{position:fixed;left:16px;bottom:44px;width:310px;max-height:42vh;overflow:hidden;z-index:12;font-size:11px}
 #rac .cab{color:var(--am);letter-spacing:.24em;font-size:9.5px;text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:5px;margin-bottom:6px;opacity:.8}
@@ -33,8 +34,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #hint{position:fixed;left:0;right:0;bottom:10px;text-align:center;z-index:11;font-size:10px;color:#42536a;letter-spacing:.1em;pointer-events:none}
 #hint b{color:var(--am);font-weight:400}
 /* stats + ciclo mental (só no modo nós) */
-#agInfo{position:fixed;right:16px;top:70px;z-index:16;display:none;text-align:right}
-#agInfo.show{display:block}
+#agInfo{position:fixed;right:16px;top:70px;z-index:16;display:block;text-align:right;opacity:.92}
 .stat{display:flex;justify-content:space-between;gap:18px;padding:3px 0;font-size:11px;color:var(--mu)}.stat b{color:var(--cy)}
 .ph{display:inline-flex;align-items:center;gap:7px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;color:var(--mu);font-size:10.5px;margin-top:4px;transition:.3s}
 .ph.on{border-color:var(--cy);color:#fff;background:rgba(56,225,255,.08)}
@@ -88,7 +88,6 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
   <span class="chip">modelo<b id="modelo">—</b></span>
   <span class="chip">humor<b id="humor">—</b></span>
   <div class="spacer"></div>
-  <span class="chip btn" id="at-cerebro" onclick="abrir('inicio')"><u>C</u>cérebro</span>
   <span class="chip btn" id="at-agentes" onclick="abrir('agentes')"><u>N</u>nós</span>
   <span class="chip btn" id="at-financas" onclick="abrir('financas')"><u>F</u>finanças</span>
   <span class="chip btn" id="at-afazeres" onclick="abrir('afazeres')"><u>A</u>afazeres</span>
@@ -107,7 +106,7 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
 </div>
 <div id="rac"><div class="cab">raciocínio</div><div id="racL"></div></div>
 <div id="fala"><div id="falaTx">Sistemas operacionais.</div><div id="voceTx"></div></div>
-<div id="hint"><b>T</b> teclado · <b>U</b> universo · <b>N</b> nós · <b>C</b> cérebro · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · ou é só falar</div>
+<div id="hint"><b>T</b> teclado · <b>U</b> mundos · <b>N</b> nós · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · clique num mundo para entrar · ou é só falar</div>
 <div id="kb"><input id="kbIn" placeholder="Escreva para o J.A.I.M.E e tecle Enter (ou a palavra-passe)…" autocomplete="off"></div>
 
 <div id="pop" onclick="if(event.target===this)fecharPop()"><div id="popBox">
@@ -124,7 +123,8 @@ function resize(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.
 addEventListener('resize',resize);resize();
 
 /* ── estado da voz que anima o cérebro ── */
-let nivel=0, alvoNivel=0, falando=false, estado='ouvindo', tick=0, modo='inicio', tVoz=-999;
+let nivel=0, alvoNivel=0, falando=false, estado='ouvindo', tick=0, modo='tudo', tVoz=-999;
+let destaque=null, destaqueAte=0;                    // levanta uma camada por uns segundos; nunca esconde as outras
 const CORES={ouvindo:'#38e1ff',gravando:'#ffb347',pensando:'#7d5cff',transcrevendo:'#7d5cff',falando:'#63f0ff',mudo:'#3a4a5e'};
 function corEstado(){return CORES[falando?'falando':estado]||'#38e1ff'}
 
@@ -170,7 +170,7 @@ async function carregarGrafo(){try{const d=await(await fetch('/hud/agentes')).js
   $('clusters').innerHTML=d.clusters.map(([c,q])=>`<span><i class="sw" style="background:${corC(c)}"></i>${c} ${q}</span>`).join('');
   grafoPronto=true}catch(e){}}
 function grafo(op){
-  const F=modo==='agentes';
+  const F=destaque==='nos';
   ctx.globalCompositeOperation='lighter';ctx.lineWidth=0.5;
   for(let i=0;i<ARE.length;i++){const A=byId[ARE[i][0]],B=byId[ARE[i][1]];if(!A||!B)continue;
     ctx.strokeStyle=corC(A.nucleo?B.pasta:A.pasta);ctx.globalAlpha=0.05*op;ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke()}
@@ -201,12 +201,21 @@ function nodoCluster(c){const a=byCluster[c];return a&&a.length?a[Math.floor(Mat
 function nodoFerr(f){const m=String(f||'').match(/mcp__([a-z_]+)__([a-z_]+)/);
   if(!m)return null;const lista=byFam['t_'+m[1]]||[];return lista.find(n=>n.id.endsWith(':'+m[2]))||byFam[m[1]]||null}
 
-/* ── loop: grafo de fundo + cérebro por cima (os dois ao mesmo tempo) ── */
+/* ── estado do universo (declarado antes do laço: ele desenha desde o 1º quadro) ── */
+let UNI=null, uniPronto=false, estrelas=[], uniT=0, uniHover=null;
+for(let i=0;i<260;i++)estrelas.push({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.2,f:Math.random()*6});
+
+/* ── laço: o céu, os nós, os mundos e o cérebro — tudo junto, sempre ── */
 function loop(){tick++;ctx.clearRect(0,0,W,H);
   nivel+=(alvoNivel-nivel)*0.2;alvoNivel*=0.94;
-  if(modo==='universo'){universo();requestAnimationFrame(loop);return}
-  if(grafoPronto)grafo(modo==='agentes'?1:0.32);
-  cerebro(modo==='agentes'?0.3:1);
+  // Uma vista só: o céu ao fundo, a malha dos nós, os mundos em órbita e o cérebro que responde à voz.
+  // `destaque` não esconde nada — só levanta por alguns segundos a camada que o João pediu.
+  if(destaque && tick>destaqueAte) destaque=null;
+  const dN=destaque==='nos'?1:(destaque?0.55:0.78), dM=destaque==='mundos'?1:(destaque?0.55:0.85);
+  ceuDeFundo();
+  if(grafoPronto)grafo(0.30*dN);
+  if(uniPronto)universo(dM);
+  cerebro(0.62);
   requestAnimationFrame(loop)}
 loop();
 
@@ -236,7 +245,7 @@ function mostrarNativo(titulo,html){$('popFrame').style.display='none';$('popFra
   $('popNat').style.display='block';$('popNat').innerHTML=html;abrirPop(titulo)}
 function fecharPop(){$('pop').classList.remove('show');$('popFrame').srcdoc='';$('popNat').innerHTML='';
   document.querySelectorAll('#top .chip.btn').forEach(c=>{if(c.id!=='at-teclado')c.classList.remove('on')});
-  marcar(modo==='agentes'?'agentes':'cerebro')}
+  marcar(destaque==='nos'?'agentes':(destaque==='mundos'?'universo':null))}
 
 /* ── navegação: por atalho, por clique e por voz (evento painel) ── */
 const TELAS={financas:'Finanças',afazeres:'Afazeres',agenda:'Agenda',musica:'Música'};
@@ -244,10 +253,12 @@ function marcar(id){document.querySelectorAll('#top .chip.btn').forEach(c=>{
   if(c.id!=='at-teclado')c.classList.toggle('on',c.id==='at-'+id)})}
 function abrir(v){
   if(v==='teclado'){toggleKb(true);return}
-  if(v==='universo'){fecharPop();modo='universo';$('agInfo').classList.remove('show');
-    if(!uniPronto)carregarUniverso();marcar('universo');return}
-  if(v==='agentes'){fecharPop();modo='agentes';if(!grafoPronto)carregarGrafo();$('agInfo').classList.add('show');marcar('agentes');return}
-  if(v==='inicio'||v==='cerebro'){fecharPop();modo='inicio';uniHover=null;cv.style.cursor='default';$('agInfo').classList.remove('show');marcar('cerebro');return}
+  if(v==='universo'||v==='agentes'||v==='inicio'||v==='cerebro'){
+    fecharPop();
+    destaque = v==='universo' ? 'mundos' : (v==='agentes' ? 'nos' : null);
+    destaqueAte = tick + 60*14;                       // ~14 s em destaque, depois tudo volta ao mesmo peso
+    marcar(v==='universo'?'universo':(v==='agentes'?'agentes':null));
+    return}
   if(TELAS[v]){marcar(v);render(v)}
 }
 async function render(v){
@@ -316,8 +327,6 @@ function finHTML(f){
 
 
 /* ── O UNIVERSO: os mundos vivos dele, cada corpo em órbita é uma coisa real ── */
-let UNI=null, uniPronto=false, estrelas=[], uniT=0, uniHover=null;
-for(let i=0;i<260;i++)estrelas.push({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.2,f:Math.random()*6});
 async function carregarUniverso(){
   try{const d=await(await fetch('/hud/universo')).json();
     UNI=d; const n=d.mundos.length;
@@ -330,29 +339,24 @@ async function carregarUniverso(){
     });
     uniPronto=true}catch(e){uniPronto=false}
 }
-function universo(){
+function ceuDeFundo(){
+  for(const e of estrelas){ctx.globalAlpha=0.14+0.30*Math.abs(Math.sin(uniT*0.006+e.f));
+    ctx.fillStyle='#9fc6e8';ctx.beginPath();ctx.arc(e.x*W,e.y*H,e.r,0,7);ctx.fill()}
+  ctx.globalAlpha=1}
+
+function universo(op){
   const cx=W/2, cy=H/2, R=Math.min(W,H);
   uniT+=1;
-  // poeira de estrelas ao fundo
-  for(const e of estrelas){ctx.globalAlpha=0.16+0.34*Math.abs(Math.sin(uniT*0.006+e.f));
-    ctx.fillStyle='#9fc6e8';ctx.beginPath();ctx.arc(e.x*W,e.y*H,e.r,0,7);ctx.fill()}
-  ctx.globalAlpha=1;
-  if(!uniPronto){ctx.fillStyle='#7f93ab';ctx.font='11px monospace';ctx.textAlign='center';
-    ctx.fillText('mapeando o universo…',cx,cy);return}
+  if(!uniPronto)return;
   ctx.globalCompositeOperation='lighter';
   // as órbitas
-  for(const m of UNI.mundos){ctx.strokeStyle='#22364d';ctx.globalAlpha=0.30;ctx.lineWidth=0.6;
+  for(const m of UNI.mundos){ctx.strokeStyle='#22364d';ctx.globalAlpha=0.30*op;ctx.lineWidth=0.6;
     ctx.beginPath();ctx.ellipse(cx,cy,R*m.orb,R*m.orb*0.62,0,0,7);ctx.stroke()}
-  // o núcleo: a estrela J.A.I.M.E, que respira com a voz
-  const vol=falando?Math.max(nivel,0.12):nivel, cN=corEstado();
-  for(let k=3;k>0;k--){ctx.globalAlpha=0.05*k*(0.6+vol);ctx.fillStyle=cN;
-    ctx.beginPath();ctx.arc(cx,cy,(20+k*13)+vol*26,0,7);ctx.fill()}
-  ctx.globalAlpha=0.95;ctx.fillStyle=cN;ctx.beginPath();ctx.arc(cx,cy,13+vol*9,0,7);ctx.fill();
   // os mundos
   for(const m of UNI.mundos){
     const a=m.ang0+uniT*m.vel;
     m.x=cx+Math.cos(a)*R*m.orb; m.y=cy+Math.sin(a)*R*m.orb*0.62;
-    const aceso=0.35+m.nivel*0.65, dest=(uniHover===m.id);
+    const aceso=(0.35+m.nivel*0.65)*op, dest=(uniHover===m.id);
     ctx.strokeStyle=m.cor;ctx.globalAlpha=0.10*aceso;ctx.lineWidth=0.6;
     ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(m.x,m.y);ctx.stroke();          // laço com o núcleo
     ctx.fillStyle=m.cor;ctx.globalAlpha=0.13*aceso*(dest?2.4:1);
@@ -365,19 +369,18 @@ function universo(){
       ctx.globalAlpha=(0.30+c.peso*0.6)*aceso;
       ctx.beginPath();ctx.arc(px,py,1.1+c.peso*1.9,0,7);ctx.fill()}
     ctx.globalCompositeOperation='source-over';
-    ctx.globalAlpha=dest?1:0.80;ctx.fillStyle='#e6f1fb';ctx.font=(dest?'bold ':'')+'11px monospace';
+    ctx.globalAlpha=(dest?1:0.80)*Math.min(1,op*1.5);ctx.fillStyle='#e6f1fb';ctx.font=(dest?'bold ':'')+'11px monospace';
     ctx.textAlign='center';ctx.fillText(m.nome,m.x,m.y+m.r+15);
-    ctx.globalAlpha=dest?0.9:0.45;ctx.font='9.5px monospace';ctx.fillStyle='#7f93ab';
+    ctx.globalAlpha=(dest?0.9:0.45)*Math.min(1,op*1.5);ctx.font='9.5px monospace';ctx.fillStyle='#7f93ab';
     ctx.fillText(m.total+(dest?' · clique':''),m.x,m.y+m.r+27);
     ctx.globalCompositeOperation='lighter'}
   ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
-  ctx.fillStyle='#7f93ab';ctx.font='10px monospace';ctx.textAlign='center';
-  ctx.fillText(UNI.total_corpos+' corpos vivos em '+UNI.mundos.length+' mundos · clique num mundo para entrar',cx,H-58);
+
 }
 function mundoEm(x,y){return UNI&&UNI.mundos.find(m=>Math.hypot(m.x-x,m.y-y)<m.r+16)}
-cv.addEventListener('mousemove',e=>{if(modo!=='universo')return;
+cv.addEventListener('mousemove',e=>{
   const m=mundoEm(e.clientX,e.clientY);uniHover=m?m.id:null;cv.style.cursor=m?'pointer':'default'});
-cv.addEventListener('click',e=>{if(modo!=='universo')return;const m=mundoEm(e.clientX,e.clientY);if(m)verMundo(m)});
+cv.addEventListener('click',e=>{const m=mundoEm(e.clientX,e.clientY);if(m)verMundo(m)});
 function verMundo(m){
   mostrarNativo(m.nome,`<div class="mut" style="margin-bottom:4px">${esc(m.resumo)}</div>
    <div class="fin-barra" style="margin:14px 0 18px"><i style="width:${m.nivel*100}%;background:${m.cor}"></i></div>
@@ -433,8 +436,7 @@ function sse(){const es=new EventSource('/hud/stream');
  es.onerror=()=>{};}
 function setAcesso(on){$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado'}
 
-marcar('cerebro');
-carregarGrafo();                                   /* os nós ficam atrás dele desde o boot */
+carregarGrafo(); carregarUniverso();                                   /* os nós ficam atrás dele desde o boot */
 (async()=>{try{const s=await(await fetch('/hud/estado')).json();setAcesso(!!s.liberado);
   if(s.modelo)$('modelo').textContent=(s.modelo||'').replace('claude-','')}catch{}sse()})();
 </script></body></html>
