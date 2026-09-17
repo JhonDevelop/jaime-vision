@@ -26,12 +26,20 @@ def test_nao_abre_a_mesma_duas_vezes(tmp_path):
     b = c.imaginar("painel de música", "x", "y")
     assert a is b and len(c.itens) == 1
 
+def test_nao_da_para_pular_a_spec():
+    """imaginada → produzindo direto é o atalho que produz a coisa errada com capricho."""
+    c = Carteira(_Vault())
+    c.imaginar("coisa", porque="evidência", criterio="o teste passa")
+    r = c.avancar("coisa", "produzindo")
+    assert "pulou a spec" in r and c.achar("coisa").etapa == "imaginada"
+
 def test_sem_criterio_de_aceite_ele_nao_produz():
     """Sem critério escrito antes, ele vai achar que deu certo — e acha sempre."""
     c = Carteira(_Vault())
     c.imaginar("coisa vaga", porque="achei legal")           # sem critério
+    c.avancar("coisa vaga", "projetada"); c.avancar("coisa vaga", "validada")
     r = c.avancar("coisa vaga", "produzindo")
-    assert "critério de aceite" in r and c.achar("coisa vaga").etapa == "imaginada"
+    assert "critério de aceite" in r and c.achar("coisa vaga").etapa == "validada"
 
 def test_com_criterio_o_ciclo_anda_ate_o_fim():
     c = Carteira(_Vault())
@@ -44,6 +52,7 @@ def test_com_criterio_o_ciclo_anda_ate_o_fim():
 def test_orcamento_estourado_larga_a_iniciativa():
     v = _Vault(); c = Carteira(v)
     c.imaginar("caro", porque="x", criterio="y", orcamento_usd=1.0)
+    c.avancar("caro", "projetada"); c.avancar("caro", "validada")
     c.avancar("caro", "produzindo", gasto_usd=0.6)
     r = c.avancar("caro", "testando", gasto_usd=0.7)          # passou de US$ 1,00
     assert "orçamento" in r and c.achar("caro").etapa == "abandonada"
@@ -75,6 +84,8 @@ def test_o_joao_risca_a_linha_e_ele_obedece():
 def test_resumo_conta_a_verdade():
     c = Carteira(_Vault())
     assert "carteira vazia" in c.resumo()
-    c.imaginar("a", "pq", "crit"); c.avancar("a", "produzindo", gasto_usd=0.5)
+    c.imaginar("a", "pq", "crit")
+    c.avancar("a", "projetada"); c.avancar("a", "validada")
+    c.avancar("a", "produzindo", gasto_usd=0.5)
     r = c.resumo()
     assert "1 em andamento de 1" in r and "US$ 0.50" in r and "[produzindo] a" in r

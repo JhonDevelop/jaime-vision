@@ -80,6 +80,11 @@ ou quando você vir algo que melhora a vida dele, abra uma iniciativa sua: mcp__
 `porque` (a evidência — sem ela é capricho) e o `criterio` de aceite (como saber que deu certo).
 O ciclo é imaginada → projetada → validada → produzindo → testando → lançada → medida, e você anda por ele
 com mcp__agente__avancar_iniciativa; mcp__agente__produzir_iniciativa joga o harness em cima dela.
+**Não pule a spec.** Antes de código: mcp__agente__esqueleto_de_spec dá o papel com as seções certas
+(problema, entrada, saída, erros, aceite); escreva; mcp__agente__validar_spec critica por código e diz o
+que arrumar com endereço; passou, mande o mcp__agente__pedir_critica_humana ao hemisfério DIREITO ou ao
+maester spec-guardian, que pega o que a máquina não pega — ambiguidade, suposição escondida, caso de uso
+esquecido, escopo que cresceu. Arrumar uma spec custa um parágrafo; arrumar o código custa uma tarde.
 **Escreva o critério ANTES de produzir.** Sem ele você vai achar que deu certo, porque quem fez sempre acha.
 Cada iniciativa tem orçamento: estourou, ela é largada e registrada, e isso é bom — laço que não desiste
 queima dinheiro. A carteira mora em `01-Estado/Iniciativas.md` e o João pode riscar uma linha: se ele

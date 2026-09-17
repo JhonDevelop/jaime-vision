@@ -3,6 +3,7 @@ from __future__ import annotations
 from claude_agent_sdk import tool, create_sdk_mcp_server
 from ..hud.events import bus
 from .carteira import ETAPAS
+from .spec import criticar, esqueleto, pedido_de_critica
 
 def _txt(s): return {"content": [{"type": "text", "text": s}]}
 
@@ -53,5 +54,28 @@ def build_agente_server(carteira, harness=None):
         asyncio.create_task(harness.perseguir(f"{i.titulo}. Critério de pronto: {i.criterio}"))
         return _txt(f"Comecei a produzir «{i.titulo}». Sigo em segundo plano.")
 
+    @tool("esqueleto_de_spec", "Devolve o papel em branco da especificação, já com as seções certas: "
+                               "problema, entrada, saída, erros e critérios de aceite. Comece por aqui antes "
+                               "de escrever código.", {"titulo": str, "problema": str})
+    async def esqueleto_spec(args):
+        return _txt(esqueleto(args.get("titulo") or "", args.get("problema") or ""))
+
+    @tool("validar_spec", "CRITICA a sua especificação antes de existir código, que é quando arrumar custa um "
+                          "parágrafo em vez de uma tarde. Confere por código: seção faltando, seção vazia, "
+                          "critério de aceite que é opinião ('ficou bom') em vez de conferível, nenhum aceite "
+                          "que seja teste, e palavra que deixa o escopo aberto ('etc', 'talvez'). Responde "
+                          "PRONTO ou a lista do que arrumar, com o endereço de cada buraco. Passou aqui? Então "
+                          "mande o texto de `pedir_critica_humana` ao hemisfério DIREITO, para o que só um "
+                          "leitor pega.", {"spec": str})
+    async def validar_spec(args):
+        return _txt(criticar(args.get("spec") or "").texto())
+
+    @tool("pedir_critica_humana", "O pedido para mandar ao hemisfério direito DEPOIS que validar_spec passou: "
+                                  "requisito ambíguo, suposição escondida, escopo que cresceu — o que a "
+                                  "verificação mecânica não pega.", {"spec": str})
+    async def critica_humana(args):
+        return _txt(pedido_de_critica(args.get("spec") or ""))
+
     return create_sdk_mcp_server(name="agente", version="1.0.0",
-                                 tools=[iniciativas, imaginar, avancar, produzir])
+                                 tools=[iniciativas, imaginar, avancar, produzir,
+                                        esqueleto_spec, validar_spec, critica_humana])

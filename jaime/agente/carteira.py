@@ -104,6 +104,9 @@ class Carteira:
             return f"não tenho iniciativa «{titulo}»"
         if etapa not in ETAPAS:
             return f"etapa desconhecida; use: {', '.join(ETAPAS)}"
+        if etapa == "produzindo" and i.etapa == "imaginada":
+            return ("essa iniciativa pulou a spec. O caminho é imaginada → projetada → validada → produzindo: "
+                    "escreva a spec, passe pelo validar_spec, e só então produza.")
         if etapa in ("produzindo", "testando") and not i.criterio:
             return ("essa iniciativa não tem critério de aceite escrito — sem ele eu não sei dizer se deu "
                     "certo, e vou achar que deu. Escreva o critério antes de produzir.")
