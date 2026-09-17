@@ -75,6 +75,7 @@ from ..cortex.tools_harness import build_harness_server
 from ..donos import Porteiro, eh_o_socio_se_apresentando, boas_vindas, roteiro_texto
 from ..ponte import Ponte, build_ponte_server
 from ..acervo import Acervo, build_acervo_server
+from ..relacoes import Relacoes, build_relacoes_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -135,12 +136,13 @@ class Jaime:
         # fase 3: filhos — terminais que ele cria no Maestri (Claude Code, Codex…) para trabalhar em paralelo
         from ..equipe.filhos import Equipe
         self.equipe = Equipe(self, settings.root, vigia=self.vigia)
-        self.cerebros = Cerebros(self.vault, self.equipe, repo=settings.root)   # central Claude · esquerdo Codex · direito Gemini
+        self.cerebros = Cerebros(self.vault, self.equipe, repo=settings.root)   # a voz entra em ligar_voz()   # central Claude · esquerdo Codex · direito Gemini
         self.espelho = Espelho(self.vault)                  # o que ele aprendeu do jeito do João
         self.harness = Harness(self)                        # persegue objetivo: age, verifica, corrige, replaneja
         self.porteiro = Porteiro()                          # o Gabriel montando a cópia dele (jaime/donos.py)
         self.ponte = Ponte()                                # acesso à máquina do outro dono (jaime/ponte/)
         self.acervo = Acervo(settings.root)                 # achar especialista sem carregar todos
+        self.relacoes = Relacoes()                          # quem é quem na vida do João (grafo temporal)
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
         self.financas = Livro(self.vault)      # livro-caixa pessoal do João (painel Finanças)
@@ -211,7 +213,8 @@ class Jaime:
                          "web": build_raspar_server(),
                          "harness": build_harness_server(self.harness),
                          "ponte": build_ponte_server(self.ponte),
-                         "acervo": build_acervo_server(self.acervo)},
+                         "acervo": build_acervo_server(self.acervo),
+                         "relacoes": build_relacoes_server(self.relacoes)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

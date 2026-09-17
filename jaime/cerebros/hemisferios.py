@@ -16,6 +16,8 @@ import re, time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..hud.events import bus
+
 NOTA = "01-Estado/Cerebros.md"
 # Terminais que já existem no canvas e servem a cada lado: em vez de criar mais um, o hemisfério ADOTA.
 # Foi por isso que os dois viviam dormindo — ninguém nunca os criava, e havia um Gemini vivo ali do lado.
@@ -59,6 +61,21 @@ PISTAS: dict[str, tuple[str, ...]] = {
     "estudo": ("estuda", "aprende sobre", "entende"),
 }
 
+# O que o hemisfério está fazendo, dito em uma frase — "rodando os testes", "pesquisando alternativas".
+GERUNDIOS = {"implementa": "escrevendo o código", "corrige": "consertando", "testa": "rodando os testes",
+             "roda": "rodando", "pesquisa": "pesquisando", "investiga": "investigando",
+             "revisa": "revisando", "critica": "revisando", "cria": "criando", "refatora": "refatorando",
+             "descubra": "investigando", "levante": "levantando", "proponha": "pensando numa proposta"}
+
+
+def _gerundio(tarefa: str) -> str:
+    t = (tarefa or "").lower()
+    for chave, frase in GERUNDIOS.items():
+        if chave in t:
+            return frase
+    return "trabalhando nisso"
+
+
 LINHA_RX = re.compile(r"^\|\s*([a-z]+)\s*\|\s*([a-z_]+)\s*\|\s*([0-9.]+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|", re.M)
 
 
@@ -79,6 +96,8 @@ class Cerebros:
     acertos: dict[tuple[str, str], int] = field(default_factory=dict)
     erros: dict[tuple[str, str], int] = field(default_factory=dict)
     adotados: dict[str, str] = field(default_factory=dict)   # hemisfério → nome do terminal no Maestri
+    ouvido: object | None = None                             # quem fala em voz (para narrar os filhos)
+    _ultima_narracao: str = ""
     repo: Path | None = None
 
     def __post_init__(self):
@@ -159,6 +178,22 @@ class Cerebros:
         except Exception as e:
             return f"não consegui acordar o {h.nome}: {type(e).__name__}: {e}"
 
+    def narrar(self, texto: str) -> None:
+        """Fala uma linha curta sobre o que os outros dois estão fazendo.
+
+        Sem isto o Central fica MUDO enquanto o Codex compila e o Gemini pesquisa, e o João não sabe se
+        alguém está trabalhando ou se travou. Uma frase por evento, nunca duas seguidas sobre o mesmo."""
+        if texto == self._ultima_narracao:
+            return
+        self._ultima_narracao = texto
+        bus.emitir("cerebro", narracao=texto[:120])
+        falar = getattr(getattr(self, "ouvido", None), "falar", None)
+        if callable(falar):
+            try:
+                falar(texto)
+            except Exception:
+                pass
+
     def delegar(self, hemisferio: str, tarefa: str) -> str:
         h = POR_ID.get(hemisferio)
         if h is None or h.id == "central":
@@ -166,10 +201,12 @@ class Cerebros:
         if self.equipe is None:
             return "Maestri indisponível."
         self.acordar(h.id, tarefa)
+        self.narrar(f"O {h.preset.replace('antigravity', 'Gemini').title()} está {_gerundio(tarefa)}.")
         try:
-            if (alvo := self.adotados.get(h.id)):
-                return str(self.equipe.maestri.pedir(alvo, tarefa))
-            return str(self.equipe.delegar(self.nome_do_filho(h), tarefa))
+            r = (str(self.equipe.maestri.pedir(alvo, tarefa)) if (alvo := self.adotados.get(h.id))
+                 else str(self.equipe.delegar(self.nome_do_filho(h), tarefa)))
+            self.narrar(f"O {h.preset.replace('antigravity', 'Gemini').title()} entregou.")
+            return r
         except Exception as e:
             self.registrar(h.id, tipo_do_pedido(tarefa), ok=False)
             return f"o {h.nome} não respondeu: {type(e).__name__}"
