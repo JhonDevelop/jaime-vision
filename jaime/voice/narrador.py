@@ -11,6 +11,25 @@ PRIMEIRA_S = 2.5          # narra antes de a muleta pensar em disparar (MULETA_S
                           # Quem está trabalhando conta o que está fazendo; quem não está, fica quieto.
 NARRAR_A_CADA_S = 8.0
 
+# O que ele NUNCA narra, por mais que demore: a contabilidade interna dele.
+#
+# Pedido do João em 17/09, o terceiro seguido da mesma família («não quero que ele fique me falando gemini
+# ou codex entregou», «eu digo coisas básicas e ele fica ok um segundo», e agora «não quero que ele fique
+# me avisando sobre: escrevendo no vault, não quero saber isso»). A regra que sai dos três é uma só:
+#
+#     ele narra o que o JOÃO pediu, não o que ELE precisa fazer para lembrar.
+#
+# Escrever no vault, ler a própria memória e atualizar o próprio estado são o equivalente a uma pessoa
+# anotando na agenda enquanto conversa: acontece, é necessário, e ninguém comenta em voz alta. O painel do
+# cockpit continua mostrando tudo — quem quiser ver, vê; quem não quiser ouvir, não ouve.
+SILENCIOSAS = (
+    r"^mcp__cerebro__",       # lembrar, registrar_diario, criar_tarefa, buscar_memoria, ler_nota, ler_estado…
+    r"^mcp__mente__",         # pensar por conta própria é dele, não é recado
+    r"^mcp__emocao__",        # humor e datas: leitura interna
+    r"^mcp__meta__",          # instrumentação de si mesmo
+    r"^mcp__espelho__",       # sincronizar o espelho é manutenção
+)
+
 FRASES = [
     (r"^Bash$", "rodando um comando"),
     (r"^(Read|Glob|Grep)$", "lendo os arquivos"),
@@ -19,8 +38,6 @@ FRASES = [
     (r"^Web(Search|Fetch)$", "pesquisando na web"),
     (r"^mcp__maos__(abrir|ler_pagina|clicar|preencher|extrair)", "no browser"),
     (r"^mcp__maos__criar_projeto", "criando o projeto"),
-    (r"^mcp__cerebro__(lembrar|registrar_diario|criar_tarefa)", "anotando no vault"),
-    (r"^mcp__cerebro__(buscar_memoria|ler_nota|ler_estado)", "consultando a memória"),
     (r"^mcp__google__email", "olhando os e-mails"),
     (r"^mcp__google__agenda", "olhando a agenda"),
     (r"^mcp__midia__gerar_imagem", "gerando a imagem"),
@@ -32,6 +49,12 @@ FRASES = [
 ]
 
 def frase_para(ferramenta: str, alvo: str = "") -> str:
+    # O silêncio vem ANTES da lista, não depois: assim nenhuma frase nova consegue reintroduzir a
+    # contabilidade interna por descuido, e uma regra larga (^mcp__tela__ e companhia) não pega uma
+    # ferramenta de memória de raspão.
+    for rx in SILENCIOSAS:
+        if re.match(rx, ferramenta or ""):
+            return ""
     for rx, f in FRASES:
         if re.match(rx, ferramenta or ""):
             if f == "rodando um comando" and alvo:

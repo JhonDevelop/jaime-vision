@@ -28,9 +28,10 @@ FRASES = [
     "Não foi essa. Tenta de novo.",
     # trabalho em curso
     "Está na tela.", "Fechei.", "Abrindo.", "Rodando os testes.", "Lendo os arquivos.",
-    "Pesquisando na web.", "Escrevendo o código.", "Anotando no vault.",
-    "O Codex está trabalhando nisso.", "O Gemini está pesquisando.", "O Codex entregou.",
-    "O Gemini entregou.",
+    "Pesquisando na web.", "Escrevendo o código.",
+    # «Anotando no vault.», «O Codex entregou.» e companhia saíram em 17/09: o João não quer ouvir a
+    # contabilidade interna dele (ver SILENCIOSAS em jaime/voice/narrador.py). Frase que ele não diz
+    # mais não precisa estar pronta no cache.
     # quando não sabe ou não pode
     "Não sei.", "Não entendi.", "Isso é com o João.", "Preciso do seu confirmo.",
     "Não peguei. Pode repetir?", "Quer o detalhe?",
