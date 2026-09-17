@@ -132,3 +132,79 @@ def test_cada_tipo_tem_cor_propria(tmp_path):
     s = montar_semana(_vault_agenda(tmp_path), None, dias=3, hoje=date(2026, 9, 17))
     cores = {i["tipo"]: i["cor"] for d in s["dias"] for i in d["joao"] + d["jaime"]}
     assert len(set(cores.values())) == len(cores) and all(c.startswith("#") for c in cores.values())
+
+
+# ── tripulação própria e o despertador (o João: "não podem ficar sempre dormindo") ──────
+def test_cada_lado_tem_tripulacao_e_skills_proprias_e_elas_nao_se_misturam(tmp_path):
+    from jaime.cerebros.tripulacao import tripulacao, skills, TRIPULACAO, SKILLS
+    repo = tmp_path
+    (repo / ".claude/agents").mkdir(parents=True); (repo / ".claude/skills").mkdir(parents=True)
+    for a in ("maester-dev", "python-pro", "research-analyst", "maester-jaime", "fantasma-que-nao-existe"):
+        if a != "fantasma-que-nao-existe":
+            (repo / ".claude/agents" / f"{a}.md").write_text("x")
+    for s in ("systematic-debugging", "brainstorming", "conversa"):
+        d = repo / ".claude/skills" / s; d.mkdir(); (d / "SKILL.md").write_text("x")
+    esq, dir_, cen = tripulacao(repo, "esquerdo"), tripulacao(repo, "direito"), tripulacao(repo, "central")
+    assert "maester-dev" in esq and "python-pro" in esq and "research-analyst" not in esq
+    assert "research-analyst" in dir_ and "python-pro" not in dir_
+    assert "maester-jaime" in cen
+    # agente que não existe no disco não entra na lista: lista com nome inventado é decoração
+    assert "fantasma-que-nao-existe" not in esq + dir_ + cen
+    # as skills também são de cada ofício
+    assert skills(repo, "esquerdo") == ["systematic-debugging"]
+    assert skills(repo, "direito") == ["brainstorming"]
+    assert skills(repo, "central") == ["conversa"]
+    # e nenhum lado tem tripulação vazia na configuração
+    for lado in ("central", "esquerdo", "direito"):
+        assert TRIPULACAO[lado] and SKILLS[lado]
+
+def test_cada_lado_tira_a_propria_pauta_de_coisa_real(tmp_path):
+    from jaime.cerebros.tripulacao import pauta
+    v = _Vault(tmp_path)
+    v.write("90-Estudo/Problemas.md",
+            "## P-0001 · o eco do microfone corta a fala · aberto\n\n"
+            "## P-0002 · qual o melhor fornecedor de tinta · aberto\n\n"
+            "## P-0003 · já resolvido · resolvido\n")
+    (tmp_path / "20-Projetos").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "20-Projetos" / "Estamparia.md").write_text("# Estamparia\n")      # nota quase vazia
+    (tmp_path / "jaime").mkdir()
+    (tmp_path / "jaime" / "x.py").write_text("# TODO: trocar o parser do cron\nx = 1\n")
+    esq = pauta(v, tmp_path, "esquerdo", 5)
+    dirr = pauta(v, tmp_path, "direito", 5)
+    # o técnico pega o que é de código; o problema de fornecedor não é dele
+    assert any("P-0001" in x for x in esq) and not any("P-0002" in x for x in esq)
+    assert any("TODO" in x and "cron" in x for x in esq)
+    # o evolutivo pega pesquisa, projeto sem nota, e sempre tem o que propor
+    assert any("P-0002" in x for x in dirr) and any("Estamparia" in x for x in dirr)
+    assert any("melhoria" in x for x in dirr)
+    assert pauta(v, tmp_path, "central", 5) == []                 # o Central não se auto-delega
+
+def test_o_despertador_acorda_os_dois_e_da_trabalho_a_quem_esta_parado(tmp_path):
+    chamadas = []
+    class _Cerebros:
+        adotados = {}
+        def vivos(self): return {"central"} | {h for h, _ in chamadas if _ == "acordar"}
+        def acordar(self, h): chamadas.append((h, "acordar")); return f"{h} acordado"
+        def pauta(self, h, n=1): return [f"trabalho do {h}"]
+        def delegar(self, h, t): chamadas.append((h, t)); return "ok"
+    c = _Cerebros()
+    feitos = Cerebros.manter_acordados(c)
+    assert [h for h, a in chamadas if a == "acordar"] == ["esquerdo", "direito"]
+    assert ("esquerdo", "trabalho do esquerdo") in chamadas and ("direito", "trabalho do direito") in chamadas
+    assert any("pegou" in f for f in feitos)
+
+def test_o_hemisferio_adota_terminal_que_ja_existe_em_vez_de_criar_outro(tmp_path):
+    class _Maestri:
+        disponivel = True
+        criados = []
+        def listar(self): return 'Connected agents:\n  - name: "J.A.I.M.E · Gemini", role: "Gemini do Jaime"\n'
+        def pedir(self, nome, tarefa): _Maestri.criados.append(("pedir", nome)); return "feito"
+    class _Equipe:
+        maestri = _Maestri(); vivos = []
+        def criar(self, **k): raise AssertionError("não devia criar: havia um terminal para adotar")
+    c = Cerebros(_Vault(tmp_path), _Equipe())
+    assert c.adotar("direito") == "J.A.I.M.E · Gemini"
+    assert "direito" in c.vivos() and "Gemini" in c.estado()[2]["terminal"]
+    assert c.delegar("direito", "pesquisa isso") == "feito"
+    assert ("pedir", "J.A.I.M.E · Gemini") in _Maestri.criados
+    assert c.adotar("esquerdo") == ""                              # não há Codex no canvas: nada a adotar

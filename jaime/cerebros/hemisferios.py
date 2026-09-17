@@ -14,8 +14,12 @@ a ser escolhido. É por isso que a tabela fica no vault em Markdown: o João lê
 from __future__ import annotations
 import re, time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 NOTA = "01-Estado/Cerebros.md"
+# Terminais que já existem no canvas e servem a cada lado: em vez de criar mais um, o hemisfério ADOTA.
+# Foi por isso que os dois viviam dormindo — ninguém nunca os criava, e havia um Gemini vivo ali do lado.
+ADOTAVEIS = {"esquerdo": ("codex", "gpt", "openai"), "direito": ("gemini", "antigravity")}
 PISO, TETO = 0.15, 1.0          # peso de um hemisfério num tipo de trabalho
 PREMIO, MULTA = 0.08, 0.16      # acertar sobe pouco; errar desce o dobro (confiança custa a voltar)
 
@@ -74,6 +78,8 @@ class Cerebros:
     pesos: dict[tuple[str, str], float] = field(default_factory=dict)   # (hemisfério, tipo) → peso
     acertos: dict[tuple[str, str], int] = field(default_factory=dict)
     erros: dict[tuple[str, str], int] = field(default_factory=dict)
+    adotados: dict[str, str] = field(default_factory=dict)   # hemisfério → nome do terminal no Maestri
+    repo: Path | None = None
 
     def __post_init__(self):
         self._carregar()
@@ -110,6 +116,26 @@ class Cerebros:
     def nome_do_filho(self, h: Hemisferio) -> str:
         return f"cerebro-{h.id}"
 
+    def adotar(self, hemisferio: str) -> str:
+        """Procura no Maestri um terminal que já sirva a este lado e liga o hemisfério nele."""
+        h = POR_ID.get(hemisferio)
+        if h is None or h.id == "central" or self.equipe is None:
+            return ""
+        maestri = getattr(self.equipe, "maestri", None)
+        if maestri is None or not getattr(maestri, "disponivel", False):
+            return ""
+        try:
+            saida = maestri.listar()
+        except Exception:
+            return ""
+        pistas = ADOTAVEIS.get(h.id, ())
+        for linha in saida.splitlines():
+            m = re.search(r'name:\s*"([^"]+)"', linha)
+            if m and any(p in m.group(1).lower() for p in pistas):
+                self.adotados[h.id] = m.group(1)
+                return m.group(1)
+        return ""
+
     def acordar(self, hemisferio: str, missao: str = "") -> str:
         """Garante um terminal vivo para o hemisfério. O Central não tem terminal: é o próprio Jaime."""
         h = POR_ID.get(hemisferio)
@@ -119,6 +145,8 @@ class Cerebros:
             return "O Central sou eu; não preciso acordar ninguém."
         if self.equipe is None:
             return "Maestri indisponível: sem equipe para acordar o hemisfério."
+        if (ja := self.adotar(h.id)):
+            return f"{h.nome} já está acordado em «{ja}»."
         nome = self.nome_do_filho(h)
         try:
             if any(getattr(f, "nome", "") == nome for f in getattr(self.equipe, "vivos", [])):
@@ -139,6 +167,8 @@ class Cerebros:
             return "Maestri indisponível."
         self.acordar(h.id, tarefa)
         try:
+            if (alvo := self.adotados.get(h.id)):
+                return str(self.equipe.maestri.pedir(alvo, tarefa))
             return str(self.equipe.delegar(self.nome_do_filho(h), tarefa))
         except Exception as e:
             self.registrar(h.id, tipo_do_pedido(tarefa), ok=False)
@@ -147,7 +177,11 @@ class Cerebros:
     # ── estado, para o prompt e para o universo ──────────────────────────
     def vivos(self) -> set[str]:
         nomes = {getattr(f, "nome", "") for f in getattr(self.equipe, "vivos", [])} if self.equipe else set()
-        return {h.id for h in HEMISFERIOS if h.id == "central" or self.nome_do_filho(h) in nomes}
+        for h in HEMISFERIOS:
+            if h.id != "central" and h.id not in self.adotados:
+                self.adotar(h.id)
+        return {h.id for h in HEMISFERIOS
+                if h.id == "central" or self.nome_do_filho(h) in nomes or h.id in self.adotados}
 
     def estado(self) -> list[dict]:
         acordados = self.vivos()
@@ -158,8 +192,52 @@ class Cerebros:
             e = sum(v for (hh, _), v in self.erros.items() if hh == h.id)
             saida.append({"id": h.id, "nome": h.nome, "preset": h.preset, "funcao": h.funcao, "cor": h.cor,
                           "acordado": h.id in acordados, "acertos": a, "erros": e,
+                          "terminal": self.adotados.get(h.id, "" if h.id == "central" else self.nome_do_filho(h)),
+                          "agentes": self.agentes(h.id), "skills": self.skills(h.id), "pauta": self.pauta(h.id),
                           "forte_em": max(tipos, key=tipos.get) if tipos else "", "tipos": tipos})
         return saida
+
+    # ── a tripulação de cada lado e o que ele pode pegar sozinho ─────────
+    def _repo(self) -> Path:
+        return self.repo or Path(getattr(self.vault, "root", ".")).parent
+
+    def agentes(self, hemisferio: str) -> list[str]:
+        from .tripulacao import tripulacao
+        try:
+            return tripulacao(self._repo(), hemisferio)
+        except Exception:
+            return []
+
+    def skills(self, hemisferio: str) -> list[str]:
+        from .tripulacao import skills
+        try:
+            return skills(self._repo(), hemisferio)
+        except Exception:
+            return []
+
+    def pauta(self, hemisferio: str, limite: int = 5) -> list[str]:
+        from .tripulacao import pauta
+        try:
+            return pauta(self.vault, self._repo(), hemisferio, limite)
+        except Exception:
+            return []
+
+    # ── o despertador: hemisfério dormindo não aprende ───────────────────
+    def manter_acordados(self, delegar: bool = True) -> list[str]:
+        """Acorda os dois lados e, se houver pauta própria, dá trabalho a quem está parado.
+        É isto que impede o Esquerdo e o Direito de viverem dormindo — e sem aprender."""
+        feitos = []
+        for h in (ESQUERDO, DIREITO):
+            antes = h.id in self.vivos()
+            r = self.acordar(h.id)
+            if not antes:
+                feitos.append(f"{h.nome}: {r}")
+            if not delegar or h.id not in self.vivos():
+                continue
+            if (p := self.pauta(h.id, 1)):
+                feitos.append(f"{h.nome} pegou: {p[0][:90]}")
+                self.delegar(h.id, p[0])
+        return feitos
 
     def resumo(self) -> str:
         return " · ".join(f"{d['nome']}({d['preset']}){'' if d['acordado'] else ' dormindo'}" for d in self.estado())

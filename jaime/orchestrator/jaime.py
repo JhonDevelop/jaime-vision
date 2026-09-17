@@ -129,7 +129,7 @@ class Jaime:
         # fase 3: filhos — terminais que ele cria no Maestri (Claude Code, Codex…) para trabalhar em paralelo
         from ..equipe.filhos import Equipe
         self.equipe = Equipe(self, settings.root, vigia=self.vigia)
-        self.cerebros = Cerebros(self.vault, self.equipe)   # central Claude · esquerdo Codex · direito Gemini
+        self.cerebros = Cerebros(self.vault, self.equipe, repo=settings.root)   # central Claude · esquerdo Codex · direito Gemini
         self.espelho = Espelho(self.vault)                  # o que ele aprendeu do jeito do João
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)

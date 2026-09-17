@@ -88,6 +88,9 @@ async def lifespan(app: FastAPI):
         pensar_t = None
     # fase 3: relatórios dos filhos (terminais no Maestri) chegam pela nota compartilhada; os importantes são falados
     equipe_t = asyncio.create_task(jaime.equipe.vigiar_relatorios(falar=(ouvido.falar if ouvido else None)))
+    # os dois hemisférios não podem viver dormindo: este laço acorda e dá pauta própria a cada um
+    from .cerebros.despertador import rodar as rodar_despertador
+    despertador_t = asyncio.create_task(rodar_despertador(jaime, ocioso))
     jaime.estudo.emitir()
     # fase 3 — E: vontades (impulsos ouvem o bus), Mente (impulso × janela × orçamento) e noite criativa/Vitrine
     from .vontade import ligar as ligar_vontade
@@ -100,7 +103,7 @@ async def lifespan(app: FastAPI):
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     yield
-    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); jaime.agenda.stop()
+    monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); despertador_t.cancel(); jaime.agenda.stop()
     if pensar_t: pensar_t.cancel()
     app.state.vontade.parar()   # fase 3 — E
     telemetria_t.cancel(); atencao_t.cancel(); telemetria.salvar()      # fase 3 — D
