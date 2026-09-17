@@ -25,6 +25,7 @@ from .escuta import (Ouvido, SR, FRAME, FRAME_MS, PRE_ROLL_MS, VAD_INICIO, VAD_F
 from .antecipador import Antecipador, Antecipacao, modelo_openai
 from . import stt_stream
 from .eco import SupressorDeEco
+from .fim_de_turno import FimDeTurno
 
 SILENCIO_FECHOU_MS = 450      # antecipador diz que a frase fechou
 SILENCIO_INCERTO_MS = 700     # ainda sem parecer (ou sem antecipador)
@@ -46,6 +47,10 @@ BARGE_IN_JANELA_MS = 640      # janela do corte por energia (precisa de BARGE_IN
 BARGE_IN_VAD_PISO = 0.35
 BARGE_IN_VAD_FRACAO = 0.5
 BARGE_IN_JANELA_SUST_MS = 1000  # janela do corte por voz sustentada
+# Fim de turno pelo ÁUDIO: quando o silêncio passa disto, pergunta ao Smart Turn se o João terminou. Antes
+# desse ponto não vale gastar 64 ms de CPU, porque ainda é pausa curta demais para ter significado.
+FIM_TURNO_CONSULTA_MS = 260
+FIM_TURNO_REPETE_MS = 400       # e reconsulta a cada tanto enquanto o silêncio cresce (a entoação muda)
 # VOZ DE VERDADE, não barulho (16/09, pedido do João: "qualquer barulho ele interrompe"). Energia alta o suficiente
 # qualquer coisa tem: porta, teclado, prato, carro, música de fundo. O que só a fala tem é o VAD FORTE — probabilidade
 # ≥ BARGE_IN_PROB numa boa parte da janela. Sem esse mínimo, não corta, por mais alto que esteja.
@@ -161,6 +166,8 @@ class OuvidoDuplex(Ouvido):
         self._interjeitou = False
         self.interrompido = False
         self._confirmando = 0.0     # instante da suspeita acústica (0 = nenhuma em curso)
+        self.fim_de_turno = FimDeTurno()   # quem decide 'ele terminou?' pelo áudio, não pela pontuação
+        self._ultima_consulta_ms = -9999  # último silêncio em que perguntei ao modelo
         self._fila_audio: asyncio.Queue | None = None
         self._lock_turno = asyncio.Lock()
         self._pre: deque = deque(maxlen=max(1, PRE_ROLL_MS // FRAME_MS))
@@ -216,6 +223,9 @@ class OuvidoDuplex(Ouvido):
         try:
             import numpy as np, sounddevice as sd
             self._carregar()
+            # aqui, e não no construtor: aquecer ao construir punha uma thread carregando o ONNX em todo
+            # teste que monta um OuvidoDuplex, e o modelo ficava pronto no meio do teste (corrida de verdade).
+            self.fim_de_turno.aquecer()
             asyncio.run_coroutine_threadsafe(self._consumir(), self.loop)
         except Exception as e:
             self.erro = f"{type(e).__name__}: {e}"
@@ -247,11 +257,33 @@ class OuvidoDuplex(Ouvido):
             self.erro = f"{type(e).__name__}: {e}"
             bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
 
+    def _consultar_fim_de_turno(self) -> None:
+        """Enquanto o silêncio cresce, pergunta ao ÁUDIO se o João terminou — e é esta resposta que manda.
+
+        Sem isto, quem decidia era a pontuação que o Deepgram põe em toda pausa, e o Jaime cortava o João
+        no meio da respiração. A heurística do antecipador continua valendo quando o modelo não responde."""
+        sil = self.det.silencio_ms
+        if not self.det.falando or sil < FIM_TURNO_CONSULTA_MS:
+            return
+        if sil - self._ultima_consulta_ms < FIM_TURNO_REPETE_MS:
+            return
+        self._ultima_consulta_ms = sil
+        if not self.fim_de_turno.pronto:                 # ainda aquecendo: a heurística decide desta vez
+            return
+        r = self.fim_de_turno.fechou(bytes(self._pcm_turno), silencio_ms=sil)
+        if r is None:
+            return                                    # sem modelo: segue a heurística de antes
+        self.det.frase_fechou = r
+        bus.emitir("fim_turno", fechou=r, prob=round(self.fim_de_turno.ultima_prob, 3),
+                   silencio_ms=sil, ms=round(self.fim_de_turno.ultimo_ms))
+
     def _alimentar(self, prob: float, frame: bytes, agora: float | None = None) -> str | None:
         """Um frame do microfone com a probabilidade de voz. Pode ser chamado de qualquer thread."""
         ev = self.det.alimentar(prob, agora)
+        self._consultar_fim_de_turno()
         if ev == "inicio":
             self._pcm_turno = bytearray(); self._parcial_texto = ""; self.cache_audio = None; self._interjeitou = False
+            self._ultima_consulta_ms = -9999
             if self.antecipador: self.antecipador.limpar()
             self._t_fim_fala = 0.0
             for f in self._pre:
@@ -484,7 +516,9 @@ class OuvidoDuplex(Ouvido):
 
     def _aplicar(self, a: Antecipacao) -> None:
         # o parecer sobre "fechou?" só vale se o texto não cresceu enquanto o modelo pensava (um parecer antigo não apaga o atual)
-        if a.texto == self._parcial_texto.strip():
+        # Quem manda no "fechou?" é o áudio (fim_de_turno). A pontuação do texto só decide quando o modelo
+        # acústico não está disponível — era ela que cortava o João no meio da respiração.
+        if a.texto == self._parcial_texto.strip() and not self.fim_de_turno.pronto:
             self.det.frase_fechou = a.frase_fechou
         bus.emitir("antecipacao", intencao=a.intencao, completude=a.completude, fechou=a.frase_fechou,
                    rascunho=a.rascunho, origem=a.origem, latencia=round(a.latencia_s, 2))
