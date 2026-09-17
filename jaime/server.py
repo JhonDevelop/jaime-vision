@@ -241,6 +241,26 @@ async def hud_agentes():
     from .hud.grafo import montar
     return montar(jaime.vault, jaime)
 
+# ── a ponte com a máquina do outro dono (jaime/ponte/) ──────────────────────
+@app.post("/ponte/registrar")
+async def ponte_registrar(body: dict, x_jaime_token: str | None = Header(default=None)):
+    _auth(x_jaime_token)
+    jaime.ponte.registrar(str(body.get("dono") or "convidado"), str(body.get("maquina") or "?"),
+                          str(body.get("raiz") or "?"), bool(body.get("pode_rodar")))
+    jaime.vault.diario(f"Ponte ligada: {jaime.ponte.estado()}", "Log")
+    return {"ok": True, "estado": jaime.ponte.estado()}
+
+@app.post("/ponte/proximo")
+async def ponte_proximo(x_jaime_token: str | None = Header(default=None)):
+    """O agente fica pendurado aqui esperando trabalho. Devolve vazio quando não há nada."""
+    _auth(x_jaime_token)
+    return await jaime.ponte.proximo() or {}
+
+@app.post("/ponte/responder")
+async def ponte_responder(body: dict, x_jaime_token: str | None = Header(default=None)):
+    _auth(x_jaime_token)
+    return {"ok": jaime.ponte.responder(str(body.get("id") or ""), str(body.get("saida") or ""))}
+
 @app.get("/hud/semana")
 async def hud_semana():
     """A agenda física: sete dias, duas faixas por dia. A do João (compromissos, lembretes, prazos) e a do
