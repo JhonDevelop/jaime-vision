@@ -76,6 +76,7 @@ from ..donos import Porteiro, eh_o_socio_se_apresentando, boas_vindas, roteiro_t
 from ..ponte import Ponte, build_ponte_server
 from ..acervo import Acervo, build_acervo_server
 from ..relacoes import Relacoes, build_relacoes_server
+from ..agente import Carteira, build_agente_server
 from .maesters import carregar_maesters
 from .prompt import system_prompt, prompt_reflexao, prompt_apresentacao
 
@@ -143,6 +144,7 @@ class Jaime:
         self.ponte = Ponte()                                # acesso à máquina do outro dono (jaime/ponte/)
         self.acervo = Acervo(settings.root)                 # achar especialista sem carregar todos
         self.relacoes = Relacoes()                          # quem é quem na vida do João (grafo temporal)
+        self.carteira = Carteira(self.vault)                # o que ele decidiu fazer sozinho
         # raciocínio próprio: a Mente contínua pensa sobre o mundo do João quando ocioso (jaime/mente/pensar.py)
         self.pensar = Pensar(self.vault, s=settings)
         self.financas = Livro(self.vault)      # livro-caixa pessoal do João (painel Finanças)
@@ -214,7 +216,8 @@ class Jaime:
                          "harness": build_harness_server(self.harness),
                          "ponte": build_ponte_server(self.ponte),
                          "acervo": build_acervo_server(self.acervo),
-                         "relacoes": build_relacoes_server(self.relacoes)},
+                         "relacoes": build_relacoes_server(self.relacoes),
+                         "agente": build_agente_server(self.carteira, self.harness)},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.

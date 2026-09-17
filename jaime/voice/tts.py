@@ -25,6 +25,11 @@ from ..hud.events import bus
 from .cache_frases import CacheFrases
 
 PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100 é só Pro)
+ESTILO_JARVIS = (
+    "Assistente de inteligência artificial, voz masculina grave. Dicção impecável e levemente mecânica, "
+    "consoantes marcadas, vogais curtas. Ritmo constante e eficiente. Entonação quase plana, com uma "
+    "única inflexão discreta no fim da frase. Português do Brasil neutro, sem regionalismo. "
+    "Calmo e preciso como um instrumento, não como uma pessoa animada.")
 VOZ_PADRAO = "JBFqnCBsd6RMkjVDRZzb"  # premade (George) — fala pt-BR com sotaque; troque em ELEVENLABS_VOICE_ID
 ADIANTAR = 2                         # quantas frases o sintetizador prepara à frente da que está tocando
 BLOCO_S = 0.05                       # escrita na placa em blocos de 50 ms: é o tempo máximo que parar() espera para calar
@@ -318,9 +323,10 @@ class TTS:
         return b"".join(c for c in fluxo if c)
 
     def _openai_kw(self, texto: str) -> dict:
-        base = os.environ.get("JAIME_VOZ_ESTILO_BASE",
-                              "Voz masculina grave e calma, dicção precisa, sotaque brasileiro neutro, tom seco e educado, "
-                              "leve textura de assistente de inteligência artificial — um mordomo britânico falando português.")
+        # A voz do Jarvis: sintetizada, mas humana. O que dá o efeito não é filtro de áudio, é a instrução —
+        # dicção marcada, ritmo constante, entonação quase plana com UMA inflexão no fim. Máquina precisa, não
+        # robô de desenho. `JAIME_VOZ_ESTILO_BASE` no .env troca isto sem tocar no código.
+        base = os.environ.get("JAIME_VOZ_ESTILO_BASE", ESTILO_JARVIS)
         return dict(model=os.environ.get("JAIME_OPENAI_TTS_MODELO", "gpt-4o-mini-tts"), voice=os.environ.get("JAIME_OPENAI_VOZ", "onyx"),
                     input=texto, instructions=(base + " " + self.instrucoes).strip(), response_format="pcm", speed=self.velocidade)
 
