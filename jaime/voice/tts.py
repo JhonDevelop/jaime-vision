@@ -30,12 +30,13 @@ PCM_SR = 24000                       # pcm_24000 existe no plano gratuito (44100
 # reclamou (17/09). Brasileiro nativo primeiro; o jeito Jarvis vem do RITMO e da entonação contida, não de
 # maltratar as vogais.
 ESTILO_JARVIS = (
-    "Falante NATIVO de português do Brasil, sotaque paulista neutro, como um locutor brasileiro de rádio. "
-    "Pronúncia brasileira correta e natural: vogais abertas onde o português pede, erres e esses "
-    "brasileiros, nenhum sotaque estrangeiro, nenhuma sílaba em inglês. "
-    "Voz masculina grave, calma e madura. Ritmo constante e eficiente, sem pressa e sem arrastar. "
-    "Entonação contida — informa, não entretém: quase reta, com uma inflexão discreta só no fim da frase. "
-    "Sem entusiasmo, sem sorriso na voz, sem hesitação. Preciso e sereno.")
+    "Falante NATIVO de português do Brasil, sotaque paulista neutro. Pronúncia brasileira correta: "
+    "erres e esses brasileiros, nenhum sotaque estrangeiro, nenhuma sílaba em inglês. "
+    "Voz masculina grave. FALE RÁPIDO, no ritmo de uma conversa normal entre duas pessoas que se conhecem — "
+    "como quem já sabe a resposta e não precisa pensar para dizer. "
+    "Sem pausa entre as palavras, sem pausa dramática, sem alongar vogal, sem soletrar. "
+    "Entonação contida e quase reta: informa, não narra. "
+    "Sem entusiasmo e sem hesitação.")
 VOZ_PADRAO = "JBFqnCBsd6RMkjVDRZzb"  # premade (George) — fala pt-BR com sotaque; troque em ELEVENLABS_VOICE_ID
 ADIANTAR = 2                         # quantas frases o sintetizador prepara à frente da que está tocando
 BLOCO_S = 0.05                       # escrita na placa em blocos de 50 ms: é o tempo máximo que parar() espera para calar
@@ -69,7 +70,9 @@ class TTS:
         self.ajustes: dict | None = None   # {"stability", "style"} vindos da prosódia (humor); None = .env
         self.instrucoes: str = ""          # instrução de estilo (prosódia) para o gpt-4o-mini-tts
         self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
-        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.0"))   # 1.15 saía atropelado
+        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.05"))
+        # 1.15 saía atropelado; 1.0 com a instrução antiga saía LENTO (o João reclamou 17/09). O ritmo vem
+        # 90%% da instrução (ESTILO_JARVIS) e não daqui: 1.05 é só um empurrão, não o acelerador.
         self._t_nivel = 0.0          # último instante em que publicou a altura da voz
         self.dizendo = ""            # texto das frases desta resposta — o barge-in usa para não se confirmar com o próprio eco
         self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
