@@ -70,9 +70,10 @@ class TTS:
         self.ajustes: dict | None = None   # {"stability", "style"} vindos da prosódia (humor); None = .env
         self.instrucoes: str = ""          # instrução de estilo (prosódia) para o gpt-4o-mini-tts
         self.motor = os.environ.get("JAIME_TTS", "auto")   # elevenlabs | openai | auto
-        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.05"))
-        # 1.15 saía atropelado; 1.0 com a instrução antiga saía LENTO (o João reclamou 17/09). O ritmo vem
-        # 90%% da instrução (ESTILO_JARVIS) e não daqui: 1.05 é só um empurrão, não o acelerador.
+        self.velocidade = float(os.environ.get("JAIME_VOZ_VELOCIDADE", "1.2"))
+        # 1.2 foi ESCOLHA DELE, de ouvido, entre 1.0, 1.1 e 1.2 (17/09). Antes disso: 1.15 saía
+        # atropelado com a instrução velha, e 1.0 com a instrução 'calma' saía lento. O que mudou foi
+        # a instrução (ESTILO_JARVIS pede ritmo de conversa); daí 1.2 ficou rápido sem atropelar.
         self._t_nivel = 0.0          # último instante em que publicou a altura da voz
         self.dizendo = ""            # texto das frases desta resposta — o barge-in usa para não se confirmar com o próprio eco
         self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
