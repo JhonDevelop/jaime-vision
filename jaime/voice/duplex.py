@@ -18,7 +18,8 @@ Sem cancelamento de eco, o microfone ouve a própria voz do Jaime: o barge-in s�
 passa bem acima do nível de eco medido no começo de cada fala dele (JAIME_BARGE_IN=on|off|fone; "fone" = sem
 guarda de eco, para quem usa fone de ouvido)."""
 from __future__ import annotations
-import asyncio, os, re, threading, time
+import asyncio, os, re, threading, time, unicodedata
+from difflib import SequenceMatcher
 from collections import Counter, deque
 from ..hud.events import bus
 from .escuta import (Ouvido, SR, FRAME, FRAME_MS, PRE_ROLL_MS, VAD_INICIO, VAD_FIM, MIN_FALA_MS, MAX_FALA_S, LIXO_WHISPER)
@@ -62,7 +63,14 @@ BARGE_IN_VOZ_FORTE_FRACAO = 0.2
 # turno e começa a mandar o áudio ao STT enquanto o Jaime segue falando. Quem corta é a transcrição.
 BARGE_IN_CONFIRMA_MS = 1600   # sem palavra nenhuma neste tempo, a suspeita é descartada e ninguém foi interrompido
 BARGE_IN_MIN_PALAVRAS = 2     # uma sílaba solta do STT não é pedido
-BARGE_IN_ECO_TEXTO = 0.7      # transcrição com 70% das palavras do que ele está dizendo = o próprio eco voltando
+# ECO DE TEXTO — a trava que impede o Jaime de se cortar quando fala no alto-falante.
+# O João (17/09): «sai no alto-falante e ele mesmo se corta; se o que ele estiver escutando for transcrito
+# para a mesma coisa que ele vai falar, ele ignora». É exatamente isso, e 0,70 era frouxo: o STT inventa
+# uma palavra a mais no eco e a proporção caía abaixo do limiar. Três testes independentes agora, e basta
+# UM apontar eco para não cortar — errar aqui e cortar a si mesmo é muito pior que errar e demorar a cortar.
+BARGE_IN_ECO_TEXTO = 0.5      # metade das palavras vindas do que ele diz já é eco
+BARGE_IN_ECO_SEQ = 0.62       # ou semelhança de sequência, que pega o eco com palavra a mais ou a menos
+BARGE_IN_ECO_RARAS = 2        # ou duas palavras longas e específicas dele aparecendo na escuta
 ESPERAR_CACHE_S = 1.2         # fim de turno com pré-síntese em curso: vale esperar até isto pela 1ª frase pronta
 PRE_SINTESES_POR_TURNO = 2    # rascunhos locais sintetizados por turno, no máximo (o texto cresce e o alvo muda)
 
@@ -139,18 +147,51 @@ class DetectorFim:
     def cancelar(self) -> None:
         self.falando = False; self._ms_voz = self._ms_sil = self._ms_total = 0; self.frase_fechou = None
 
+def _sem_acento(t: str) -> str:
+    return unicodedata.normalize("NFKD", (t or "").lower()).encode("ascii", "ignore").decode()
+
+
+def eh_eco_do_jaime(ouvido: str, dizendo: str) -> bool:
+    """O que o microfone trouxe é o próprio Jaime voltando pelo alto-falante?
+
+    Três provas independentes, e UMA basta. É de propósito assimétrico: deixar de cortar quando o João
+    falou custa a ele repetir a frase; cortar a si mesmo no meio faz o Jaime parecer quebrado, e foi o que
+    o João viu acontecer. Então na dúvida, é eco.
+
+    1. PROPORÇÃO — metade das palavras ouvidas saiu do que ele está dizendo.
+    2. SEQUÊNCIA — a frase ouvida se parece com algum trecho do que ele diz. Pega o eco que veio com uma
+       palavra a mais ou a menos, que era justo o caso em que a proporção falhava.
+    3. PALAVRA RARA — duas palavras longas e específicas dele (nome, número escrito, termo técnico)
+       aparecendo na escuta. Coincidência de duas dessas é praticamente impossível."""
+    if not dizendo or not ouvido:
+        return False
+    o, d = _sem_acento(ouvido), _sem_acento(dizendo)
+    pal = [w for w in re.findall(r"[0-9a-z]+", o) if len(w) > 1]
+    if not pal:
+        return False
+    dele = set(re.findall(r"[0-9a-z]+", d))
+    if sum(1 for w in pal if w in dele) / len(pal) >= BARGE_IN_ECO_TEXTO:
+        return True
+    alvo = " ".join(pal)
+    if len(alvo) >= 8:
+        janela = max(len(alvo), 12)
+        for i in range(0, max(1, len(d) - janela + 1), max(1, janela // 3)):
+            if SequenceMatcher(None, alvo, d[i:i + janela + 12]).ratio() >= BARGE_IN_ECO_SEQ:
+                return True
+    raras = sum(1 for w in set(pal) if len(w) >= 7 and w in dele)
+    return raras >= BARGE_IN_ECO_RARAS
+
+
 def fala_de_verdade(texto: str, dizendo: str = "") -> bool:
-    """A transcrição voltou palavra de verdade — e não lixo do STT nem o eco do que o próprio Jaime está dizendo?"""
+    """A transcrição voltou palavra de verdade — e não lixo do STT nem o eco do que o próprio Jaime diz?"""
     t = (texto or "").strip()
     if len(t) < 6 or LIXO_WHISPER.search(t):
         return False
     pal = [w for w in re.findall(r"[0-9a-zà-ÿ]+", t.lower()) if len(w) > 1]
     if len(pal) < BARGE_IN_MIN_PALAVRAS:
         return False
-    if dizendo:
-        dele = set(re.findall(r"[0-9a-zà-ÿ]+", dizendo.lower()))
-        if dele and sum(1 for w in pal if w in dele) / len(pal) >= BARGE_IN_ECO_TEXTO:
-            return False
+    if eh_eco_do_jaime(t, dizendo):
+        return False
     return True
 
 class OuvidoDuplex(Ouvido):
@@ -395,7 +436,11 @@ class OuvidoDuplex(Ouvido):
         """Chamado a cada parcial e no texto final: entendeu alguma coisa? Então corta."""
         if not self._confirmando:
             return False
-        if not fala_de_verdade(texto, getattr(self._tts, "dizendo", "")):
+        # compara com a resposta acumulada E com a frase que está tocando agora: a acumulada pega o eco de
+        # qualquer parte da resposta, a atual pega o eco exato do que acabou de sair no alto-falante
+        dizendo = getattr(self._tts, "dizendo", "") or ""
+        atual = getattr(self._tts, "frase_atual", "") or ""
+        if not fala_de_verdade(texto, dizendo) or (atual and eh_eco_do_jaime(texto, atual)):
             return False
         self._confirmando = 0.0
         self._barge_stats["cortou"] = True

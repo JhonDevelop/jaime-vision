@@ -75,7 +75,8 @@ class TTS:
         # atropelado com a instrução velha, e 1.0 com a instrução 'calma' saía lento. O que mudou foi
         # a instrução (ESTILO_JARVIS pede ritmo de conversa); daí 1.2 ficou rápido sem atropelar.
         self._t_nivel = 0.0          # último instante em que publicou a altura da voz
-        self.dizendo = ""            # texto das frases desta resposta — o barge-in usa para não se confirmar com o próprio eco
+        self.dizendo = ""            # o que ele está dizendo AGORA — o barge-in usa para não se cortar com o próprio eco
+        self.frase_atual = ""        # só a frase tocando neste instante (comparação mais precisa que a resposta toda)
         self.t_inicio_audio = 0.0    # quando a resposta atual começou a soar (0 = ainda não)
         self.t_primeiro_som = 0.0    # 1º som do TURNO (muleta incluída) — só `novo_turno()` zera; t_inicio_audio zera a cada resposta
         self.t_fim_audio = 0.0
@@ -287,6 +288,8 @@ class TTS:
             g, texto, pcm = self._prontos.get()
             if g != self._geracao:
                 continue
+            # a frase que começa a soar AGORA: é com ela que o barge-in compara o eco mais recente
+            self.frase_atual = texto
             try:
                 if pcm is not None:
                     self._tocar(pcm, g)
@@ -295,6 +298,7 @@ class TTS:
             except Exception as e:
                 print(f"⚠ áudio falhou ({type(e).__name__}); {texto}")
             finally:
+                self.frase_atual = ""          # parou de soar: o eco dela não deve mais vetar um corte
                 with self._cond:
                     if g == self._geracao and self._pendentes > 0:
                         self._pendentes -= 1
