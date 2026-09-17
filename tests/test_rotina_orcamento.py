@@ -200,19 +200,27 @@ def test_rotinas_e_lembretes_toleram_atraso_do_timer(vault):
     asyncio.run(rodar())
 
 
+
+def _fixar_dia(monkeypatch, vault, d):
+    """Estes testes simulam um instante (quarta, 16/09). O vault, porém, escreve no diário do dia REAL:
+    na virada de 16 para 17/09 os dois deixaram de falar do mesmo arquivo e os testes quebraram sozinhos.
+    Aqui o 'hoje' do vault passa a ser o dia simulado, que é o que o teste quer dizer o tempo todo."""
+    orig = vault.daily_rel
+    monkeypatch.setattr(vault, "daily_rel", lambda dd=None: orig(dd or d), raising=False)
+
 # ── M-19 (Vigília 16/09): rotinas que caíram enquanto o processo não existia rodam no boot, uma vez ──
-def test_rotinas_perdidas_no_sono_rodam_no_boot(vault):
+def test_rotinas_perdidas_no_sono_rodam_no_boot(vault, monkeypatch):
     from datetime import timedelta
     from jaime.agenda.scheduler import ROTINAS_REL, FUSO
     vault.write(ROTINAS_REL, "# Rotinas\n\n- 30 6 * * mon-fri · preparar o dia\n- 0 7 * * mon-fri · briefing\n- 0 13 * * mon-fri · revisão de tarefas\n- 0 22 * * * · consolida o que ouvi hoje\n")
     j = _Jaime(vault); ag = Agenda(j); ag.rotinas = parse_rotinas(vault.read(ROTINAS_REL))
     agora = datetime(2026, 9, 16, 7, 14, tzinfo=FUSO)                      # quarta, o Mac acordou às 07:14
+    _fixar_dia(monkeypatch, vault, agora.date())
     assert ag.perdidas(agora) == ["preparar o dia", "briefing"]
     vault.diario("Rotina disparada: briefing", "Log") if False else None
     hoje = vault.daily_rel(agora.date()); vault.write(hoje, "# 16/09\n\n## Log\n- 07:00 Rotina disparada: briefing\n")
     assert ag.perdidas(agora) == ["preparar o dia"]                       # a que já consta no diário não repete
-    vault.diario("Rotina perdida enquanto eu estava desligado, vou rodar agora: preparar o dia", "Log")
-    vault.write(hoje, vault.read(hoje).replace(f"- {__import__('datetime').datetime.now():%H:%M} Rotina perdida", "- 07:14 Rotina perdida"))
+    vault.write(hoje, vault.read(hoje) + "- 07:14 Rotina perdida enquanto eu estava desligado, vou rodar agora: preparar o dia\n")
     assert ag.perdidas(agora) == []                                       # outro boot já agendou: não duplica (07:35 rodou 2×)
     vault.write(hoje, "# 16/09\n\n## Log\n- 07:00 Rotina disparada: briefing\n")
     assert ag.perdidas(datetime(2026, 9, 16, 12, 0, tzinfo=FUSO)) == []   # fora da janela de 3 h: não recupera
@@ -254,12 +262,13 @@ def test_rotina_registra_duracao_reagenda_e_nao_fala_o_que_sobrou_quando_cedida(
 
 
 # ── M-33 (Vigília 16/09 13:28): o Mac dorme com o processo vivo e o cron das 13:00 não roda nem é recuperado ──
-def test_tique_detecta_salto_do_relogio_e_recupera_o_cron_que_passou(vault):
+def test_tique_detecta_salto_do_relogio_e_recupera_o_cron_que_passou(vault, monkeypatch):
     from datetime import timedelta
     from jaime.agenda.scheduler import ROTINAS_REL, FUSO
     vault.write(ROTINAS_REL, "# Rotinas\n\n- 0 13 * * mon-fri · revisão de tarefas\n- 0 7 * * mon-fri · briefing\n")
     j = _Jaime(vault); ag = Agenda(j); ag.rotinas = parse_rotinas(vault.read(ROTINAS_REL))
     t = datetime(2026, 9, 16, 12, 58, tzinfo=FUSO)                       # quarta
+    _fixar_dia(monkeypatch, vault, t.date())
     assert ag.tique_uma_vez(t) == []                                       # nada passou
     assert ag.tique_uma_vez(t + timedelta(minutes=1)) == []               # 12:59: ainda não
     hoje = vault.read(vault.daily_rel(t.date()))
