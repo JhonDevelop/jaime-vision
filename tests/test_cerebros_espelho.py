@@ -136,7 +136,7 @@ def test_cada_tipo_tem_cor_propria(tmp_path):
 
 # ── tripulação própria e o despertador (o João: "não podem ficar sempre dormindo") ──────
 def test_cada_lado_tem_tripulacao_e_skills_proprias_e_elas_nao_se_misturam(tmp_path):
-    from jaime.cerebros.tripulacao import tripulacao, skills, TRIPULACAO, SKILLS
+    from jaime.cerebros.tripulacao import tripulacao, skills, classificar, NUCLEO, SKILLS
     repo = tmp_path
     (repo / ".claude/agents").mkdir(parents=True); (repo / ".claude/skills").mkdir(parents=True)
     for a in ("maester-dev", "python-pro", "research-analyst", "maester-jaime", "fantasma-que-nao-existe"):
@@ -156,7 +156,11 @@ def test_cada_lado_tem_tripulacao_e_skills_proprias_e_elas_nao_se_misturam(tmp_p
     assert skills(repo, "central") == ["conversa"]
     # e nenhum lado tem tripulação vazia na configuração
     for lado in ("central", "esquerdo", "direito"):
-        assert TRIPULACAO[lado] and SKILLS[lado]
+        assert NUCLEO[lado] and SKILLS[lado]
+    # e ninguém aparece em dois lados: o acervo é repartido, não duplicado
+    c = classificar(repo)
+    todos = [a for v in c.values() for a in v]
+    assert len(todos) == len(set(todos)) == 4
 
 def test_cada_lado_tira_a_propria_pauta_de_coisa_real(tmp_path):
     from jaime.cerebros.tripulacao import pauta

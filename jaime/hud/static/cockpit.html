@@ -437,12 +437,14 @@ function verMundo(m){
    Cada entrega avaliada acende um agente novo, que orbita o lobo até se consolidar no cérebro. */
 async function carregarCerebros(){try{const d=await(await fetch('/hud/cerebros')).json();
   CER=d.hemisferios||[];
-  // cada agente de verdade da tripulação daquele lado vira um nó dentro do lobo, com o nome
-  CER.forEach(h=>{const lista=h.agentes||[];
+  // cada agente da tripulação vira um NÓ dentro do lobo — mesma linguagem dos nós do grafo
+  CER.forEach(h=>{const lista=h.agentes||[];const n=lista.length||1;
     agentesVivos[h.id]=lista.map((nome,i)=>{
-      const n=lista.length||1, a=(i/n)*6.283+(h.id==='direito'?0.4:0);
-      return {nome, a, v:0.0016+Math.random()*0.0022, m:Math.min(1,0.45+i/n*0.5),
-              rx:0.30+((i*7)%10)/26, ry:0.30+((i*5)%9)/24, br:0.55+((i*3)%7)/12}})});
+      const g=2.39996*i;                                   // espiral de Fibonacci: espalha sem amontoar
+      const rr=Math.sqrt((i+0.6)/n);                        // raiz: densidade uniforme dentro da elipse
+      return {nome, gx:Math.cos(g)*rr*0.86, gy:Math.sin(g)*rr*0.86,
+              fase:Math.random()*6.283, v:0.006+Math.random()*0.010,
+              r:1.1+((i*13)%7)/5, br:0.5+((i*3)%7)/11, p:0}})});
   }catch(e){}}
 function lobo(cx,cy,rx,ry,esp,cor,a,brilho){
   // um lobo do córtex: contorno arredondado + sulcos por dentro (o que faz parecer tecido, não bolha)
@@ -473,28 +475,33 @@ function cerebrosDesenhar(){
     const pensa=(cerPensando===id), viva=h.acordado?1:0.34;
     const brilho=pensa?(1.25+0.35*Math.sin(tick*0.17)):1;
     lobo(x,y,rx,ry,esp,L.cor,viva,brilho);
-    // a TRIPULAÇÃO daquele lado, desenhada dentro do lobo: cada nó é um agente que é dele
+    // a TRIPULAÇÃO daquele lado como NÓS, na mesma linguagem do grafo: posição fixa, respiro e arestas
     const crew=agentesVivos[id]||[];
-    for(let i=0;i<crew.length;i++){const a=crew[i];
-      a.a+=a.v*(pensa?3.2:1);
-      const ax=x+Math.cos(a.a)*rx*a.rx, ay=y+Math.sin(a.a)*ry*a.ry;
-      a._x=ax; a._y=ay;
-      // fios finos entre vizinhos: a tripulação é uma malha, não pontos soltos
-      if(i>0&&crew[i-1]._x!=null){ctx.globalAlpha=0.07*viva;ctx.strokeStyle=L.cor;ctx.lineWidth=0.5;
-        ctx.beginPath();ctx.moveTo(crew[i-1]._x,crew[i-1]._y);ctx.lineTo(ax,ay);ctx.stroke()}
-      const brilho2=a.br*(pensa?1.5:1);
-      ctx.globalAlpha=Math.min(1,(0.34+0.34*Math.abs(Math.sin(a.a*1.7+i)))*viva*brilho2);
-      ctx.fillStyle=L.cor;ctx.beginPath();ctx.arc(ax,ay,1.6+a.m*1.3,0,7);ctx.fill()}
-    // os nomes: quem trabalha naquele lado, escrito, preenchendo o espaço vazio do raciocínio
+    const resp=pensa?1:0.45;
+    for(const a of crew){
+      a.fase+=a.v*(pensa?2.8:1);
+      const j=1+Math.sin(a.fase)*0.035*resp;                       // respiro: a malha nunca fica congelada
+      a._x=x+a.gx*rx*j; a._y=y+a.gy*ry*j;
+    }
+    ctx.strokeStyle=L.cor;ctx.lineWidth=0.5;
+    for(let i=1;i<crew.length;i++){const a=crew[i],b=crew[i-1];
+      const d=Math.hypot(a._x-b._x,a._y-b._y);
+      if(d<rx*0.42){ctx.globalAlpha=0.055*viva;ctx.beginPath();ctx.moveTo(b._x,b._y);ctx.lineTo(a._x,a._y);ctx.stroke()}}
+    for(const a of crew){
+      if(a.p>0){ctx.globalAlpha=0.5*a.p*viva;ctx.strokeStyle=L.cor;ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.arc(a._x,a._y,a.r+(1-a.p)*16,0,7);ctx.stroke();a.p*=0.955;if(a.p<0.02)a.p=0}
+      ctx.globalAlpha=Math.min(1,(0.30+0.40*Math.abs(Math.sin(a.fase)))*viva*a.br*(pensa?1.5:1));
+      ctx.fillStyle=L.cor;ctx.beginPath();ctx.arc(a._x,a._y,a.r,0,7);ctx.fill()}
+    // os nomes: uma janela que roda, para caber sem virar sopa de letra
     ctx.globalCompositeOperation='source-over';
     ctx.font='8px monospace';ctx.textAlign=esp<0?'right':'left';
-    const col=crew.slice(0,12);
-    col.forEach((a,i)=>{
-      const lx=x+esp*(rx+12), ly=y-ry*0.86+i*(ry*1.72/Math.max(1,col.length-1||1));
-      ctx.globalAlpha=(pensa?0.72:0.40)*viva;ctx.fillStyle='#8fa6bd';
-      ctx.fillText(String(a.nome||'').slice(0,20), lx, ly);
-      ctx.globalAlpha=0.10*viva;ctx.strokeStyle=L.cor;ctx.lineWidth=0.5;
-      ctx.beginPath();ctx.moveTo(lx+esp*3,ly-3);ctx.lineTo(a._x,a._y);ctx.stroke()});
+    const N=Math.min(10,crew.length), off=crew.length?Math.floor(tick/260)%crew.length:0;
+    for(let k=0;k<N;k++){const a=crew[(off+k)%crew.length]; if(!a)continue;
+      const lx=x+esp*(rx+13), ly=y-ry*0.88+k*(ry*1.76/Math.max(1,N-1));
+      ctx.globalAlpha=(pensa?0.80:0.46)*viva;ctx.fillStyle='#93aac1';
+      ctx.fillText(String(a.nome||'').slice(0,22), lx, ly);
+      ctx.globalAlpha=0.13*viva;ctx.strokeStyle=L.cor;ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(lx+esp*3,ly-3);ctx.lineTo(a._x,a._y);ctx.stroke()}
     ctx.textAlign='center';ctx.globalCompositeOperation='lighter';
   }
   // ── corpo caloso: o que liga os dois lados ao central ──
@@ -553,7 +560,7 @@ function cerebroEvento(e){
     if(e.estado==='aprendeu'){                               // aprendeu: nasce um agente naquele lobo
       h.acertos=(h.acertos||0)+1;
       const cr=agentesVivos[h.id]||[];
-      if(cr.length){const q=cr[Math.floor(Math.random()*cr.length)];q.br=Math.min(1.6,q.br+0.25);q.m=Math.min(1,q.m+0.15)}
+      if(cr.length){const q=cr[Math.floor(Math.random()*cr.length)];q.br=Math.min(1.6,q.br+0.25);q.p=1}
       rac(h.nome,'consolidou '+(e.tipo||'')+' · '+(e.peso||''))}
     else rac(h.nome,'entregou')}
 }
@@ -571,8 +578,9 @@ function verCerebros(){
       <div>agentes<b style="font-size:13px">${(agentesVivos[h.id]||[]).length}</b></div></div>
     ${(h.terminal)?`<div class="mut" style="font-size:10.5px;margin:-4px 0 10px">terminal: ${esc(h.terminal)}</div>`:''}
     <div style="margin:10px 0 4px;font-size:9px;letter-spacing:.2em;color:var(--mu);text-transform:uppercase">tripulação</div>
-    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${(h.agentes||[]).map(a=>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">${(h.agentes||[]).slice(0,60).map(a=>
       `<span class="chip" style="font-size:9.5px;padding:2px 7px">${esc(a)}</span>`).join('')||'<span class="mut" style="font-size:11px">sem tripulação</span>'}</div>
+    ${(h.agentes||[]).length>60?`<div class="mut" style="font-size:10.5px;margin-bottom:10px">e mais ${h.agentes.length-60} nesta tripulação</div>`:'<div style="height:4px"></div>'}
     <div style="margin:10px 0 4px;font-size:9px;letter-spacing:.2em;color:var(--mu);text-transform:uppercase">skills próprias</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${(h.skills||[]).map(a=>
       `<span class="chip" style="font-size:9.5px;padding:2px 7px;border-color:#25405a">${esc(a)}</span>`).join('')||'<span class="mut" style="font-size:11px">—</span>'}</div>
