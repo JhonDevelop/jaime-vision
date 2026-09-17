@@ -65,6 +65,64 @@ def _limpar(texto: str) -> str:
     return t.strip()
 
 
+
+# ── a lógica vive aqui fora, não dentro do decorador: assim dá para testar de verdade ──
+def ler(url: str) -> str:
+    if (erro := _url_ok(url)):
+        return erro
+    try:
+        p = _pagina(url)
+    except Exception as e:
+        return f"não consegui abrir: {type(e).__name__}: {e}"[:220]
+    if p.status >= 400:
+        return (f"o site respondeu {p.status}. "
+                + ("Essa página exige login ou verificação — isso é com o João."
+                   if p.status in (401, 403, 407) else "Pode estar fora do ar ou ter mudado de endereço."))
+    texto = _limpar(p.get_all_text() or "")
+    if not texto:
+        return f"a página abriu ({p.status}) mas veio sem texto; deve montar tudo por JavaScript pesado"
+    corte = " …(cortei aqui)" if len(texto) > LIMITE_TEXTO else ""
+    return f"[{p.status}] {url}\n\n{texto[:LIMITE_TEXTO]}{corte}"
+
+
+def extrair(url: str, seletor: str) -> str:
+    if (erro := _url_ok(url)):
+        return erro
+    if not (seletor or "").strip():
+        return "faltou o seletor CSS"
+    try:
+        p = _pagina(url)
+        achados = [_limpar(e.get_all_text() or "") for e in p.css(seletor.strip())]
+    except Exception as e:
+        return f"não consegui extrair: {type(e).__name__}: {e}"[:220]
+    achados = [a for a in achados if a][:60]
+    if not achados:
+        return f"nenhum elemento casou com «{seletor}» nessa página"
+    return f"{len(achados)} achados em {url}:\n" + "\n".join(f"- {a[:180]}" for a in achados)
+
+
+def tabela(url: str, indice: int = 0) -> str:
+    if (erro := _url_ok(url)):
+        return erro
+    try:
+        p = _pagina(url)
+        tabelas = p.css("table")
+        if not tabelas:
+            return "não há tabela nessa página"
+        if indice >= len(tabelas):
+            return f"essa página tem {len(tabelas)} tabela(s); o índice {indice} não existe"
+        linhas = []
+        for tr in tabelas[indice].css("tr")[:60]:
+            celulas = [_limpar(c.get_all_text() or "") for c in tr.css("th, td")]
+            if any(celulas):
+                linhas.append(" | ".join(c[:60] for c in celulas))
+    except Exception as e:
+        return f"não consegui ler a tabela: {type(e).__name__}: {e}"[:220]
+    if not linhas:
+        return "a tabela existe mas veio vazia"
+    return f"tabela {indice} de {url} ({len(linhas)} linhas):\n" + "\n".join(linhas)
+
+
 def build_raspar_server():
     @tool("ler_web", "LÊ uma página da internet de verdade, inclusive as que o WebFetch devolve vazias ou "
                      "bloqueadas (loja, portal de notícia, documentação com JavaScript leve). Devolve o texto "
@@ -72,69 +130,20 @@ def build_raspar_server():
                      "chamada: isto não varre site. Se a página pedir login ou CAPTCHA, eu digo isso em vez de "
                      "tentar burlar.", {"url": str})
     async def ler_web(args):
-        url = (args.get("url") or "").strip()
-        if (erro := _url_ok(url)):
-            return _txt(erro)
-        try:
-            p = _pagina(url)
-        except Exception as e:
-            return _txt(f"não consegui abrir: {type(e).__name__}: {e}"[:220])
-        if p.status >= 400:
-            return _txt(f"o site respondeu {p.status}. "
-                        + ("Essa página exige login ou verificação — isso é com o João."
-                           if p.status in (401, 403, 407) else "Pode estar fora do ar ou ter mudado de endereço."))
-        texto = _limpar(p.get_all_text() or "")
-        if not texto:
-            return _txt(f"a página abriu ({p.status}) mas veio sem texto; deve montar tudo por JavaScript pesado")
-        corte = " …(cortei aqui)" if len(texto) > LIMITE_TEXTO else ""
-        return _txt(f"[{p.status}] {url}\n\n{texto[:LIMITE_TEXTO]}{corte}")
+        return _txt(ler((args.get("url") or "").strip()))
 
     @tool("extrair_web", "Pega PEDAÇOS de uma página por seletor CSS: preço, título, item de lista, célula. "
                          "Use quando você já sabe o que quer dali e não precisa da página toda — é mais barato e "
                          "mais preciso que ler tudo. Exemplos de seletor: 'h1', '.preco', 'article h2', "
                          "'table tr td:nth-child(2)'.", {"url": str, "seletor": str})
     async def extrair_web(args):
-        url = (args.get("url") or "").strip()
-        sel = (args.get("seletor") or "").strip()
-        if (erro := _url_ok(url)):
-            return _txt(erro)
-        if not sel:
-            return _txt("faltou o seletor CSS")
-        try:
-            p = _pagina(url)
-            achados = [_limpar(e.get_all_text() or "") for e in p.css(sel)]
-        except Exception as e:
-            return _txt(f"não consegui extrair: {type(e).__name__}: {e}"[:220])
-        achados = [a for a in achados if a][:60]
-        if not achados:
-            return _txt(f"nenhum elemento casou com «{sel}» nessa página")
-        return _txt(f"{len(achados)} achados em {url}:\n" + "\n".join(f"- {a[:180]}" for a in achados))
+        return _txt(extrair((args.get("url") or "").strip(), args.get("seletor") or ""))
 
     @tool("tabela_web", "Traz uma TABELA da página em linhas, pronta para conta ou planilha. `indice` escolhe "
                         "qual tabela quando há mais de uma (0 é a primeira). Use para preço, cotação, comparativo, "
                         "horário.", {"url": str, "indice": int})
     async def tabela_web(args):
-        url = (args.get("url") or "").strip()
-        if (erro := _url_ok(url)):
-            return _txt(erro)
-        i = int(args.get("indice") or 0)
-        try:
-            p = _pagina(url)
-            tabelas = p.css("table")
-            if not tabelas:
-                return _txt("não há tabela nessa página")
-            if i >= len(tabelas):
-                return _txt(f"essa página tem {len(tabelas)} tabela(s); o índice {i} não existe")
-            linhas = []
-            for tr in tabelas[i].css("tr")[:60]:
-                celulas = [_limpar(c.get_all_text() or "") for c in tr.css("th, td")]
-                if any(celulas):
-                    linhas.append(" | ".join(c[:60] for c in celulas))
-        except Exception as e:
-            return _txt(f"não consegui ler a tabela: {type(e).__name__}: {e}"[:220])
-        if not linhas:
-            return _txt("a tabela existe mas veio vazia")
-        return _txt(f"tabela {i} de {url} ({len(linhas)} linhas):\n" + "\n".join(linhas))
+        return _txt(tabela((args.get("url") or "").strip(), int(args.get("indice") or 0)))
 
     return create_sdk_mcp_server(name="web", version="1.0.0",
                                  tools=[ler_web, extrair_web, tabela_web])
