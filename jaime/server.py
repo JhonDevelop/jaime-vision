@@ -127,6 +127,21 @@ app.include_router(telephony_router)
 ABERTAS = ("/entrar", "/favicon.ico")
 
 
+def _cockpit() -> FileResponse:
+    """O cockpit, sempre fresco.
+
+    O João reiniciou tudo em 17/09 e viu a interface antiga: o servidor estava certo, o navegador é que
+    guardava a cópia velha. Sem `no-store` ele revalida pelo ETag quando quer, e uma aba aberta desde a
+    manhã pode ficar horas com o desenho de antes — e aí o bug não é o bug, é a tela.
+
+    Uma página de 56 KB na própria máquina não ganha nada sendo cacheada; ganha tudo sendo sempre a atual."""
+    r = FileResponse(STATIC / "cockpit.html")
+    r.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    r.headers["Pragma"] = "no-cache"
+    r.headers["Expires"] = "0"
+    return r
+
+
 @app.middleware("http")
 async def porta_da_rede(request: Request, call_next):
     """Quem pode falar com o Jaime.
@@ -174,7 +189,7 @@ def _auth(token: str | None):
 # ── HUD ────────────────────────────────────────────────
 @app.get("/")
 async def hud():
-    return FileResponse(STATIC / "cockpit.html")     # cockpit ATSMATRIX (principal)
+    return _cockpit()     # cockpit (principal)
 
 @app.get("/classico")
 async def hud_classico():
@@ -182,7 +197,7 @@ async def hud_classico():
 
 @app.get("/cockpit")
 async def hud_cockpit():
-    return FileResponse(STATIC / "cockpit.html")
+    return _cockpit()
 
 @app.get("/hud/vendor/{arquivo}")
 async def hud_vendor(arquivo: str):
