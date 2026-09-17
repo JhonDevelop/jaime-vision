@@ -202,6 +202,14 @@ async def hud_agentes():
     from .hud.grafo import montar
     return montar(jaime.vault, jaime)
 
+@app.get("/hud/universo")
+async def hud_universo():
+    """O universo do J.A.I.M.E: os mundos vivos dele (mente, vontade, estudo, memória, equipe, feitoria,
+    vigilância, cuidado, serviço, mãos, consultoria, conexões), cada um com os corpos reais em órbita e o
+    quanto está aceso agora. Alimenta a vista Universo do cockpit."""
+    from .hud.universo import montar
+    return montar(jaime.vault, jaime)
+
 @app.get("/hud/vault")
 async def hud_vault():
     """O cérebro real: notas do vault como nós, [[links]] como arestas — o HUD desenha e acende o que ele toca."""

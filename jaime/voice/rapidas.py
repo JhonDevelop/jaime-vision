@@ -19,7 +19,10 @@ def _periodo(h: int) -> str:
 
 
 NAV_RX = re.compile(r"^\s*(mostra|mostrar|abre|abrir|abra|vai para|vai pro|me mostra|abre a tela|abre o painel|abre o|abre a)\s+(?:o |a |os |as |painel |tela |aba |de |dos |das )*([\wçãéíóúâê ]+?)\s*[?.!]*\s*$", re.I)
-TELAS = {"financ": "financas", "dinheiro": "financas", "gasto": "financas", "saldo": "financas",
+TELAS = {
+    "universo": "universo", "meu universo": "universo", "seus mundos": "universo",
+    "mundos": "universo", "seu universo": "universo",
+    "financ": "financas", "dinheiro": "financas", "gasto": "financas", "saldo": "financas",
          "afazer": "afazeres", "tarefa": "afazeres", "to do": "afazeres", "todo": "afazeres",
          "agenda": "agenda", "lembrete": "agenda", "compromisso": "agenda", "calend": "agenda",
          "music": "musica", "spotify": "musica", "som": "musica", "toca": "musica",

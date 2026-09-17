@@ -94,6 +94,7 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
   <span class="chip btn" id="at-afazeres" onclick="abrir('afazeres')"><u>A</u>afazeres</span>
   <span class="chip btn" id="at-agenda" onclick="abrir('agenda')"><u>G</u>agenda</span>
   <span class="chip btn" id="at-musica" onclick="abrir('musica')"><u>M</u>música</span>
+  <span class="chip btn" id="at-universo" onclick="abrir('universo')"><u>U</u>universo</span>
   <span class="chip btn" id="at-teclado" onclick="toggleKb()"><u>T</u>teclado</span>
 </header>
 <div id="agInfo">
@@ -106,7 +107,7 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
 </div>
 <div id="rac"><div class="cab">raciocínio</div><div id="racL"></div></div>
 <div id="fala"><div id="falaTx">Sistemas operacionais.</div><div id="voceTx"></div></div>
-<div id="hint"><b>T</b> teclado · <b>N</b> nós · <b>C</b> cérebro · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · ou é só falar</div>
+<div id="hint"><b>T</b> teclado · <b>U</b> universo · <b>N</b> nós · <b>C</b> cérebro · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · ou é só falar</div>
 <div id="kb"><input id="kbIn" placeholder="Escreva para o J.A.I.M.E e tecle Enter (ou a palavra-passe)…" autocomplete="off"></div>
 
 <div id="pop" onclick="if(event.target===this)fecharPop()"><div id="popBox">
@@ -203,6 +204,7 @@ function nodoFerr(f){const m=String(f||'').match(/mcp__([a-z_]+)__([a-z_]+)/);
 /* ── loop: grafo de fundo + cérebro por cima (os dois ao mesmo tempo) ── */
 function loop(){tick++;ctx.clearRect(0,0,W,H);
   nivel+=(alvoNivel-nivel)*0.2;alvoNivel*=0.94;
+  if(modo==='universo'){universo();requestAnimationFrame(loop);return}
   if(grafoPronto)grafo(modo==='agentes'?1:0.32);
   cerebro(modo==='agentes'?0.3:1);
   requestAnimationFrame(loop)}
@@ -242,8 +244,10 @@ function marcar(id){document.querySelectorAll('#top .chip.btn').forEach(c=>{
   if(c.id!=='at-teclado')c.classList.toggle('on',c.id==='at-'+id)})}
 function abrir(v){
   if(v==='teclado'){toggleKb(true);return}
+  if(v==='universo'){fecharPop();modo='universo';$('agInfo').classList.remove('show');
+    if(!uniPronto)carregarUniverso();marcar('universo');return}
   if(v==='agentes'){fecharPop();modo='agentes';if(!grafoPronto)carregarGrafo();$('agInfo').classList.add('show');marcar('agentes');return}
-  if(v==='inicio'||v==='cerebro'){fecharPop();modo='inicio';$('agInfo').classList.remove('show');marcar('cerebro');return}
+  if(v==='inicio'||v==='cerebro'){fecharPop();modo='inicio';uniHover=null;cv.style.cursor='default';$('agInfo').classList.remove('show');marcar('cerebro');return}
   if(TELAS[v]){marcar(v);render(v)}
 }
 async function render(v){
@@ -310,6 +314,79 @@ function finHTML(f){
     ||'<div class="vazio">Sem lançamentos.</div>'}`;
 }
 
+
+/* ── O UNIVERSO: os mundos vivos dele, cada corpo em órbita é uma coisa real ── */
+let UNI=null, uniPronto=false, estrelas=[], uniT=0, uniHover=null;
+for(let i=0;i<260;i++)estrelas.push({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.2,f:Math.random()*6});
+async function carregarUniverso(){
+  try{const d=await(await fetch('/hud/universo')).json();
+    UNI=d; const n=d.mundos.length;
+    d.mundos.forEach((m,i)=>{
+      m.ang0=(i/n)*6.283 - 1.2;                 // posição na órbita
+      m.orb=0.17+(i/n)*0.62;                    // raio da órbita (fração da tela)
+      m.vel=(0.00022+m.nivel*0.00075)*(i%2?1:-1);
+      m.r=9+Math.min(15,Math.sqrt(m.total||1)*3.1);
+      (m.corpos||[]).forEach((c,k)=>{c.a=(k/Math.max(1,m.corpos.length))*6.283; c.d=m.r+9+(k%3)*5});
+    });
+    uniPronto=true}catch(e){uniPronto=false}
+}
+function universo(){
+  const cx=W/2, cy=H/2, R=Math.min(W,H);
+  uniT+=1;
+  // poeira de estrelas ao fundo
+  for(const e of estrelas){ctx.globalAlpha=0.16+0.34*Math.abs(Math.sin(uniT*0.006+e.f));
+    ctx.fillStyle='#9fc6e8';ctx.beginPath();ctx.arc(e.x*W,e.y*H,e.r,0,7);ctx.fill()}
+  ctx.globalAlpha=1;
+  if(!uniPronto){ctx.fillStyle='#7f93ab';ctx.font='11px monospace';ctx.textAlign='center';
+    ctx.fillText('mapeando o universo…',cx,cy);return}
+  ctx.globalCompositeOperation='lighter';
+  // as órbitas
+  for(const m of UNI.mundos){ctx.strokeStyle='#22364d';ctx.globalAlpha=0.30;ctx.lineWidth=0.6;
+    ctx.beginPath();ctx.ellipse(cx,cy,R*m.orb,R*m.orb*0.62,0,0,7);ctx.stroke()}
+  // o núcleo: a estrela J.A.I.M.E, que respira com a voz
+  const vol=falando?Math.max(nivel,0.12):nivel, cN=corEstado();
+  for(let k=3;k>0;k--){ctx.globalAlpha=0.05*k*(0.6+vol);ctx.fillStyle=cN;
+    ctx.beginPath();ctx.arc(cx,cy,(20+k*13)+vol*26,0,7);ctx.fill()}
+  ctx.globalAlpha=0.95;ctx.fillStyle=cN;ctx.beginPath();ctx.arc(cx,cy,13+vol*9,0,7);ctx.fill();
+  // os mundos
+  for(const m of UNI.mundos){
+    const a=m.ang0+uniT*m.vel;
+    m.x=cx+Math.cos(a)*R*m.orb; m.y=cy+Math.sin(a)*R*m.orb*0.62;
+    const aceso=0.35+m.nivel*0.65, dest=(uniHover===m.id);
+    ctx.strokeStyle=m.cor;ctx.globalAlpha=0.10*aceso;ctx.lineWidth=0.6;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(m.x,m.y);ctx.stroke();          // laço com o núcleo
+    ctx.fillStyle=m.cor;ctx.globalAlpha=0.13*aceso*(dest?2.4:1);
+    ctx.beginPath();ctx.arc(m.x,m.y,m.r*2.5+Math.sin(uniT*0.03+m.ordem)*3,0,7);ctx.fill();   // halo
+    ctx.globalAlpha=aceso;ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,7);ctx.fill();
+    // os corpos em órbita: cada um é um pensamento, um impulso, um filho, uma criação
+    for(const c of (m.corpos||[])){
+      const ca=c.a+uniT*(0.004+m.nivel*0.010);
+      const px=m.x+Math.cos(ca)*c.d, py=m.y+Math.sin(ca)*c.d*0.66;
+      ctx.globalAlpha=(0.30+c.peso*0.6)*aceso;
+      ctx.beginPath();ctx.arc(px,py,1.1+c.peso*1.9,0,7);ctx.fill()}
+    ctx.globalCompositeOperation='source-over';
+    ctx.globalAlpha=dest?1:0.80;ctx.fillStyle='#e6f1fb';ctx.font=(dest?'bold ':'')+'11px monospace';
+    ctx.textAlign='center';ctx.fillText(m.nome,m.x,m.y+m.r+15);
+    ctx.globalAlpha=dest?0.9:0.45;ctx.font='9.5px monospace';ctx.fillStyle='#7f93ab';
+    ctx.fillText(m.total+(dest?' · clique':''),m.x,m.y+m.r+27);
+    ctx.globalCompositeOperation='lighter'}
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+  ctx.fillStyle='#7f93ab';ctx.font='10px monospace';ctx.textAlign='center';
+  ctx.fillText(UNI.total_corpos+' corpos vivos em '+UNI.mundos.length+' mundos · clique num mundo para entrar',cx,H-58);
+}
+function mundoEm(x,y){return UNI&&UNI.mundos.find(m=>Math.hypot(m.x-x,m.y-y)<m.r+16)}
+cv.addEventListener('mousemove',e=>{if(modo!=='universo')return;
+  const m=mundoEm(e.clientX,e.clientY);uniHover=m?m.id:null;cv.style.cursor=m?'pointer':'default'});
+cv.addEventListener('click',e=>{if(modo!=='universo')return;const m=mundoEm(e.clientX,e.clientY);if(m)verMundo(m)});
+function verMundo(m){
+  mostrarNativo(m.nome,`<div class="mut" style="margin-bottom:4px">${esc(m.resumo)}</div>
+   <div class="fin-barra" style="margin:14px 0 18px"><i style="width:${m.nivel*100}%;background:${m.cor}"></i></div>
+   ${(m.corpos||[]).map(c=>`<div class="fin-mov"><span class="d" style="color:${m.cor}">●</span>
+     <span class="c">${esc(c.nome)}<small>${esc(c.detalhe||'')}</small></span>
+     <span class="v mut" style="font-size:10px">${Math.round((c.peso||0)*100)}</span></div>`).join('')
+    ||'<div class="vazio">Este mundo ainda está vazio — ele preenche sozinho.</div>'}
+   ${m.total>(m.corpos||[]).length?`<div class="mut" style="margin-top:12px;font-size:11px">e mais ${m.total-m.corpos.length} não mostrados</div>`:''}`)}
+
 /* ── teclado ── */
 function toggleKb(forcar){const k=$('kb');const on=forcar===true?true:!k.classList.contains('show');
   k.classList.toggle('show',on);$('at-teclado').classList.toggle('on',on);if(on)$('kbIn').focus();else $('kbIn').blur()}
@@ -317,7 +394,7 @@ $('kbIn').addEventListener('keydown',async e=>{e.stopPropagation();
   if(e.key==='Enter'){const t=$('kbIn').value.trim();$('kbIn').value='';if(!t)return;
     try{await fetch('/hud/dizer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:t})})}catch{}}
   if(e.key==='Escape')toggleKb(false)});
-const ATALHOS={t:'teclado',n:'agentes',c:'inicio',f:'financas',a:'afazeres',g:'agenda',m:'musica'};
+const ATALHOS={t:'teclado',n:'agentes',c:'inicio',u:'universo',f:'financas',a:'afazeres',g:'agenda',m:'musica'};
 addEventListener('keydown',e=>{
   if(document.activeElement===$('kbIn'))return;
   if(e.key==='Escape'){if($('pop').classList.contains('show'))fecharPop();else abrir('inicio');return}

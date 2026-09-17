@@ -9,7 +9,7 @@ from .events import bus
 
 def _txt(s): return {"content": [{"type": "text", "text": s}]}
 
-TELAS = ("financas", "afazeres", "agenda", "musica", "agentes", "teclado", "inicio")
+TELAS = ("financas", "afazeres", "agenda", "musica", "agentes", "universo", "teclado", "inicio")
 
 def build_interface_server():
     @tool("mostrar", "MOSTRA algo visualmente ao João num pop-up do cockpit, criando a interface na hora. Use SEMPRE que "
