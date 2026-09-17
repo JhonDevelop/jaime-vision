@@ -70,3 +70,47 @@ def test_o_roteiro_diz_que_memoria_de_dono_nao_se_mistura():
     assert "não se mistura" in t or "nada se mistura" in t
     assert "na sua máquina, não na do joão" in t
     assert "só o código de aprendizado" in t                            # e só ele volta para o principal
+
+
+# ── a trava de verdade: com visita na linha, a vida do João não abre ──────
+import asyncio
+from jaime.vigia.hooks import Vigia, eh_privado_do_joao
+
+
+@pytest.mark.parametrize("nome,args", [
+    ("mcp__financas__saldo", {}),
+    ("mcp__emocao__momento_de_hoje", {}),
+    ("mcp__espelho__tracos_do_joao", {}),
+    ("mcp__mente__pensamentos", {}),
+    ("mcp__cerebro__lembrar", {"o_que": "x"}),
+    ("mcp__musica__tocar", {"o_que": "x"}),
+    ("mcp__google__email_listar", {}),
+    ("Read", {"file_path": "/r/vault/40-Diario/2026-09-17.md"}),
+    ("Read", {"file_path": "/r/vault/70-Financas/livro.md"}),
+    ("Grep", {"pattern": "x", "path": "/r/vault/60-Conversas"}),
+    ("Bash", {"command": "cat vault/10-Eu/Joao.md"}),
+])
+def test_o_que_e_da_vida_do_joao_e_privado(nome, args):
+    assert eh_privado_do_joao(nome, args)
+
+@pytest.mark.parametrize("nome,args", [
+    ("mcp__mundo__clima", {}), ("mcp__interface__mostrar", {"titulo": "x", "html": "<p>"}),
+    ("Read", {"file_path": "/r/jaime/server.py"}), ("Bash", {"command": "pytest -q"}),
+    ("mcp__web__ler_web", {"url": "https://x.com"}),
+])
+def test_o_trabalho_em_comum_continua_livre(nome, args):
+    assert not eh_privado_do_joao(nome, args)
+
+def _hook(v, nome, args):
+    return asyncio.run(v.pre_tool_use({"tool_name": nome, "tool_input": args}, None, None))
+
+def test_visita_na_linha_faz_a_ferramenta_recusar_e_nao_so_o_modelo_se_comportar():
+    v = Vigia()
+    assert _hook(v, "mcp__financas__saldo", {}) == {}            # o João: passa
+    v.convidado = "Gabriel"
+    r = _hook(v, "mcp__financas__saldo", {})
+    assert r["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "do João" in r["hookSpecificOutput"]["permissionDecisionReason"]
+    assert _hook(v, "mcp__mundo__clima", {}) == {}               # o que é de vocês dois segue livre
+    v.convidado = ""
+    assert _hook(v, "mcp__financas__saldo", {}) == {}            # o João de volta: passa de novo

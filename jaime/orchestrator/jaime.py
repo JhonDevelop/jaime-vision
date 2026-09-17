@@ -477,7 +477,21 @@ class Jaime:
             except Exception:
                 pass
 
+    def _quem_esta_na_linha(self, canal: str) -> str:
+        """Quem está falando: "" é o João, qualquer outra coisa é visita — e visita não lê a vida dele.
+        Vale para a voz reconhecida e para quem chega de fora desta máquina (canal `remoto`)."""
+        falante = (getattr(self, "falante_atual", "") or "").strip()
+        if canal == "remoto" or (self.porteiro.aberto if getattr(self, "porteiro", None) else False):
+            return falante or "visita"
+        if falante and falante.lower() not in ("joão", "joao", "dono"):
+            return falante
+        return ""
+
     async def _ask_stream(self, texto: str, canal: str = "cli", contexto: str = ""):
+        try:
+            self.vigia.convidado = self._quem_esta_na_linha(canal)
+        except Exception:
+            pass
         """contexto: o que o João está vendo na tela agora (app/janela) — vai só ao modelo, não ao diário."""
         assert self._client, "Chame start() antes."
         self.acesso.tocar()      # QUALQUER interação renova a sessão — respostas rápidas não deixam mais o cérebro trancar sozinho no meio do uso

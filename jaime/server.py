@@ -122,13 +122,49 @@ def _falar_quando_pronto(texto: str):
 app = FastAPI(title="Jaime", lifespan=lifespan)
 app.include_router(telephony_router)
 
+# Rotas que podem ser abertas sem token: é por elas que o convidado PEDE o token.
+ABERTAS = ("/entrar", "/favicon.ico")
+
+
 @app.middleware("http")
-async def so_local(request: Request, call_next):
+async def porta_da_rede(request: Request, call_next):
+    """Quem pode falar com o Jaime.
+
+    Com `JAIME_BIND=127.0.0.1` (o padrão), só a própria máquina — é o desenho original e nada muda.
+    Com o bind aberto (o João abriu em 17/09 para o Gabriel usar da máquina dele), a própria máquina
+    continua entrando sem cerimônia, e quem vem de FORA precisa do token. Sem isso, qualquer aparelho
+    no mesmo Wi-Fi conversaria com o Jaime, leria o painel de finanças e tentaria a palavra-passe à
+    vontade — abrir a porta sem tranca não é autonomia, é descuido."""
+    host = request.client.host if request.client else ""
+    try:
+        local = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        local = False
     if settings.bind == "127.0.0.1":
-        host = request.client.host if request.client else ""
-        if not ipaddress.ip_address(host).is_loopback:
+        if not local:
             return JSONResponse({"erro": "Jaime só aceita conexões locais"}, status_code=403)
+        return await call_next(request)
+    if local or request.url.path in ABERTAS:
+        return await call_next(request)
+    dado = (request.headers.get("x-jaime-token")
+            or request.query_params.get("t")
+            or request.cookies.get("jaime_token") or "")
+    if dado != settings.server_token:
+        return JSONResponse(
+            {"erro": "preciso do token para falar com você de fora desta máquina",
+             "como": "abra /entrar?t=SEU_TOKEN uma vez; eu guardo no navegador"}, status_code=401)
     return await call_next(request)
+
+
+@app.get("/entrar")
+async def entrar(t: str = ""):
+    """O convidado abre isto UMA vez com o token na URL; o navegador guarda e o resto funciona sozinho."""
+    from fastapi.responses import RedirectResponse
+    if t != settings.server_token:
+        return JSONResponse({"erro": "token inválido"}, status_code=401)
+    r = RedirectResponse("/", status_code=302)
+    r.set_cookie("jaime_token", t, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
+    return r
 
 def _auth(token: str | None):
     if token != settings.server_token:

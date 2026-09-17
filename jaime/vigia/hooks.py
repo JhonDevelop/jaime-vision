@@ -110,9 +110,33 @@ def assinatura_de(nome: str, args: dict) -> str:
         base = json.dumps({k: args[k] for k in chaves}, sort_keys=True, ensure_ascii=False) if chaves else json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha1(f"{nome}|{base}".encode()).hexdigest()[:16]
 
+# Ferramentas que leem a vida do João. Com visita na linha, elas não respondem.
+PRIVADAS_RX = re.compile(
+    r"^mcp__(financas|emocao|espelho|mente)__"                      # dinheiro, vínculo, traços dele, pensamentos
+    r"|^mcp__cerebro__(lembrar|recordar|buscar|diario|registrar_diario|tarefas_abertas|ler_estado)"
+    r"|^mcp__musica__"                                               # gosto dele
+    r"|^mcp__(google|meta)__", re.I)
+# E os caminhos do vault que são a vida dele, mesmo lidos por ferramenta genérica.
+VAULT_PRIVADO_RX = re.compile(  # sem exigir barra no fim: "…/60-Conversas" escapava da trava
+    r"(10-Eu|40-Diario|60-Conversas|70-Financas|70-Finanças|01-Estado|00-Jaime|90-Estudo)", re.I)
+
+
+def eh_privado_do_joao(nome: str, args: dict) -> bool:
+    """Esta chamada toca a vida do João? Vale para a ferramenta e para o caminho que ela abre."""
+    if PRIVADAS_RX.search(nome or ""):
+        return True
+    if (nome or "") in ("Read", "Glob", "Grep", "Write", "Edit", "MultiEdit", "NotebookEdit"):
+        alvo = " ".join(str(args.get(k, "")) for k in ("file_path", "path", "pattern", "glob"))
+        return bool(VAULT_PRIVADO_RX.search(alvo))
+    if (nome or "") == "Bash":
+        return bool(VAULT_PRIVADO_RX.search(str(args.get("command", ""))))
+    return False
+
+
 class Vigia:
     def __init__(self, confianca=None):
         self._armado_ate = 0.0
+        self.convidado: str = ""      # quem não é o João e está falando agora ("" = o dono)
         self.ultima_bloqueada: str | None = None
         # mantido por compatibilidade (sessão de visão contínua); ações de tela já são livres
         self.sessao_livre = lambda: False
@@ -184,6 +208,17 @@ class Vigia:
     async def pre_tool_use(self, input_data: dict, tool_use_id: str | None, context) -> dict:
         nome = input_data.get("tool_name", "")
         args = input_data.get("tool_input", {}) or {}
+
+        # ── o que é do João não abre para visita ──────────────────────────
+        # Desde 17/09 o Gabriel alcança este Jaime da máquina dele. A regra no prompt ("não revele o que é
+        # privado do João") é um PEDIDO ao modelo, e pedido escorrega. A recusa tem que ser aqui, na
+        # ferramenta, onde não depende de o modelo estar num bom dia.
+        if self.convidado and eh_privado_do_joao(nome, args):
+            self.ultima_bloqueada = f"{nome} é do João"
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                           "permissionDecisionReason":
+                                           "VIGIA: isso é do João — finanças, diário, conversas e gente dele. "
+                                           "Diga ao visitante que isso é com o João e siga no que é de vocês dois."}}
 
         if nome == "Bash":
             cmd = args.get("command", "")
