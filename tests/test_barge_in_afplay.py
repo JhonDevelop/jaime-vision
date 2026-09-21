@@ -201,3 +201,23 @@ def test_eco_do_proprio_jaime_transcrito_nao_confirma_o_corte():
         o._parcial("chega disso, muda de assunto")           # agora é o João
         assert o._tts.parou == 1
     asyncio.run(rodar_())
+
+def test_nao_cortou_explica_o_segundo_tempo(monkeypatch):
+    """M-35: 141 'não cortou' em 17/09 com todos os gates de energia satisfeitos — a linha não dizia o que a confirmação
+    pela transcrição fez. Agora traz suspeitas, desistências (e por quê), recusas por eco/curtas e a última escuta."""
+    async def rodar():
+        loop = asyncio.get_running_loop()
+        j = _Jaime(); o = OuvidoDuplex(j, S, loop, fluxo=_Fluxo([], ""), antecipador=None)
+        o._tts = _TTS(); o.barge_in = "on"; o.mudo = True; o._tts.t_inicio_audio = time.time()
+        o._tts.dizendo = "vou ver as notificações agora mesmo"; o._tts.frase_atual = "vou ver as notificações agora mesmo"
+        for _ in range(10): o._barge(0.1, 400.0, F)
+        for i in range(16): o._barge(0.95 if i % 2 == 0 else 0.5, 1500.0, F)       # energia + voz forte: abre a suspeita
+        assert o._confirmando and o._barge_stats.get("suspeitas") == 1
+        assert not o._talvez_cortar("vou ver as notificações")                       # eco da própria frase: recusado
+        assert not o._talvez_cortar("é")                                             # uma sílaba: recusado
+        o._desistir("transcrição não voltou nada")
+        o.mudo = False; o._fim_da_fala(); await asyncio.sleep(0.01)
+        l = next(t for _, t in j.vault.linhas if t.startswith("Barge-in não cortou"))
+        assert "suspeitas 1, desistiu 1 (transcrição não voltou nada)" in l
+        assert ("recusas eco 1 / curtas 1" in l or "recusas eco 0 / curtas 2" in l) and "última escuta «é»" in l and "forte máx" in l
+    asyncio.run(rodar())

@@ -120,7 +120,8 @@ async def medir(s, n: int = 10, frases: list[str] | None = None, gerar_audio=ger
     resumo = {"turnos": len(turnos), "mediana_fala_texto": _med([t["fala_texto"] for t in turnos]),
               "mediana_texto_frase": _med([t["texto_frase"] for t in turnos]), "mediana_fala_frase": _med([t["fala_frase"] for t in turnos]),
               "mediana_primeiro_parcial": _med([t["primeiro_parcial_s"] for t in turnos]),
-              "antecipados": sum(t["antecipado"] for t in turnos), "meta_ok": (_med([t["fala_frase"] for t in turnos]) or 9) < 0.7}
+              "antecipados": sum(t["antecipado"] for t in turnos),
+              "meta_ok": (lambda m: m is not None and m < 0.7)(_med([t["fala_frase"] for t in turnos]))}   # 0,0 s também é OK ('or 9' dava False)
     f = lambda v: f"{v * 1000:.0f} ms" if v is not None else "—"
     imprimir(f"\nmediana: fala→texto {f(resumo['mediana_fala_texto'])} · texto→1ª frase {f(resumo['mediana_texto_frase'])} · "
              f"fala→1ª frase {f(resumo['mediana_fala_frase'])} · 1º parcial em {f(resumo['mediana_primeiro_parcial'])} · antecipados {resumo['antecipados']}/{resumo['turnos']}"

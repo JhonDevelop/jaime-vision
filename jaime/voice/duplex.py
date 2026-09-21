@@ -489,6 +489,10 @@ class OuvidoDuplex(Ouvido):
 
     def _confirmar(self, prob: float, frame: bytes) -> bool:
         """Enquanto a suspeita está aberta, todo frame vai para o STT (o Jaime continua falando)."""
+        st = self._barge_stats
+        st["confirmando_ms"] = st.get("confirmando_ms", 0) + FRAME_MS
+        if prob >= BARGE_IN_PROB:
+            st["voz_ms"] = st.get("voz_ms", 0) + FRAME_MS                 # a voz durante a confirmação também conta no resumo
         self._alimentar(prob, frame)
         if (time.time() - self._confirmando) * 1000 >= BARGE_IN_CONFIRMA_MS:
             self._desistir("transcrição não voltou nada")
@@ -500,6 +504,7 @@ class OuvidoDuplex(Ouvido):
         self.det.cancelar(); self._enviar(b""); self._parcial_texto = ""
         self._limpar_janelas()
         self._barge_stats["desistiu"] = self._barge_stats.get("desistiu", 0) + 1
+        self._barge_stats["desistiu_porque"] = porque
         bus.emitir("barge", desistiu=True, porque=porque)
 
     def _talvez_cortar(self, texto: str) -> bool:
@@ -510,7 +515,13 @@ class OuvidoDuplex(Ouvido):
         # qualquer parte da resposta, a atual pega o eco exato do que acabou de sair no alto-falante
         dizendo = getattr(self._tts, "dizendo", "") or ""
         atual = getattr(self._tts, "frase_atual", "") or ""
-        if not fala_de_verdade(texto, dizendo) or (atual and eh_eco_do_jaime(texto, atual)):
+        st = self._barge_stats
+        st["ultima_escuta"] = (texto or "")[:40]
+        if not fala_de_verdade(texto, dizendo):
+            st["recusas_curta"] = st.get("recusas_curta", 0) + 1          # < 2 palavras, ou só palavras do que ele diz
+            return False
+        if atual and eh_eco_do_jaime(texto, atual):
+            st["recusas_eco"] = st.get("recusas_eco", 0) + 1              # a transcrição é a frase que está tocando
             return False
         self._confirmando = 0.0
         self._barge_stats["cortou"] = True
@@ -536,11 +547,16 @@ class OuvidoDuplex(Ouvido):
         self._eco_amostras = 0; self._eco_rms = 0.0; self._barge_ms = 0; self._janela_energia.clear(); self._janela_sust.clear(); self._janela_vad.clear(); self._janela_vad_sust.clear(); self._janela_piso.clear()
         bus.emitir("barge", fim=True, **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in st.items()})
         linha = ""
-        if max(st.get("voz_ms", 0), st.get("acima_ms", 0)) >= 400 and not st.get("cortou"):
+        if (max(st.get("voz_ms", 0), st.get("acima_ms", 0)) >= 400 or st.get("suspeitas")) and not st.get("cortou"):
             linha = (f"Barge-in não cortou: voz por {st['voz_ms']} ms durante a minha fala (acima do eco {st['acima_ms']} ms, "
                      f"vetada como eco {st['veto_ms']} ms; rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}×{BARGE_IN_ECO_X}; sim máx {st['sim_max']:.2f}; "
                      f"janela máx {st.get('janela_max', 0)}/{BARGE_IN_MS} ms, sustentada máx {st.get('sust_max', 0)}/{BARGE_IN_SUSTENTADO_MS} ms, "
-                     f"vad máx {st.get('vad_max', 0)}/{BARGE_IN_JANELA_MS} ms, piso de voz máx {st.get('piso_max', 0.0):.0%}/{BARGE_IN_VAD_FRACAO:.0%})")
+                     f"vad máx {st.get('vad_max', 0)}/{BARGE_IN_JANELA_MS} ms, piso de voz máx {st.get('piso_max', 0.0):.0%}/{BARGE_IN_VAD_FRACAO:.0%}; "
+                     # 2º tempo (confirmação pela transcrição): é aqui que os 141 'não cortou' de 17/09 morriam sem deixar rastro
+                     f"suspeitas {st.get('suspeitas', 0)}, desistiu {st.get('desistiu', 0)}"
+                     + (f" ({st['desistiu_porque']})" if st.get('desistiu_porque') else "")
+                     + f", recusas eco {st.get('recusas_eco', 0)} / curtas {st.get('recusas_curta', 0)}, forte máx {st.get('forte_max', 0.0):.2f}/{BARGE_IN_VOZ_FORTE_FRACAO}"
+                     + (f", última escuta «{st['ultima_escuta']}»" if st.get('ultima_escuta') else "") + ")")
         elif st.get("cortou"):
             # também quando corta: é assim que se vê um corte pelo próprio eco (o João reclama "você não terminou de falar")
             linha = (f"Barge-in cortou ({st.get('motivo', '?')}): voz {st['voz_ms']} ms, rms máx {st['rms_max']:.0f} vs eco {st['eco']:.0f}, "
