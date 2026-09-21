@@ -174,7 +174,10 @@ def test_janela_atenta_orcamento_e_limite_de_criacoes(vault):
     class Orc:
         def pode(self, tipo): return tipo != "estudo"
     m2 = Mente(imp, vault, orcamento=Orc(), agora=lambda: dia)
-    assert m2.decidir() is None                                             # orçamento de estudo esgotado
+    assert m2.decidir().atividade == "criar"                                # estudo esgotado: de dia, ocioso, Criação alta → cria (M-38)
+    class Nada:
+        def pode(self, tipo): return False
+    assert Mente(imp, vault, orcamento=Nada(), agora=lambda: dia).decidir() is None   # tudo esgotado: espera
     noite = Mente(imp, vault, agora=lambda: datetime(2026, 9, 15, 23, 0), pode_criar=lambda: False)
     assert noite.decidir().atividade == "estudar"                           # já criou hoje: cai para a próxima vontade
     class SemCriacao:
@@ -292,3 +295,19 @@ def test_maestria_nao_cai_abaixo_do_repouso_e_sobe_com_estudo_resolvido(vault):
     imp.evento("placar", tarefa="voz", resultado="acerto"); assert REPOUSO["maestria"] <= imp.nivel("maestria") < m
     imp.evento("estudo", msg="resolvido P-0009 → 50-Conhecimento/x.md", abertos=0)
     assert imp.nivel("maestria") > REPOUSO["maestria"] and "aprendi" in imp.motivo("maestria")
+
+
+# ── M-38 (Vigília 20/09): 0 criações em 4 noites — o Mac dorme 21h–06h; criar de dia na 1ª janela ociosa ──
+def test_criacao_de_dia_na_janela_ociosa_uma_vez_por_dia(vault):
+    from jaime.vontade.mente import CRIACAO_DIA_MIN
+    imp = Impulsos(vault); imp.niveis.update(criacao=0.75, utilidade=0.2, curiosidade=0.2, maestria=0.2, ordem=0.15, vinculo=0.2)
+    imp.demanda_pendente = False
+    agora = datetime(2026, 9, 21, 10, 0)
+    m = Mente(imp, vault, agora=lambda: agora); m.ultima_fala_ts = agora.timestamp() - 40 * 60    # 40 min sem fala
+    e = m.decidir(registrar=False); assert e and e.atividade == "criar" and e.janela == "ocioso"
+    assert m.decidir(registrar=False) is None or m.decidir(registrar=False).atividade != "criar"   # uma por dia
+    m2 = Mente(imp, vault, agora=lambda: agora); m2.ultima_fala_ts = agora.timestamp() - 20 * 60     # só 20 min: ainda não
+    e2 = m2.decidir(registrar=False); assert not e2 or e2.atividade != "criar"
+    imp.niveis["criacao"] = CRIACAO_DIA_MIN - 0.1
+    m3 = Mente(imp, vault, agora=lambda: agora); m3.ultima_fala_ts = agora.timestamp() - 60 * 60
+    e3 = m3.decidir(registrar=False); assert not e3 or e3.atividade != "criar"                     # Criação baixa: não

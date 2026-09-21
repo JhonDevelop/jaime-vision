@@ -21,9 +21,11 @@ ORCAMENTO_DE = {"atender": "demanda", "estudar": "estudo", "praticar": "estudo",
 VERBO = {"atender": "atender o João", "estudar": "estudar um problema em aberto", "praticar": "praticar onde estou errando",
          "criar": "criar algo meu", "organizar": "organizar o vault", "conhecer": "conhecer melhor o João"}
 PERMITIDO = {"atento": {"atender"},
-             "ocioso": {"atender", "estudar", "praticar", "organizar", "conhecer"},
+             "ocioso": {"atender", "estudar", "praticar", "organizar", "conhecer", "criar"},   # criar: só com CRIACAO_DIA_*
              "noite": {"atender", "estudar", "praticar", "criar"}}
 LIMIAR = 0.30                  # abaixo disso nada me puxa
+CRIACAO_DIA_MIN = 0.60         # M-38: de dia, na 1ª janela ociosa longa, Criação ≥ isto pode criar (o Mac dorme à noite)
+CRIACAO_DIA_OCIOSO_S = 30 * 60 # ... se o João não fala há 30 min
 BONUS_NOITE_CRIACAO = 0.15     # noite criativa: Criação ganha vantagem
 ATENTO_S = 15 * 60
 INTERVALO_S = 10 * 60
@@ -76,6 +78,7 @@ class Mente:
         self.ultima_fala_ts = 0.0
         self.ultima: Escolha | None = None
         self.ocupado = False
+        self._criacao_dia = None        # data da criação diurna já feita (uma por dia)
 
     # ── decisão ───────────────────────────────────────
     def decidir(self, registrar: bool = True) -> Escolha | None:
@@ -95,11 +98,20 @@ class Mente:
             atividade = ATIVIDADE[nome]
             if atividade not in PERMITIDO[jan] or (nivel < LIMIAR and atividade != "atender"):
                 continue
+            if atividade == "criar" and jan == "ocioso":
+                # M-38 (Vigília 20/09): 0 criações em 4 noites — o Mac dorme 21h–06h. Uma criação de dia quando
+                # Criação está alta e o João não fala há 30 min; uma por dia.
+                agora = self.agora()
+                ocioso_s = agora.timestamp() - self.ultima_fala_ts if self.ultima_fala_ts else 10 ** 9
+                if nivel < CRIACAO_DIA_MIN or ocioso_s < CRIACAO_DIA_OCIOSO_S or self._criacao_dia == agora.date():
+                    continue
             if atividade == "criar" and not self.pode_criar():
                 continue
             if atividade != "atender" and not self.orcamento.pode(ORCAMENTO_DE[atividade]):
                 continue
             e = Escolha(atividade, nome, round(nivel, 2), jan, self._pensamento(nome, nivel, jan))
+            if atividade == "criar" and jan == "ocioso":
+                self._criacao_dia = self.agora().date()
             if registrar:
                 self._registrar(e)
             self.ultima = e
