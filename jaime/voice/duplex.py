@@ -219,6 +219,8 @@ class OuvidoDuplex(Ouvido):
         self._barge_ms = 0
         self._supressor_eco = SupressorDeEco()
         self._mic = None; self._mic_gen = 0; self._ultimo_frame = 0.0; self._ultima_verificacao = 0.0; self._vigia_mic = None
+        self._reaberturas: deque = deque(); self._frames_gen = 0; self._falhas_seguidas = 0
+        self._sair = os._exit                              # injetável nos testes
         self._barge_stats: dict = {}                      # por fala do Jaime: voz ouvida, acima do eco, vetada, cortou
         self._janela_energia: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._janela_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
@@ -278,6 +280,12 @@ class OuvidoDuplex(Ouvido):
     # 18→21/09: o laço de captura morreu num sono do Mac e ninguém percebeu — 3 dias surdo com ativo=True e erro=''.
     MIC_SEM_AUDIO_S = 60      # sem frame por isto, com o Mac acordado, o microfone está morto
     MIC_SALTO_S = 120         # relógio saltou (sono): reabre por precaução, o CoreAudio nem sempre volta
+    # 21/09 18:05–18:28: o HAL do CoreAudio ficou travado depois do sono (mutex do proxy nunca solta); o Stop da captura
+    # velha nunca retorna e cada reabertura só empilha uma thread presa em Pa_OpenStream — nada dentro do processo
+    # destrava. Então: reabertura com PRAZO e LIMITE; na 2ª seguida sem frames, reinicia o processo (launchd religa).
+    MIC_REABERTURA_S = 20     # depois de reabrir, os frames têm de voltar em até isto
+    MIC_REABERTURAS_HORA = 6  # acima disto por hora, também reinicia (não vazar threads em C)
+    MIC_FALHAS_PARA_REINICIAR = 2
 
     def _iniciar_captura(self) -> None:
         threading.Thread(target=self._capturar, args=(self._mic_gen,), name=f"ouvido-{self._mic_gen}", daemon=True).start()
@@ -294,7 +302,7 @@ class OuvidoDuplex(Ouvido):
                            stt=getattr(self.fluxo, "nome", "?"), barge_in=self.barge_in)
                 while not self._parar.is_set() and gen == self._mic_gen:
                     frame, _ = mic.read(FRAME)
-                    self._ultimo_frame = time.time()
+                    self._ultimo_frame = time.time(); self._frames_gen += 1
                     if self.erro.startswith("microfone parado"):
                         self.erro = ""                    # voltou a ouvir
                     frame = bytes(frame)
@@ -329,9 +337,37 @@ class OuvidoDuplex(Ouvido):
         self._ultima_verificacao = agora
         if agora - anterior >= self.MIC_SALTO_S:
             return f"relógio saltou {(agora - anterior) / 60:.0f} min (o Mac dormiu)"
-        if self._ultimo_frame and agora - self._ultimo_frame >= self.MIC_SEM_AUDIO_S:
+        recem_reaberto = bool(self._reaberturas) and agora - self._reaberturas[-1] < 120
+        limite = self.MIC_REABERTURA_S if recem_reaberto else self.MIC_SEM_AUDIO_S
+        if self._ultimo_frame and agora - self._ultimo_frame >= limite:
             return f"sem áudio há {agora - self._ultimo_frame:.0f} s com o Mac acordado"
         return ""
+
+    def decidir_reabertura(self, motivo: str, agora: float | None = None) -> str:
+        """'reabrir' ou 'reiniciar' (o CoreAudio não voltou). Puro, com relógio injetável."""
+        agora = time.time() if agora is None else agora
+        while self._reaberturas and agora - self._reaberturas[0] > 3600:
+            self._reaberturas.popleft()
+        if self._reaberturas and self._frames_gen == 0 and "acordado" in motivo:
+            self._falhas_seguidas += 1                       # reabriu e nenhum frame voltou
+        else:
+            self._falhas_seguidas = 0
+        if self._falhas_seguidas >= self.MIC_FALHAS_PARA_REINICIAR:
+            return "reiniciar"
+        if len(self._reaberturas) >= self.MIC_REABERTURAS_HORA:
+            return "reiniciar"
+        return "reabrir"
+
+    def reiniciar_processo(self, motivo: str) -> None:
+        """Último recurso: o estado está no vault e o launchd (KeepAlive) sobe outro processo em segundos."""
+        linha = f"CoreAudio travado após o sono ({motivo}); reiniciando o processo para voltar a ouvir"
+        vault = getattr(self.jaime, "vault", None)
+        if vault is not None:
+            try: vault.diario(linha, "Log")
+            except Exception: pass
+        print(f"⚠ {linha}", flush=True)
+        bus.emitir("voz", estado="erro", erro=linha[:200], falando=False)
+        self._sair(3)
 
     def reabrir_microfone(self, motivo: str) -> None:
         """Aborta a captura presa e sobe outra. Registra no diário: é o dado de que 'o ouvido morreu e voltou'."""
@@ -344,6 +380,7 @@ class OuvidoDuplex(Ouvido):
         # fica como zumbi (o CoreAudio aceita um segundo stream de entrada) — melhor que derrubar o processo.
         self._mic = None
         self._ultimo_frame = time.time()
+        self._reaberturas.append(self._ultimo_frame); self._frames_gen = 0
         vault = getattr(self.jaime, "vault", None)
         if vault is not None:
             try: vault.diario(f"Ouvido reaberto: {motivo}", "Log")
@@ -356,7 +393,10 @@ class OuvidoDuplex(Ouvido):
             try:
                 motivo = self.verificar_microfone()
                 if motivo:
-                    self.reabrir_microfone(motivo)
+                    if self.decidir_reabertura(motivo) == "reiniciar":
+                        self.reiniciar_processo(motivo)
+                    else:
+                        self.reabrir_microfone(motivo)
             except Exception as e:
                 bus.emitir("voz", estado="erro", erro=f"watchdog do microfone: {type(e).__name__}: {e}"[:200], falando=False)
 

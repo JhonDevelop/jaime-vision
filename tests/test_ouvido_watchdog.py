@@ -66,3 +66,27 @@ def test_reabrir_nunca_fecha_o_stream_de_fora_mesmo_com_read_preso(monkeypatch):
     assert novas == [1] and registro["fechados"] == [] and o.erro.startswith("microfone parado")
     solta.set(); t1.join(2)                                        # o read() destrava: a thread vê a geração vencida e fecha o SEU stream
     assert not t1.is_alive() and registro["fechados"] == [1] and registro["fechado_por"] == ["captura-1"]
+
+
+# ── M-47 (Vigília 21/09 18:30): CoreAudio travado após o sono — reabrir para sempre só empilha threads presas ──
+def test_duas_reaberturas_sem_frames_reiniciam_o_processo():
+    o = _ouvido(); saidas = []; o._sair = lambda c: saidas.append(c); o._iniciar_captura = lambda: None
+    t = 1000.0; o._ultimo_frame = t
+    # 1ª: sem áudio há 60 s com o Mac acordado → reabre
+    m = o.verificar_microfone(t + 61); assert m.startswith("sem áudio") and o.decidir_reabertura(m, t + 61) == "reabrir"
+    o.reabrir_microfone(m); o._ultimo_frame = t + 61; o._reaberturas[-1] = t + 61
+    # 20 s depois nada voltou (frames_gen == 0): 2ª reabertura
+    m = o.verificar_microfone(t + 82); assert m.startswith("sem áudio há 21 s") and o.decidir_reabertura(m, t + 82) == "reabrir"
+    o.reabrir_microfone(m); o._ultimo_frame = t + 82; o._reaberturas[-1] = t + 82
+    # mais 20 s sem frames: o CoreAudio não vai voltar — reinicia
+    m = o.verificar_microfone(t + 103); assert o.decidir_reabertura(m, t + 103) == "reiniciar"
+    o.reiniciar_processo(m)
+    assert saidas == [3] and any(l.startswith("CoreAudio travado após o sono") for _, l in o.jaime.vault.linhas)
+
+def test_frames_de_volta_zeram_as_falhas_e_o_limite_por_hora_tambem_reinicia():
+    o = _ouvido(); o._iniciar_captura = lambda: None; t = 5000.0; o._ultimo_frame = t
+    o.reabrir_microfone("x"); o._reaberturas[-1] = t; o._frames_gen = 40          # reabriu e o áudio voltou
+    assert o.decidir_reabertura("sem áudio há 61 s com o Mac acordado", t + 200) == "reabrir" and o._falhas_seguidas == 0
+    o._frames_gen = 0
+    for i in range(6): o._reaberturas.append(t + 300 + i)
+    assert o.decidir_reabertura("relógio saltou 3 min (o Mac dormiu)", t + 400) == "reiniciar"   # 7 na última hora
