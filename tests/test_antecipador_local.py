@@ -209,3 +209,14 @@ def test_resumo_antecipacao_do_dia():
     r = resumo_antecipacao(d)
     assert r.startswith("Antecipação do dia: 4 turnos, 1 rascunhos usados (25%)") and "«quero que você» ×2" in r and "«qual é a» ×1" in r
     assert resumo_antecipacao("") == ""
+
+def test_as_dez_frases_do_benchmark_tem_rascunho_local_direto():
+    """Vigília 21/09 07:58: 5/10 ao vivo — para separar heurística de STT/TTS, as frases canônicas (e as variantes que
+    o Deepgram costuma devolver) precisam de rascunho só com a heurística, sem modelo."""
+    from jaime.voice.latencia import FRASES
+    com = [f for f in FRASES if heuristico(f)["rascunho"]]
+    assert len(com) >= 8, [f for f in FRASES if f not in com]
+    assert set(FRASES) - set(com) <= {"Jaime, que horas são?"}            # a hora fica de fora por desenho
+    for v in ("Jaime, abre o vender.", "Jaime, cria 1 tarefa para ligar para o contador.", "Jaime, quanto está o dólar?",
+              "Jaime, está aí?", "Jaime, manda 1 resumo do dia.", "Jaime, me lembra de beber água em 20 min."):
+        assert heuristico(v)["rascunho"], v                                 # transcrições reais do say → Deepgram
