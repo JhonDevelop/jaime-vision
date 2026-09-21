@@ -316,6 +316,15 @@
 - A linha traz suspeitas, desistências (e por quê), recusas eco/curtas, voz forte e a última escuta. Com isso a Vigília
   diz se falha a energia (1º tempo) ou a confirmação por transcrição (2º tempo, desenho do Cérebro).
 
+#### M-41 · Benchmark 5/10 com o código novo (Vigília 21/09 07:58) — **era o STT do `say`, não a heurística (cbb302a)**
+- Dois benchmarks reais (heurística só 5/10; com modelo 6/10, 327 ms). Erros, todos do STT sintético: «Piura Sao» (que horas
+  são), 3 frases truncadas no fim («previsão do tempo para a», «ligar-pro co», «Abre o sítio da» — o `say` acaba seco e o
+  Deepgram não fecha a última palavra; terminação em "para a"/"da" é frase em aberto por desenho), «está aí?» vazando para
+  o turno seguinte, e o modo multilíngue (0afbade) devolvendo «est-à-ahí? un resumo tu».
+- Teste ebbd164: as 10 frases e as variantes reais têm rascunho só com a heurística. Correção do benchmark: cauda de 400 ms
+  de silêncio após cada frase (fora da medição) e 300 ms entre turnos. Validar: `voz latencia` ≥ 7/10 após o merge.
+- Para o Cérebro: conferir se o `language=auto`/multilíngue do Deepgram está pegando frases curtas em pt-BR como outra língua.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -390,3 +399,4 @@
 - 13:40 (16/09) — Vigília: sono com processo vivo perdeu o cron das 13:00 → M-33 (tique de 60 s + idempotência + eventos do scheduler); 259 testes.
 - 14:10 (16/09) — M-34 (observabilidade pedida pela Vigília); 260 testes. Fila: fcc8173 (M-33) e M-34.
 - 21/09 08:00 — retomada: M-40 (ouvido morto), M-39, M-37, M-36, M-38, M-35; 571 testes. Fila de merge: 804453f (URGENTE), 3084bac, c9eb66d, b2639cf, 53d0b41 e o M-35.
+- 21/09 08:35 — ouvido de volta (Vigília); 5/10 do benchmark diagnosticado como STT do say; M-41 (cauda de silêncio) cbb302a; 572 testes.
