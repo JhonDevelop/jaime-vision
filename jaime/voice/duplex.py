@@ -338,13 +338,11 @@ class OuvidoDuplex(Ouvido):
         self._mic_gen += 1
         self.erro = f"microfone parado: {motivo}"
         bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
-        mic, self._mic = self._mic, None
-        if mic is not None:
-            for fn in (getattr(mic, "abort", None), getattr(mic, "close", None)):
-                try:
-                    if fn: fn()
-                except Exception:
-                    pass
+        # NUNCA fechar/abortar o stream daqui: 21/09 12:51 SIGSEGV em PaUtil_ReadRingBuffer — o close() de fora pegou a
+        # thread de captura dentro de read() (mesma família do crash de 15/09 no write()). O stream é da thread dele:
+        # se ela sair do read(), vê a geração vencida e fecha o próprio stream no `with`; se estiver presa para sempre,
+        # fica como zumbi (o CoreAudio aceita um segundo stream de entrada) — melhor que derrubar o processo.
+        self._mic = None
         self._ultimo_frame = time.time()
         vault = getattr(self.jaime, "vault", None)
         if vault is not None:
