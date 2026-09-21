@@ -18,6 +18,41 @@ PRIMEIRA_S = 90                                                      # a primeir
 DESCANSO_S = int(os.environ.get("JAIME_DESPERTADOR_DESCANSO_S", "5400"))  # não empilha trabalho no mesmo lado
 
 
+ARQUIVO_DELEGACOES = ".jaime/delegacoes.json"
+MAX_DELEGACOES = 2          # a mesma pauta delegada 2× sem fecho vira 'aguardando o João' (19/09: P-0008 10× em 7 h)
+
+
+def _delegacoes(vault) -> dict:
+    import json
+    try:
+        return json.loads(vault.read(ARQUIVO_DELEGACOES) or "{}")
+    except Exception:
+        return {}
+
+
+def pode_delegar(vault, pauta: str) -> bool:
+    """Conta as delegações por pauta (persistido no vault, sobrevive a reinícios). Na 3ª vez sem fecho, avisa uma vez
+    no diário que está aguardando o João e para de redelegar — um filho não resolve o que exige uma decisão humana."""
+    import json
+    chave = (pauta or "").strip()[:60]
+    if not chave:
+        return False
+    d = _delegacoes(vault)
+    item = d.get(chave) or {"vezes": 0, "avisado": False}
+    if item["vezes"] >= MAX_DELEGACOES:
+        if not item.get("avisado"):
+            item["avisado"] = True; d[chave] = item
+            try: vault.write(ARQUIVO_DELEGACOES, json.dumps(d, ensure_ascii=False, indent=1))
+            except Exception: pass
+            try: vault.diario(f"Já deleguei {MAX_DELEGACOES}× sem fecho, aguardando o João: {chave}", "Pendente")
+            except Exception: pass
+        return False
+    item["vezes"] += 1; d[chave] = item
+    try: vault.write(ARQUIVO_DELEGACOES, json.dumps(d, ensure_ascii=False, indent=1))
+    except Exception: pass
+    return True
+
+
 async def rodar(jaime, ocioso=None) -> None:
     """Mantém os dois hemisférios acordados e com o que fazer. `ocioso()` diz se o João não está falando."""
     cerebros = getattr(jaime, "cerebros", None)
@@ -49,6 +84,8 @@ async def rodar(jaime, ocioso=None) -> None:
                     continue
                 pauta = cerebros.pauta(h, 1)
                 if not pauta:
+                    continue
+                if not pode_delegar(jaime.vault, pauta[0]):
                     continue
                 ultimo[h] = time.time()
                 # pauta própria não vira fala: é trabalho que ELE puxou, não o João pediu (só o painel vê)
