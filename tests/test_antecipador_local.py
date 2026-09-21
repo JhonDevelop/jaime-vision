@@ -218,5 +218,6 @@ def test_as_dez_frases_do_benchmark_tem_rascunho_local_direto():
     assert len(com) >= 8, [f for f in FRASES if f not in com]
     assert set(FRASES) - set(com) <= {"Jaime, que horas são?"}            # a hora fica de fora por desenho
     for v in ("Jaime, abre o vender.", "Jaime, cria 1 tarefa para ligar para o contador.", "Jaime, quanto está o dólar?",
-              "Jaime, está aí?", "Jaime, manda 1 resumo do dia.", "Jaime, me lembra de beber água em 20 min."):
+              "Jaime, está aí?", "Jaime, manda 1 resumo do dia.", "Jaime, me lembra de beber água em 20 min.",
+              "Jaime, ¿está ahí?", "Jaime, está allí?", "Jaime, quanto é todo o dólar?"):                # STT multilíngue
         assert heuristico(v)["rascunho"], v                                 # transcrições reais do say → Deepgram

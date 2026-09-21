@@ -23,7 +23,7 @@ INACABADA_RX = re.compile(r"\b(e|ou|mas|que|também|tambem|aí|ai|então|entao|t
                           r"preciso|precisa|quero|queria|gostaria|vou|vai|pode|podia|poderia|consegue|conseguiria|sabe|sobre|tem|tenho|"
                           r"faz|fazer|ver|abrir|abre|manda|mandar|me|te|nos|lhe|você|voce|deixa|só|so|mais|muito|bem|tá|ta)\s*[,…]?\s*$", re.I)
 # frases completas que TERMINAM numa palavra da lista acima ("está aí?"): não são inacabadas
-COMPLETA_RX = re.compile(r"\b(?:t[aá]|est[aá])\s+a[íi]\s*[?.!…]*$", re.I)
+COMPLETA_RX = re.compile(r"\b(?:t[aá]|est[aá])\s+(?:a[íi]|ah[íi]|all[íi])\s*[?.!…]*$", re.I)
 HESITACAO_RX = re.compile(r"\b(é+|hum+|ãh+|ah+|tipo|então|assim|né)\b[,…\s]*$", re.I)
 
 SISTEMA = ("Você é o antecipador do Jaime, assistente pessoal do João. Recebe a transcrição PARCIAL do que o João está "
@@ -71,11 +71,11 @@ RASCUNHOS: list[tuple[re.Pattern, "callable"]] = [
      lambda m: ("criar tarefa", "Criando a tarefa.")),
     (re.compile(r"\bresumo\s+do\s+dia\b|\bcomo\s+(?:est[aá]|t[aá])\s+o\s+dia\b", re.I),
      lambda m: ("resumo do dia", "Vou resumir o dia.")),
-    (re.compile(r"\b(?:quanto\s+(?:est[aá]|t[aá])\s+o\s+d[oó]lar|cota[cç][aã]o\s+do\s+d[oó]lar|d[oó]lar\s+hoje)\b", re.I),
+    (re.compile(r"\bquanto\b.*\bd[oó]lar\b|cota[cç][aã]o\s+do\s+d[oó]lar|\bd[oó]lar\s+hoje\b", re.I),
      lambda m: ("cotação do dólar", "Deixa eu ver a cotação.")),
     (re.compile(r"\bme\s+lembra\b|\blembrete\b", re.I),
      lambda m: ("lembrete", "Anotando o lembrete.")),
-    (re.compile(r"^\s*(?:t[aá]|est[aá])\s+a[íi]\s*[?.!…]*$", re.I),
+    (re.compile(r"^\s*[¿]?(?:t[aá]|est[aá])\s+(?:a[íi]|ah[íi]|all[íi])\s*[?.!…]*$", re.I),    # o STT multilíngue devolve 'está ahí/allí'
      lambda m: ("presença", "Estou aqui, senhor.")),
     (re.compile(r"\b(?:minha\s+)?agenda\b|\bcompromissos?\b", re.I),
      lambda m: ("agenda", "Deixa eu ver a agenda.")),
