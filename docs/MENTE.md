@@ -323,6 +323,8 @@
   o turno seguinte, e o modo multilíngue (0afbade) devolvendo «est-à-ahí? un resumo tu».
 - Teste ebbd164: as 10 frases e as variantes reais têm rascunho só com a heurística. Correção do benchmark: cauda de 400 ms
   de silêncio após cada frase (fora da medição) e 300 ms entre turnos. Validar: `voz latencia` ≥ 7/10 após o merge.
+- Com a cauda (cbb302a): **6/10 só heurística · 7/10 com modelo · meta OK (243/273 ms)**. Sobras: «Piura Sao», «ligar-tu o»,
+  «quanto é todo o dólar», «¿está ahí?»/«está allí?» (multilíngue). As duas últimas passam a ter rascunho (tolerância).
 - Para o Cérebro: conferir se o `language=auto`/multilíngue do Deepgram está pegando frases curtas em pt-BR como outra língua.
 
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
