@@ -287,6 +287,35 @@
 - (c) Linhas do barge-in: "acima do eco", rms, sim e veto valem para todos os frames (como as janelas); "voz" é só VAD.
 - Benchmark 13:51 5/10 (4 pareceres não especuláveis): observar — se repetir, olhar quais frases e o STT do `say`.
 
+## 20–21/09 — retomada (Vigília parada 16–20/09; Mente idem)
+
+#### M-40 · OUVIDO MORTO por 3 dias (Vigília 21/09 07:30, etapa 1) — **CORRIGIDO (804453f) — merge+reinício URGENTE**
+- O laço de captura (`mic.read`) morreu num sono em 18/09; `ativo=True`, `erro=''`, 0 eventos "escuta" com o Mac acordado.
+- Solução: captura por geração + watchdog de 15 s: sem frame há 60 s com o Mac acordado, ou salto de relógio ≥ 2 min, reabre o
+  `RawInputStream`; `erro='microfone parado: …'` até o 1º frame; "Ouvido reaberto: …" no diário. Validar: "escuta" no
+  /hud/stream ≤ 90 s após qualquer despertar.
+
+#### M-39 · Rotina presa entre sonos, sem fim (Vigília 20/09 19:00, etapa 8) — **CORRIGIDO (3084bac)**
+- Timeout de 10 min (relógio do loop) + no tique: salto de relógio ou rotina há > 5 min de parede → "Rotina interrompida
+  pelo sono após N s", interrupt do SDK, reagendada em 30 min; o resto não é falado.
+
+#### M-37 · P-0008 redelegado 10× em 7 h (Vigília 20/09) — **CORRIGIDO (c9eb66d)**
+- A mesma pauta só é delegada 2× sem fecho (contagem em `vault/.jaime/delegacoes.json`); na 3ª, "Já deleguei 2× sem fecho,
+  aguardando o João" em Pendente, uma vez.
+
+#### M-36 · Antecipação ao vivo 0/286 (Vigília 20/09, etapa 2) — **CORRIGIDO (b2639cf)**
+- A fala real é pedido, não comando de catálogo. Rascunhos genéricos: pedidos ("quero que você…", "me faz…", imperativos)
+  → "Deixa comigo."; notificações → "Deixa eu ver as notificações."; pesquisa → "Vou pesquisar."; conversa segue sem.
+  Fecha-dia registra "Antecipação do dia: N turnos, M usados (x%); começos sem rascunho: «…» ×k" (sugestões a/c).
+- Validar: "antecipação: usada" em pedidos ao vivo; o resumo do fecha-dia aponta os próximos rascunhos.
+
+#### M-38 · 0 criações em 4 noites (o Mac dorme 21h–06h; etapa 9) — **CORRIGIDO (53d0b41)**
+- Criação de dia na 1ª janela ociosa: Criação ≥ 0,6, 30 min sem fala, uma por dia. Validar: item novo na Vitrine de dia.
+
+#### M-35 · Barge-in em dois tempos sem rastro (17/09: 141 "não cortou" com energia satisfeita) — **FEITO**
+- A linha traz suspeitas, desistências (e por quê), recusas eco/curtas, voz forte e a última escuta. Com isso a Vigília
+  diz se falha a energia (1º tempo) ou a confirmação por transcrição (2º tempo, desenho do Cérebro).
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -360,3 +389,4 @@
 - 10:35 (16/09) — Vigília: telefone tocando cortou (energia 9×, VAD 64 ms) → M-32 piso de voz; 257 testes.
 - 13:40 (16/09) — Vigília: sono com processo vivo perdeu o cron das 13:00 → M-33 (tique de 60 s + idempotência + eventos do scheduler); 259 testes.
 - 14:10 (16/09) — M-34 (observabilidade pedida pela Vigília); 260 testes. Fila: fcc8173 (M-33) e M-34.
+- 21/09 08:00 — retomada: M-40 (ouvido morto), M-39, M-37, M-36, M-38, M-35; 571 testes. Fila de merge: 804453f (URGENTE), 3084bac, c9eb66d, b2639cf, 53d0b41 e o M-35.
