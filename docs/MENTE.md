@@ -327,6 +327,15 @@
   «quanto é todo o dólar», «¿está ahí?»/«está allí?» (multilíngue). As duas últimas passam a ter rascunho (tolerância).
 - Para o Cérebro: conferir se o `language=auto`/multilíngue do Deepgram está pegando frases curtas em pt-BR como outra língua.
 
+#### M-42 · Rotina some sem fim com o Mac acordado (Vigília 21/09 09:25, etapa 8) — **CORRIGIDO**
+- "propor melhoria" 09:00: disparada, sem fim, sem timeout, orçamento US$ 0. Causa: cérebro **trancado** (senha expira
+  em 30 min) → `_rodar_ordem` retornava antes do modelo, avisando só no bus. Agora: "Rotina adiada (cérebro trancado)"
+  no diário, fila de adiadas, e o tique as roda quando destrancar; "Rotina iniciada, chamando o modelo" antes da chamada.
+- Sugestão 3 da Vigília (stdout): o plist do LaunchAgent aponta StandardOut/ErrorPath para ~/Jaime/jaime.log — está certo;
+  o log ficou com 5 linhas porque não houve fala (rotina e benchmark escrevem só no diário). Nada a mudar.
+- Fica a pergunta de desenho para o Cérebro/João: rotinas devem rodar com o cérebro trancado? Hoje não (o vault é o
+  segredo); por isso a fila espera a senha em vez de destrancar sozinha.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -402,3 +411,4 @@
 - 14:10 (16/09) — M-34 (observabilidade pedida pela Vigília); 260 testes. Fila: fcc8173 (M-33) e M-34.
 - 21/09 08:00 — retomada: M-40 (ouvido morto), M-39, M-37, M-36, M-38, M-35; 571 testes. Fila de merge: 804453f (URGENTE), 3084bac, c9eb66d, b2639cf, 53d0b41 e o M-35.
 - 21/09 08:35 — ouvido de volta (Vigília); 5/10 do benchmark diagnosticado como STT do say; M-41 (cauda de silêncio) cbb302a; 572 testes.
+- 21/09 09:40 — M-42 (rotina trancada some): fila de adiadas + tique; 573 testes.
