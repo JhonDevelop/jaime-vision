@@ -26,6 +26,8 @@ VIGIA_ARQUIVO_S = 30
 # como "perdido" — por isso NENHUMA rotina disparou em nenhum dia. Uma rotina horas atrasada ainda vale ser feita.
 GRACE_ROTINA_S = 3 * 3600
 GRACE_LEMBRETE_S = 30 * 60
+ROTINA_TIMEOUT_S = 10 * 60        # uma rotina não pode segurar o orquestrador mais que isto (relógio do loop)
+ROTINA_PRESA_S = 5 * 60           # no salto de relógio (sono), rotina em curso há mais que isto é dada por presa
 ATENTO_JANELA_S = 15 * 60          # §5: nada de estudo/criação se houve fala nos últimos 15 min
 NOITE_INICIO_H, NOITE_FIM_H = 21, 6   # §5: noite criativa 21h–06h (janela, não cron)
 EVENTOS_FALA = ("conversa", "ouvido", "transcricao_viva")
@@ -112,6 +114,7 @@ class Agenda:
         self.rotinas: list[tuple[dict, str]] = []
         self.ganchos: dict[str, list] = {}       # "fecha o dia" → [fn, ...] (fn sync ou async, sem argumentos)
         self._ultimo_tique: datetime | None = None
+        self._rotina_em_curso: tuple[str, float] | None = None   # (ordem, início em relógio de parede)
 
     # ── ganchos (fase 3 — D) ─────────────────────────────
     def ao(self, chave: str, fn) -> None:
@@ -198,8 +201,31 @@ class Agenda:
         if salto >= self.SALTO_S:
             try: self.vault.diario(f"Relógio saltou {salto / 60:.0f} min (o Mac dormiu); conferindo rotinas perdidas", "Log")
             except Exception: pass
+        # rotina que começou num DarkWake e ficou presa entre sonos (20/09 18:00 'fecha o dia' sem fim): solta o orquestrador
+        if self._rotina_em_curso and (salto >= self.SALTO_S or agora.timestamp() - self._rotina_em_curso[1] >= ROTINA_PRESA_S):
+            self.interromper_rotina_presa("sono" if salto >= self.SALTO_S else "presa há mais de 5 min")
         janela = int(max(self.TIQUE_S * 2, salto + self.TIQUE_S))
         return self.recuperar_perdidas(agora, janela_s=min(janela, GRACE_ROTINA_S), motivo="dormindo")
+
+    def interromper_rotina_presa(self, motivo: str) -> str | None:
+        """Rotina em curso há tempo demais (ou atravessou um sono): interrompe o modelo, registra e reagenda em 30 min."""
+        if not self._rotina_em_curso:
+            return None
+        ordem, t0 = self._rotina_em_curso
+        self._rotina_em_curso = None
+        self.jaime._rotina_cedida = ordem                 # _rodar_ordem não fala o pedaço que sobrar
+        try: self.vault.diario(f"Rotina interrompida pelo {motivo} após {time.time() - t0:.0f} s: {ordem[:60]}; reagendada em 30 min", "Log")
+        except Exception: pass
+        cli = getattr(self.jaime, "_client", None)
+        if cli is not None and hasattr(cli, "interrupt"):
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(cli.interrupt()) if loop.is_running() else None
+            except Exception:
+                pass
+        try: self.reagendar(ordem, minutos=30)
+        except Exception: pass
+        return ordem
 
     async def _tique(self):
         while True:
@@ -276,13 +302,25 @@ class Agenda:
             from ..brain.ouvido_passivo import prompt_consolidar
             await self.jaime.ask(prompt_consolidar(self.jaime.vault), canal=canal); return
         t0 = time.time()
+        self._rotina_em_curso = (ordem, t0)
         try:
-            resposta = await self.jaime.ask(ordem, canal=canal)
+            resposta = await asyncio.wait_for(self.jaime.ask(ordem, canal=canal), ROTINA_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            self.vault.diario(f"Rotina falhou após {time.time() - t0:.0f} s: {ordem[:60]} — timeout de {ROTINA_TIMEOUT_S / 60:.0f} min; reagendada em 30 min", "Log")
+            cli = getattr(self.jaime, "_client", None)
+            if cli is not None and hasattr(cli, "interrupt"):
+                try: await cli.interrupt()
+                except Exception: pass
+            self.reagendar(ordem, minutos=30)
+            return
         except BaseException as e:               # inclusive CancelledError: a rotina SEMPRE deixa um fim registrado (Vigília 16/09 13:58)
             self.vault.diario(f"Rotina falhou após {time.time() - t0:.0f} s: {ordem[:60]} — {type(e).__name__}: {str(e)[:80]}", "Log")
             raise
+        finally:
+            if self._rotina_em_curso and self._rotina_em_curso[0] == ordem:
+                self._rotina_em_curso = None
         if getattr(self.jaime, "_rotina_cedida", "") == ordem:
-            self.jaime._rotina_cedida = ""       # o João falou no meio: a rotina foi reagendada; não se fala o pedaço que sobrou
+            self.jaime._rotina_cedida = ""       # o João falou no meio (ou o sono a interrompeu): reagendada; não se fala o que sobrou
             self.vault.diario(f"Rotina interrompida pela demanda após {time.time() - t0:.0f} s: {ordem[:60]}", "Log")
             return
         self.vault.diario(f"Rotina concluída em {time.time() - t0:.0f} s: {ordem[:60]}", "Log")

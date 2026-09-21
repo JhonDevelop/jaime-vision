@@ -300,3 +300,35 @@ def test_rotina_sempre_registra_o_fim(vault):
     j = _Jaime(vault); ag = Agenda(j); j._rotina_cedida = "revisão"
     asyncio.run(ag._rodar_ordem("revisão"))
     assert "Rotina interrompida pela demanda após 0 s: revisão" in vault.read(vault.daily_rel())
+
+
+# ── M-39 (Vigília 20/09 19:00): rotina presa entre sonos, sem fim registrado ──
+def test_rotina_presa_e_solta_no_salto_de_relogio_e_reagendada(vault):
+    from datetime import timedelta
+    from jaime.agenda.scheduler import FUSO, ROTINAS_REL
+    vault.write(ROTINAS_REL, "# Rotinas\n\n- 0 18 * * mon-thu,sat,sun · fecha o dia\n")
+    j = _Jaime(vault); j._rotina_cedida = ""; ag = Agenda(j); ag.rotinas = parse_rotinas(vault.read(ROTINAS_REL))
+    t = datetime(2026, 9, 20, 18, 0, 30, tzinfo=FUSO)
+    ag._ultimo_tique = t; ag._rotina_em_curso = ("fecha o dia", t.timestamp())
+    reag = []; ag.reagendar = lambda o, minutos=10: reag.append((o, minutos))
+    ag.tique_uma_vez(t + timedelta(minutes=1))                             # 1 min: ainda não
+    assert ag._rotina_em_curso is not None and reag == []
+    ag.tique_uma_vez(t + timedelta(minutes=27))                            # relógio saltou 26 min: o Mac dormiu com a rotina em curso
+    d = vault.read(vault.daily_rel())                                      # o diário é o de hoje (relógio real do vault)
+    assert ag._rotina_em_curso is None and reag == [("fecha o dia", 30)] and j._rotina_cedida == "fecha o dia"
+    assert "Rotina interrompida pelo sono após" in d and "fecha o dia; reagendada em 30 min" in d
+    # sem salto, presa há > 5 min também solta
+    ag._rotina_em_curso = ("briefing", (t + timedelta(minutes=27)).timestamp())
+    ag.tique_uma_vez(t + timedelta(minutes=28)); assert ag._rotina_em_curso is not None
+    ag.tique_uma_vez(t + timedelta(minutes=33)); assert ag._rotina_em_curso is None and reag[-1] == ("briefing", 30)
+
+def test_rotina_com_timeout_registra_e_reagenda(vault, monkeypatch):
+    from jaime.agenda import scheduler as sch
+    monkeypatch.setattr(sch, "ROTINA_TIMEOUT_S", 0.05)
+    class _Lento(_Jaime):
+        async def ask(self, ordem, canal="rotina", contexto=""): await asyncio.sleep(0.5); return "ok"
+    j = _Lento(vault); ag = Agenda(j); reag = []; ag.reagendar = lambda o, minutos=10: reag.append((o, minutos))
+    asyncio.run(ag._rodar_ordem("briefing"))
+    d = vault.read(vault.daily_rel())
+    assert "Rotina falhou após 0 s: briefing — timeout de 0 min; reagendada em 30 min" in d and reag == [("briefing", 30)]
+    assert ag._rotina_em_curso is None
