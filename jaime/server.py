@@ -78,6 +78,13 @@ async def lifespan(app: FastAPI):
     telemetria = Telemetria(jaime.vault, placar=jaime.placar)
     jaime.estudo.orcamento, jaime.estudo.atencao = orcamento, atencao
     jaime.agenda.ao("fecha o dia", lambda: prioridades.recalcular(jaime.vault, telemetria, jaime.placar))
+    # Mente (M-36): o fecha-dia resume o que a antecipação perdeu, para calibrar os rascunhos com a fala real do João
+    def _resumir_antecipacao():
+        from .voice.latencia import resumo_antecipacao
+        linha = resumo_antecipacao(jaime.vault.read(jaime.vault.daily_rel()))
+        if linha:
+            jaime.vault.diario(linha, "Log")
+    jaime.agenda.ao("fecha o dia", _resumir_antecipacao)
     jaime.agenda.ao("fecha a semana", lambda: telemetria.escrever_uso())
     telemetria_t = asyncio.create_task(telemetria.rodar(observador))
     atencao_t = asyncio.create_task(atencao.escutar_bus())

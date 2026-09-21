@@ -79,6 +79,15 @@ RASCUNHOS: list[tuple[re.Pattern, "callable"]] = [
      lambda m: ("presença", "Estou aqui, senhor.")),
     (re.compile(r"\b(?:minha\s+)?agenda\b|\bcompromissos?\b", re.I),
      lambda m: ("agenda", "Deixa eu ver a agenda.")),
+    # ── genéricos (M-36): a fala real do João é pedido, não comando de catálogo — 0 rascunhos em 286 turnos reais ──
+    (re.compile(r"\b(?:quais|que)\s+(?:foram|são|sao)\s+as\s+notifica|\bnotifica[cç][oõ]es\b", re.I),
+     lambda m: ("ver notificações", "Deixa eu ver as notificações.")),
+    (re.compile(r"\bpesquis[ae]\b|\bprocur[ae]\s+(?:na\s+)?(?:internet|web|google)\b", re.I),
+     lambda m: ("pesquisar", "Vou pesquisar.")),
+    (re.compile(r"^(?:(?:então|entao|aí|ai|e|só|so|depois|agora|por favor)[,\s]+)*(?:(?:eu\s+)?(?:quero|queria|preciso|precisava|gostaria)\s+que\s+voc[êe]|(?:voc[êe]\s+)?(?:pode|poderia|consegue|conseguiria)\s+(?:me\s+)?\w+"
+                r"|me\s+(?:faz|faça|fala|diz|mostra|manda|ajuda|d[áa]|conta|explica|lembra)|fala\s+(?:para|pra)\s+mim"
+                r"|(?:mostra|mostre|olha|olhe|busca|busque|procura|procure|abre|abra|fecha|feche|manda|mande|faz|faça|cria|crie|coloca|coloque|verifica|verifique|confere|confira|liga|ligue|toca|toque|escreve|escreva|monta|monte|constr[oó]i|construa|puxa|puxe|salva|salve|anota|anote|marca|marque|desliga|desligue|reinicia|reinicie|roda|rode|instala|instale|atualiza|atualize))\b", re.I),
+     lambda m: ("pedido", "Deixa comigo.")),
 ]
 
 def rascunho_local(texto: str) -> tuple[str, str]:

@@ -5,6 +5,7 @@ o antecipador roda sobre o último parcial; ao fim, `finalizar()` dá o texto; o
 resposta padrão). Métricas: fala→texto, texto→1ª frase, fala→1ª frase (com e sem antecipação). Meta: mediana < 700 ms.
 `gerar_audio`, `fluxo`, `antecipador` e `tts` são injetáveis (testes offline)."""
 from __future__ import annotations
+import re
 import asyncio, io, os, statistics, subprocess, tempfile, time, wave
 
 FRASES = ["Jaime, que horas são?", "Jaime, abre o Finder.", "Jaime, qual a previsão do tempo para amanhã?",
@@ -133,3 +134,26 @@ def registrar_no_diario(vault, resumo: dict) -> None:
                      f"fala→1ª frase {f(resumo['mediana_fala_frase'])} · antecipados {resumo['antecipados']}/{resumo['turnos']}", "Log")
     except Exception:
         pass
+
+
+# ── resumo do dia (M-36c): o que a antecipação perdeu, para calibrar os rascunhos com a fala real ──
+_LAT_RX = re.compile(r"Latência \(voz\):.*?antecipação: (?P<motivo>[^·]+?)\s*·\s*«(?P<texto>[^»]*)»")
+
+def resumo_antecipacao(diario: str, top: int = 8) -> str:
+    """Uma linha para o fecha-dia: turnos, rascunhos usados e os começos de frase mais comuns SEM rascunho."""
+    from collections import Counter
+    turnos = usadas = 0; comecos: Counter = Counter()
+    for m in _LAT_RX.finditer(diario or ""):
+        turnos += 1
+        motivo, texto = m.group("motivo").strip(), m.group("texto").strip()
+        if motivo.startswith("usada"):
+            usadas += 1
+        elif motivo.startswith("sem rascunho") or motivo.startswith("nenhuma"):
+            palavras = re.findall(r"[\wÀ-ÿ]+", texto.lower())
+            if palavras:
+                comecos[" ".join(palavras[:3])] += 1
+    if not turnos:
+        return ""
+    perdidas = " · ".join(f"«{c}» ×{n}" for c, n in comecos.most_common(top))
+    return (f"Antecipação do dia: {turnos} turnos, {usadas} rascunhos usados ({usadas * 100 // turnos}%)"
+            + (f"; começos sem rascunho: {perdidas}" if perdidas else ""))

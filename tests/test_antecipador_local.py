@@ -187,3 +187,25 @@ def test_texto_cresce_enquanto_o_modelo_pensa_e_o_local_do_texto_novo_sobrevive(
         assert u.rascunho == "Anotando o lembrete." and u.especulavel and u.acao_prevista == "lembrete"
         assert a.confere("Jaime, me lembra de beber água em 20 min.") is u
     asyncio.run(rodar())
+
+def test_rascunhos_genericos_para_a_fala_real_do_joao():
+    """M-36: 0 rascunhos em 286 turnos reais — a fala do João é pedido, não comando de catálogo (amostra de 17/09)."""
+    for t in ("Quero que você construa uma interfacezinha", "Preciso que você olhe as notificações que chegaram", "Então mostra para mim ela e abre na tela",
+              "Eu quero que você depois pesquise para mim", "Só fala para mim quais foram as notificações", "você pode só fechar ele",
+              "me faz um favor", "Puxa o histórico da VIP do carro"):
+        acao, r = rascunho_local(t); assert r, t
+    assert rascunho_local("Preciso que você olhe as notificações que chegaram")[1] == "Deixa eu ver as notificações."
+    assert rascunho_local("Eu quero que você depois pesquise para mim")[1] == "Vou pesquisar."
+    assert rascunho_local("Quero que você construa uma interfacezinha")[1] == "Deixa comigo."
+    for t in ("qual é a sua inspiração?", "Não, eu estou só mexendo mesmo", "isso aí, a picape da Volkswagen.", "Ela aqui, qual que é o preço dela"):
+        assert rascunho_local(t) == ("", ""), t                                  # conversa: sem rascunho genérico
+
+def test_resumo_antecipacao_do_dia():
+    from jaime.voice.latencia import resumo_antecipacao
+    d = ("- 10:00 Latência (voz): fala→texto 0.2 s · texto→1ª frase 0.5 s · fala→1ª frase 0.7 s · antecipado · antecipação: usada: «Abrindo o Finder.» · «Jaime, abre o Finder.»\n"
+         "- 10:01 Latência (voz): fala→texto 0.2 s · texto→1ª frase 2.5 s · fala→1ª frase 2.7 s · antecipação: sem rascunho (heuristica, completude 1.0) · «Quero que você construa isso»\n"
+         "- 10:02 Latência (voz): fala→texto 0.2 s · texto→1ª frase 2.5 s · fala→1ª frase 2.7 s · antecipação: sem rascunho (heuristica, completude 0.8) · «quero que você pesquise»\n"
+         "- 10:03 Latência (voz): fala→texto 0.2 s · texto→1ª frase 2.5 s · fala→1ª frase 2.7 s · antecipação: nenhuma (sem parcial avaliada) · «qual é a sua inspiração?»\n")
+    r = resumo_antecipacao(d)
+    assert r.startswith("Antecipação do dia: 4 turnos, 1 rascunhos usados (25%)") and "«quero que você» ×2" in r and "«qual é a» ×1" in r
+    assert resumo_antecipacao("") == ""
