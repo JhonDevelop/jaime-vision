@@ -345,6 +345,15 @@
   autônomo roda. Ou o João mantém destrancado (timeout maior / destrancar por presença), ou as atividades autônomas
   ganham permissão de rodar trancadas com acesso só de leitura. Decisão do João.
 
+#### M-44 · A Mente das vontades nunca dava um passo com o ouvido vivo (Vigília 21/09 12:13) — **CORRIGIDO**
+- `Mente.rodar` esperava `q.get()` com timeout = tempo até o próximo passo e, a cada evento, recomeçava a espera; só
+  havia passo se o bus ficasse quieto o intervalo inteiro. Com o microfone vivo (~10 "escuta"/s) isso nunca acontece: as
+  vontades só "funcionaram" enquanto o ouvido estava morto (18–21/09). O estudo usa `sleep`, por isso registrou.
+- Solução: passo pelo relógio, a cada intervalo, eventos ou não. Teste com bus ocupado a 10 eventos/s.
+- Validar: com o cérebro trancado, "quero criar algo meu…" + "Criar algo meu: adiado" em ≤ 10 min; destrancado, criação
+  de dia e movimentos em `Vontades.md` mesmo com o ouvido vivo.
+- A pista da Vigília (`min_sem_fala: None`) era só exibição: sem fala desde o boot, o ócio conta como infinito.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -422,3 +431,4 @@
 - 21/09 08:35 — ouvido de volta (Vigília); 5/10 do benchmark diagnosticado como STT do say; M-41 (cauda de silêncio) cbb302a; 572 testes.
 - 21/09 09:40 — M-42 (rotina trancada some): fila de adiadas + tique; 573 testes.
 - 21/09 11:45 — M-43 (trancado: escolha registrada, execução adiada, HUD mostra 'cérebro trancado'); 575 testes.
+- 21/09 12:30 — M-44: a Mente das vontades morria de fome com o bus ocupado; 576 testes.
