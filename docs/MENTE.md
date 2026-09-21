@@ -354,6 +354,14 @@
   de dia e movimentos em `Vontades.md` mesmo com o ouvido vivo.
 - A pista da Vigília (`min_sem_fala: None`) era só exibição: sem fala desde o boot, o ócio conta como infinito.
 
+#### M-45 · Meu watchdog causou um SIGSEGV (Vigília 21/09 13:12) — **CORRIGIDO**
+- 12:51 crash em `PaUtil_ReadRingBuffer`: `reabrir_microfone()` fazia `abort()/close()` no stream com a captura dentro de
+  `read()` — mesma família do crash de 15/09 no `write()`. Lição registrada: **stream do PortAudio só é tocado pela thread
+  dona dele**, sempre.
+- Solução: a reabertura só avança a geração e sobe outra captura; o stream antigo é fechado pela própria thread ao sair do
+  `read()`; se ficar preso para sempre, vira zumbi (o CoreAudio aceita um 2º stream de entrada). Teste com `read()` preso.
+- Validar: "Ouvido reaberto" sem novo `.ips`; capturas zumbis aparecem como threads `ouvido-N` extras (aceitável).
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -432,3 +440,4 @@
 - 21/09 09:40 — M-42 (rotina trancada some): fila de adiadas + tique; 573 testes.
 - 21/09 11:45 — M-43 (trancado: escolha registrada, execução adiada, HUD mostra 'cérebro trancado'); 575 testes.
 - 21/09 12:30 — M-44: a Mente das vontades morria de fome com o bus ocupado; 576 testes.
+- 21/09 13:20 — M-45: watchdog sem close() de fora (segfault 12:51); 577 testes. Validados pela Vigília: M-42 e o loop das vontades adiando de 10 em 10 min.
