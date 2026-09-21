@@ -336,6 +336,15 @@
 - Fica a pergunta de desenho para o Cérebro/João: rotinas devem rodar com o cérebro trancado? Hoje não (o vault é o
   segredo); por isso a fila espera a senha em vez de destrancar sozinha.
 
+#### M-43 · Criação e estudo caem em silêncio com o cérebro trancado (Vigília 21/09 11:28, etapa 9) — **CORRIGIDO**
+- Criação 0,86, 33 min ocioso, 0 criações, estudo sem ciclo em 2 h: o gate `ocioso` inclui `acesso.liberado` e bloqueava
+  sem registro. Agora a Mente registra a escolha ("quero criar…") uma vez por período trancado e "Criar algo meu: adiado
+  (cérebro trancado), faço quando destrancar"; o estudo idem; ao destrancar, executa no próximo tique (10 min).
+  `/hud/sistemas.cerebro = {trancado, bloqueio}` para a Vigília separar bloqueio de falha.
+- Mesma pergunta de desenho do M-42: com a senha expirando em 30 min, o Jaime passa quase o dia inteiro trancado e nada
+  autônomo roda. Ou o João mantém destrancado (timeout maior / destrancar por presença), ou as atividades autônomas
+  ganham permissão de rodar trancadas com acesso só de leitura. Decisão do João.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -412,3 +421,4 @@
 - 21/09 08:00 — retomada: M-40 (ouvido morto), M-39, M-37, M-36, M-38, M-35; 571 testes. Fila de merge: 804453f (URGENTE), 3084bac, c9eb66d, b2639cf, 53d0b41 e o M-35.
 - 21/09 08:35 — ouvido de volta (Vigília); 5/10 do benchmark diagnosticado como STT do say; M-41 (cauda de silêncio) cbb302a; 572 testes.
 - 21/09 09:40 — M-42 (rotina trancada some): fila de adiadas + tique; 573 testes.
+- 21/09 11:45 — M-43 (trancado: escolha registrada, execução adiada, HUD mostra 'cérebro trancado'); 575 testes.
