@@ -371,6 +371,17 @@
 - Validar: reinício limpo com o plist regenerado (`servico.sh instalar`) para as variáveis valerem; `sample` sem
   `exec_blas`; nenhum travamento novo.
 
+#### M-47 · CoreAudio travado após o sono: reabrir não resolve (Vigília 21/09 18:30, etapa 1) — **CORRIGIDO**
+- `sample`: Stop da captura velha preso em `HALB_Mutex::Lock`; 8 threads novas (uma por reabertura) presas em
+  `Pa_OpenStream` no mesmo mutex. O proxy do HAL não solta depois do sono; nada dentro do processo destrava.
+- Solução: reabertura com prazo (frames em 20 s) e limite (6/h); na 2ª seguida sem frames com o Mac acordado, "CoreAudio
+  travado após o sono (…); reiniciando o processo" e `os._exit(3)` — o KeepAlive sobe outro processo; o estado está no vault.
+  Não implementei a notificação de sleep do IOKit (opcional): o reinício limitado resolve o caso real.
+- Validar: após um sono, ou "Ouvido reaberto" seguido de "escuta" em ≤ 20 s, ou a linha de reinício + boot novo ≤ 1 min.
+- Isto e o M-46 mostram o mesmo padrão: o Mac dormindo com o processo vivo quebra CoreAudio/PortAudio de formas que só
+  um processo novo cura. Alternativa de desenho para o Cérebro: reiniciar o serviço de propósito em TODO despertar
+  completo (salto de relógio ≥ 2 min) — simples, previsível, custa ~5 s.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -451,3 +462,4 @@
 - 21/09 12:30 — M-44: a Mente das vontades morria de fome com o bus ocupado; 576 testes.
 - 21/09 13:20 — M-45: watchdog sem close() de fora (segfault 12:51); 577 testes. Validados pela Vigília: M-42 e o loop das vontades adiando de 10 em 10 min.
 - 21/09 15:40 — M-46: deadlock fork × OpenBLAS → BLAS 1 thread + healthcheck externo (não instalado); 579 testes.
+- 21/09 18:45 — M-47: reabertura com prazo/limite + reinício do processo quando o CoreAudio não volta; 581 testes.
