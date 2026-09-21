@@ -31,7 +31,11 @@ def gerar_audio_say(texto: str, sr: int = SR) -> bytes:
         try: os.unlink(caminho)
         except OSError: pass
 
-async def medir_turno(pcm: bytes, fluxo, antecipador=None, tts=None, ritmo_real: bool = False) -> dict:
+CAUDA_MS = 400          # silêncio após a fala sintética: o `say` acaba seco e o Deepgram truncava a última palavra
+                        # ('previsão do tempo para a', 'ligar-pro co', 'abre o sítio da' — 21/09); fora da medição
+ENTRE_TURNOS_S = 0.3    # 'está aí?' vazava para o turno seguinte no mesmo stream
+
+async def medir_turno(pcm: bytes, fluxo, antecipador=None, tts=None, ritmo_real: bool = False, cauda_ms: int = CAUDA_MS) -> dict:
     parciais: list[tuple[float, str]] = []
     tarefas: list[asyncio.Task] = []
     loop = asyncio.get_running_loop()
@@ -48,6 +52,10 @@ async def medir_turno(pcm: bytes, fluxo, antecipador=None, tts=None, ritmo_real:
         if ritmo_real:
             await asyncio.sleep(FRAME / SR)
     t_fim_fala = time.time()
+    for i in range(0, int(SR * cauda_ms / 1000) * 2, FRAME * 2):          # cauda de silêncio: não conta como fala
+        await fluxo.enviar(b"\x00" * (FRAME * 2))
+        if ritmo_real:
+            await asyncio.sleep(FRAME / SR)
     texto = (await fluxo.finalizar()).strip()
     t_texto = time.time()
     antecip = None
@@ -107,6 +115,8 @@ async def medir(s, n: int = 10, frases: list[str] | None = None, gerar_audio=ger
         if not pcm:
             imprimir(f"{i:2}. (sem áudio para «{frase}»)"); continue
         antecipador.limpar()
+        if i > 1:
+            await asyncio.sleep(ENTRE_TURNOS_S)
         r = await medir_turno(pcm, fluxo, antecipador, tts, ritmo_real)
         turnos.append(r)
         f = lambda v: f"{v * 1000:4.0f} ms" if v is not None else "   —   "
