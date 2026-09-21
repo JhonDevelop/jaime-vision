@@ -362,6 +362,15 @@
   `read()`; se ficar preso para sempre, vira zumbi (o CoreAudio aceita um 2º stream de entrada). Teste com `read()` preso.
 - Validar: "Ouvido reaberto" sem novo `.ips`; capturas zumbis aparecem como threads `ouvido-N` extras (aceitável).
 
+#### M-46 · Serviço TRAVADO (deadlock fork × OpenBLAS, Vigília 21/09 15:23) — **CORRIGIDO + healthcheck proposto**
+- pid vivo, porta muda, sem `.ips`: `sample` mostra fork→atfork do OpenBLAS→pthread_join esperando workers que um `dgemm`
+  ainda usa; quem forkou segura o GIL e tudo para. Forks: osascript/lsappinfo (observador), afplay (tts), maestri.
+- Solução: `jaime/__init__.py` fixa `OPENBLAS/OMP/MKL_NUM_THREADS=1` antes de qualquer numpy (teste em subprocesso limpo);
+  plist do LaunchAgent idem. `servico.sh saude` (mata se /hud/sistemas ficar mudo ~30 s; KeepAlive religa) e `servico.sh
+  vigiar` (LaunchAgent com.jaime.saude de 60 s). **Instalar o vigiar é decisão do Cérebro/João** — não instalei.
+- Validar: reinício limpo com o plist regenerado (`servico.sh instalar`) para as variáveis valerem; `sample` sem
+  `exec_blas`; nenhum travamento novo.
+
 #### M-08 · Frases fixas sintetizadas uma vez — **entregue pelo Codex, mergeado na main (7a767c7)**
 - "Estou aqui, senhor.", "Palavra-passe, por favor.", "Pode escrever.", "Certo, João. Estou aqui se precisar.", muletas —
   hoje cada uma custa ~1,4 s de TTS. Um cache em disco (`~/Jaime/vozes/frases/<hash>.pcm`) por texto+voz+velocidade,
@@ -441,3 +450,4 @@
 - 21/09 11:45 — M-43 (trancado: escolha registrada, execução adiada, HUD mostra 'cérebro trancado'); 575 testes.
 - 21/09 12:30 — M-44: a Mente das vontades morria de fome com o bus ocupado; 576 testes.
 - 21/09 13:20 — M-45: watchdog sem close() de fora (segfault 12:51); 577 testes. Validados pela Vigília: M-42 e o loop das vontades adiando de 10 em 10 min.
+- 21/09 15:40 — M-46: deadlock fork × OpenBLAS → BLAS 1 thread + healthcheck externo (não instalado); 579 testes.
