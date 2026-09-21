@@ -187,19 +187,24 @@ class Mente:
         proximo = time.time() + intervalo
         try:
             while True:
+                # O passo é pelo RELÓGIO, não pelo silêncio do bus: antes o `wait_for(q.get())` só expirava se o bus
+                # ficasse quieto o intervalo inteiro — com o ouvido vivo (~10 eventos 'escuta'/s) a Mente nunca decidia
+                # nada e só "funcionava" com o microfone morto (Vigília 21/09 12:13: Criação 0,86, 40 min ociosa, nada).
+                restante = proximo - time.time()
+                if restante <= 0:
+                    proximo = time.time() + intervalo
+                    try:
+                        await self.passo(pode_rodar, motivo)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        bus.emitir("vontade", erro=f"ciclo falhou: {type(e).__name__}: {e}"[:160])
+                    continue
                 try:
-                    evt = await asyncio.wait_for(q.get(), timeout=max(1.0, proximo - time.time()))
+                    evt = await asyncio.wait_for(q.get(), timeout=restante)
                     if evt.get("tipo") in ("conversa", "ouvido", "transcricao_viva"):
                         self.ultima_fala_ts = time.time()
-                    continue
                 except asyncio.TimeoutError:
                     pass
-                proximo = time.time() + intervalo
-                try:
-                    await self.passo(pode_rodar, motivo)
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    bus.emitir("vontade", erro=f"ciclo falhou: {type(e).__name__}: {e}"[:160])
         finally:
             bus.cancelar(q)

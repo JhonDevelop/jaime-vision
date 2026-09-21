@@ -1,5 +1,5 @@
 """Vontades (fase 3, §6): dinâmica dos impulsos, Mente (impulso × janela × orçamento), Vitrine e votos."""
-import asyncio, types
+import asyncio, time, types
 from datetime import datetime
 from pathlib import Path
 import pytest
@@ -339,3 +339,21 @@ def test_hud_sistemas_expoe_cerebro_trancado(vault):
     st = SimpleNamespace(motivo_bloqueio=lambda: "cérebro trancado")
     r = montar(j, None, st, None)
     assert r["cerebro"] == {"trancado": True, "bloqueio": "cérebro trancado"}
+
+
+# ── M-44 (Vigília 21/09 12:13): com o bus ocupado (ouvido vivo) a Mente nunca dava um passo ──
+def test_mente_da_passos_mesmo_com_o_bus_ocupado(vault):
+    imp = Impulsos(vault); passos = []
+    m = Mente(imp, vault)
+    async def passo(pode_rodar=lambda: True, motivo=lambda: ""): passos.append(time.time()); return None
+    m.passo = passo
+    async def rodar():
+        loop_t = asyncio.create_task(m.rodar(lambda: True, intervalo=0.2))
+        fim = time.time() + 1.0
+        while time.time() < fim:                                   # ~10 eventos 'escuta' por segundo, como o microfone real
+            bus.emitir("escuta", nivel=0.1, voz=0.0); await asyncio.sleep(0.01)
+        loop_t.cancel()
+        try: await loop_t
+        except asyncio.CancelledError: pass
+    asyncio.run(rodar())
+    assert len(passos) >= 3, passos                                 # 1 s / 0,2 s ≈ 5 passos; antes: 0
