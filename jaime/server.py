@@ -92,7 +92,11 @@ async def lifespan(app: FastAPI):
     jaime.agenda.ouvido = ouvido; jaime.agenda.start()      # rotinas e lembretes, no processo (sem n8n)
     # mente contínua (mínima): estuda um problema em aberto a cada 30 min, só quando ninguém está falando com ele
     ocioso = lambda: jaime.acesso.liberado and not (ouvido and ouvido.ocupado) and not jaime._lock.locked()
-    estudo_t = asyncio.create_task(jaime.estudo.rodar_em_ciclos(ocioso))
+    # M-43: o motivo do bloqueio deixa de ser silencioso — a Mente registra a escolha adiada e o HUD mostra 'cérebro trancado'
+    motivo_bloqueio = lambda: ("cérebro trancado" if not jaime.acesso.liberado else
+                               "conversa em curso" if (ouvido and ouvido.ocupado) or jaime._lock.locked() else "")
+    app.state.motivo_bloqueio = motivo_bloqueio
+    estudo_t = asyncio.create_task(jaime.estudo.rodar_em_ciclos(ocioso, motivo=motivo_bloqueio))
     # raciocínio próprio: pensa sobre o mundo do João quando ocioso (respeita orçamento se houver)
     if getattr(jaime, "pensar", None) is not None:
         try: jaime.pensar.pode_gastar = (lambda: app.state.orcamento.pode("estudo")) if getattr(app.state, "orcamento", None) else (lambda: True)
@@ -108,7 +112,7 @@ async def lifespan(app: FastAPI):
     jaime.estudo.emitir()
     # fase 3 — E: vontades (impulsos ouvem o bus), Mente (impulso × janela × orçamento) e noite criativa/Vitrine
     from .vontade import ligar as ligar_vontade
-    app.state.vontade = ligar_vontade(jaime, ocioso, orcamento=getattr(app.state, "orcamento", None))   # orçamento do D, se já ligado
+    app.state.vontade = ligar_vontade(jaime, ocioso, orcamento=getattr(app.state, "orcamento", None), motivo=motivo_bloqueio)   # orçamento do D, se já ligado
     jaime.vontade = app.state.vontade      # a autoconsciência (brain/eu.py) lê o impulso dominante daqui
     # Telegram: canal do celular, só o dono (JAIME_OWNER_TELEGRAM_ID)
     from .conexoes.telegram import Telegram

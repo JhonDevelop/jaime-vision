@@ -305,9 +305,37 @@ def test_criacao_de_dia_na_janela_ociosa_uma_vez_por_dia(vault):
     agora = datetime(2026, 9, 21, 10, 0)
     m = Mente(imp, vault, agora=lambda: agora); m.ultima_fala_ts = agora.timestamp() - 40 * 60    # 40 min sem fala
     e = m.decidir(registrar=False); assert e and e.atividade == "criar" and e.janela == "ocioso"
+    m._criacao_dia = agora.date()                                                                  # executou
     assert m.decidir(registrar=False) is None or m.decidir(registrar=False).atividade != "criar"   # uma por dia
     m2 = Mente(imp, vault, agora=lambda: agora); m2.ultima_fala_ts = agora.timestamp() - 20 * 60     # só 20 min: ainda não
     e2 = m2.decidir(registrar=False); assert not e2 or e2.atividade != "criar"
     imp.niveis["criacao"] = CRIACAO_DIA_MIN - 0.1
     m3 = Mente(imp, vault, agora=lambda: agora); m3.ultima_fala_ts = agora.timestamp() - 60 * 60
     e3 = m3.decidir(registrar=False); assert not e3 or e3.atividade != "criar"                     # Criação baixa: não
+
+
+# ── M-43 (Vigília 21/09 11:28): trancado, criação/estudo caíam em silêncio ──
+def test_trancado_a_escolha_e_registrada_e_adiada_e_roda_ao_destrancar(vault):
+    imp = Impulsos(vault); imp.niveis.update(criacao=0.86, utilidade=0.2, curiosidade=0.2, maestria=0.2, ordem=0.15, vinculo=0.2)
+    agora = datetime(2026, 9, 21, 11, 25); feitas = []
+    async def criar(): feitas.append("criou")
+    m = Mente(imp, vault, executores={"criar": criar}, agora=lambda: agora); m.ultima_fala_ts = agora.timestamp() - 33 * 60
+    trancado = {"v": True}
+    pode = lambda: not trancado["v"]; motivo = lambda: "cérebro trancado" if trancado["v"] else ""
+    for _ in range(3): assert asyncio.run(m.passo(pode, motivo)) is None
+    d = vault.read(vault.daily_rel())
+    assert d.count("quero criar algo meu") == 1 and d.count("Criar algo meu: adiado (cérebro trancado)") == 1 and feitas == []
+    trancado["v"] = False
+    e = asyncio.run(m.passo(pode, motivo)); assert e and e.atividade == "criar" and feitas == ["criou"]
+    # bloqueio por conversa em curso não escreve nada (é normal)
+    m2 = Mente(imp, vault, executores={"criar": criar}, agora=lambda: agora); m2.ultima_fala_ts = agora.timestamp() - 33 * 60
+    assert asyncio.run(m2.passo(lambda: False, lambda: "conversa em curso")) is None
+    assert vault.read(vault.daily_rel()).count("adiado (cérebro trancado)") == 1
+
+def test_hud_sistemas_expoe_cerebro_trancado(vault):
+    from types import SimpleNamespace
+    from jaime.hud.sistemas import montar
+    j = SimpleNamespace(acesso=SimpleNamespace(liberado=False), vault=vault)
+    st = SimpleNamespace(motivo_bloqueio=lambda: "cérebro trancado")
+    r = montar(j, None, st, None)
+    assert r["cerebro"] == {"trancado": True, "bloqueio": "cérebro trancado"}

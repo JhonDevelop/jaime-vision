@@ -160,22 +160,31 @@ class Estudo:
             self.emitir(f"{p.id} sem solução ainda: falta {str(r.get('falta', ''))[:60]}")
         return r
 
-    async def tick(self, pode_rodar=lambda: True) -> dict | None:
+    async def tick(self, pode_rodar=lambda: True, motivo=lambda: "") -> dict | None:
         """Um passo da Mente: estuda um problema se está ocioso, há problema, não há fala recente e há orçamento."""
-        if not (pode_rodar() and self.problemas.abertos()):
+        if not self.problemas.abertos():
             return None
+        if not pode_rodar():
+            m = motivo() or ""
+            if m == "cérebro trancado" and not getattr(self, "_adiado_trancado", False):
+                self._adiado_trancado = True                  # uma linha por período trancado (M-43)
+                try: self.vault.diario("Estudo adiado (cérebro trancado), faço quando destrancar", "Log")
+                except Exception: pass
+            self.emitir(f"estudo adiado: {m or 'ocupado'}")
+            return None
+        self._adiado_trancado = False
         ok, motivo = self.pode_estudar()
         if not ok:
             self.emitir(f"estudo adiado: {motivo}")
             return None
         return await self.ciclo()
 
-    async def rodar_em_ciclos(self, pode_rodar=lambda: True, intervalo: int = INTERVALO_S):
+    async def rodar_em_ciclos(self, pode_rodar=lambda: True, intervalo: int = INTERVALO_S, motivo=lambda: ""):
         """Mente contínua (mínima): a cada `intervalo`, se estiver ocioso e houver problema, estuda um."""
         while True:
             await asyncio.sleep(intervalo)
             try:
-                await self.tick(pode_rodar)
+                await self.tick(pode_rodar, motivo)
             except Exception as e:
                 bus.emitir("estudo", abertos=len(self.problemas.abertos()), msg=f"ciclo falhou: {type(e).__name__}: {e}"[:160])
 

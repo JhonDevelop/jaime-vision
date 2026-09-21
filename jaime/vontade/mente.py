@@ -79,6 +79,7 @@ class Mente:
         self.ultima: Escolha | None = None
         self.ocupado = False
         self._criacao_dia = None        # data da criação diurna já feita (uma por dia)
+        self._adiada: str | None = None # atividade escolhida mas adiada pelo cérebro trancado (registrada uma vez)
 
     # ── decisão ───────────────────────────────────────
     def decidir(self, registrar: bool = True) -> Escolha | None:
@@ -110,8 +111,6 @@ class Mente:
             if atividade != "atender" and not self.orcamento.pode(ORCAMENTO_DE[atividade]):
                 continue
             e = Escolha(atividade, nome, round(nivel, 2), jan, self._pensamento(nome, nivel, jan))
-            if atividade == "criar" and jan == "ocioso":
-                self._criacao_dia = self.agora().date()
             if registrar:
                 self._registrar(e)
             self.ultima = e
@@ -154,6 +153,8 @@ class Mente:
             r = fn()
             if asyncio.iscoroutine(r):
                 r = await r
+            if e.atividade == "criar" and e.janela == "ocioso":
+                self._criacao_dia = self.agora().date()        # a criação de dia conta quando EXECUTA (não quando é só escolhida/adiada)
             return e
         except Exception as ex:
             bus.emitir("vontade", erro=f"{e.atividade} falhou: {type(ex).__name__}: {ex}"[:160])
@@ -163,7 +164,24 @@ class Mente:
         finally:
             self.ocupado = False
 
-    async def rodar(self, pode_rodar=lambda: True, intervalo: int = INTERVALO_S) -> None:
+    async def passo(self, pode_rodar=lambda: True, motivo=lambda: "") -> Escolha | None:
+        """Um tique do loop. Bloqueado (cérebro trancado etc.), a ESCOLHA ainda é registrada e a execução fica adiada com
+        linha no diário — 21/09: Criação 0,86, 33 min ocioso, e nada no diário, porque o bloqueio era silencioso (M-43)."""
+        if pode_rodar():
+            self._adiada = None
+            return await self.ciclo()
+        m = motivo() or "bloqueado"
+        if m != "cérebro trancado" or self.ocupado:
+            return None                                       # conversa em curso / orquestrador ocupado: só espera
+        e = self.decidir(registrar=self._adiada is None)      # o "quero … porque …" aparece uma vez por período trancado
+        if e and e.atividade != "atender" and self._adiada != e.atividade:
+            self._adiada = e.atividade
+            if self.vault:
+                self.vault.diario(f"{VERBO[e.atividade].capitalize()}: adiado (cérebro trancado), faço quando destrancar", "Log")
+            bus.emitir("vontade", adiada=e.atividade, motivo=m)
+        return None
+
+    async def rodar(self, pode_rodar=lambda: True, intervalo: int = INTERVALO_S, motivo=lambda: "") -> None:
         """Loop: a cada `intervalo`, se estiver liberado e ocioso, um ciclo. Marca a última fala pelo bus."""
         q = bus.assinar()
         proximo = time.time() + intervalo
@@ -178,8 +196,7 @@ class Mente:
                     pass
                 proximo = time.time() + intervalo
                 try:
-                    if pode_rodar():
-                        await self.ciclo()
+                    await self.passo(pode_rodar, motivo)
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:

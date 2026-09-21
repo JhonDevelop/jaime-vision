@@ -34,7 +34,7 @@ def _orcamento(jaime):
     except Exception:
         return OrcamentoLivre()
 
-def ligar(jaime, pode_rodar=lambda: True, orcamento=None, intervalo: int | None = None, pasta=None) -> Vontade:
+def ligar(jaime, pode_rodar=lambda: True, orcamento=None, intervalo: int | None = None, pasta=None, motivo=lambda: "") -> Vontade:
     """Cria impulsos + Mente + criações ligados ao `jaime` e sobe as tasks (escuta do bus e ciclo da Mente)."""
     imp = Impulsos(jaime.vault, perguntas=getattr(jaime, "perguntas", None), perfil=getattr(jaime, "perfil", None))
     observar_placar(getattr(jaime, "placar", None))
@@ -53,6 +53,6 @@ def ligar(jaime, pode_rodar=lambda: True, orcamento=None, intervalo: int | None 
     mente = Mente(imp, jaime.vault, orcamento=orc, executores=executores, pode_criar=cri.pode_criar)
     v = Vontade(imp, mente, cri)
     kw = {"intervalo": intervalo} if intervalo else {}
-    v.tasks = [asyncio.create_task(imp.escutar()), asyncio.create_task(mente.rodar(pode_rodar, **kw))]
+    v.tasks = [asyncio.create_task(imp.escutar()), asyncio.create_task(mente.rodar(pode_rodar, motivo=motivo, **kw))]
     imp.emitir()
     return v
