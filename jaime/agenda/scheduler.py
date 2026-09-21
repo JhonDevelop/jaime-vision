@@ -115,6 +115,7 @@ class Agenda:
         self.ganchos: dict[str, list] = {}       # "fecha o dia" → [fn, ...] (fn sync ou async, sem argumentos)
         self._ultimo_tique: datetime | None = None
         self._rotina_em_curso: tuple[str, float] | None = None   # (ordem, início em relógio de parede)
+        self._adiadas: list[str] = []                             # rotinas que dispararam com o cérebro trancado
 
     # ── ganchos (fase 3 — D) ─────────────────────────────
     def ao(self, chave: str, fn) -> None:
@@ -205,7 +206,22 @@ class Agenda:
         if self._rotina_em_curso and (salto >= self.SALTO_S or agora.timestamp() - self._rotina_em_curso[1] >= ROTINA_PRESA_S):
             self.interromper_rotina_presa("sono" if salto >= self.SALTO_S else "presa há mais de 5 min")
         janela = int(max(self.TIQUE_S * 2, salto + self.TIQUE_S))
-        return self.recuperar_perdidas(agora, janela_s=min(janela, GRACE_ROTINA_S), motivo="dormindo")
+        achadas = self.recuperar_perdidas(agora, janela_s=min(janela, GRACE_ROTINA_S), motivo="dormindo")
+        return achadas + self.soltar_adiadas(agora)
+
+    def soltar_adiadas(self, agora: datetime | None = None) -> list[str]:
+        """Cérebro destrancado: as rotinas que dispararam trancadas rodam agora, uma por vez."""
+        if not self._adiadas or not getattr(self.jaime.acesso, "liberado", False):
+            return []
+        from apscheduler.triggers.date import DateTrigger
+        agora = agora or datetime.now(FUSO)
+        ordens, self._adiadas = self._adiadas, []
+        for i, ordem in enumerate(ordens):
+            self.vault.diario(f"Cérebro destrancou: rodando a rotina adiada: {ordem[:60]}", "Log")
+            if self._sched:
+                self._sched.add_job(self._rodar_ordem, DateTrigger(run_date=agora + timedelta(seconds=5 + 30 * i)), args=[ordem, "rotina"],
+                                    id=f"adiada:{ordem[:30]}", replace_existing=True, misfire_grace_time=GRACE_ROTINA_S)
+        return ordens
 
     def interromper_rotina_presa(self, motivo: str) -> str | None:
         """Rotina em curso há tempo demais (ou atravessou um sono): interrompe o modelo, registra e reagenda em 30 min."""
@@ -295,6 +311,11 @@ class Agenda:
         bus.emitir("agenda", disparo=ordem, quando=datetime.now(FUSO).strftime("%H:%M"))
         self.vault.diario(f"Rotina disparada: {ordem}", "Log")
         if not self.jaime.acesso.liberado:
+            # 21/09 09:00 'propor melhoria': disparou trancado, voltou sem linha de fim e nunca mais rodou. Agora fica
+            # na fila e o tique a solta assim que a senha destrancar (linha no diário nos dois momentos).
+            if ordem not in self._adiadas:
+                self._adiadas.append(ordem)
+                self.vault.diario(f"Rotina adiada (cérebro trancado), rodo quando destrancar: {ordem[:60]}", "Log")
             bus.emitir("fala", texto=f"Rotina '{ordem}' esperando: cérebro trancado."); bus.emitir("fala_fim"); return
         await self.executar_ganchos(ordem)     # fase 3 — D: prioridades/Uso.md prontos antes de o modelo fechar o dia
         if ordem.lower().startswith("consolida o que ouvi"):
@@ -303,6 +324,7 @@ class Agenda:
             await self.jaime.ask(prompt_consolidar(self.jaime.vault), canal=canal); return
         t0 = time.time()
         self._rotina_em_curso = (ordem, t0)
+        self.vault.diario(f"Rotina iniciada, chamando o modelo: {ordem[:60]}", "Log")   # separa 'não começou' de 'travou'
         try:
             resposta = await asyncio.wait_for(self.jaime.ask(ordem, canal=canal), ROTINA_TIMEOUT_S)
         except asyncio.TimeoutError:

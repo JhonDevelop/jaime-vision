@@ -332,3 +332,20 @@ def test_rotina_com_timeout_registra_e_reagenda(vault, monkeypatch):
     d = vault.read(vault.daily_rel())
     assert "Rotina falhou após 0 s: briefing — timeout de 0 min; reagendada em 30 min" in d and reag == [("briefing", 30)]
     assert ag._rotina_em_curso is None
+
+
+# ── M-42 (Vigília 21/09 09:25): rotina disparada com o cérebro trancado sumia sem fim nem retorno ──
+def test_rotina_trancada_fica_adiada_e_roda_quando_destrancar(vault):
+    from jaime.agenda.scheduler import FUSO
+    class _Trancado(_Acesso): liberado = False
+    j = _Jaime(vault); j.acesso = _Trancado(); ag = Agenda(j)
+    asyncio.run(ag._rodar_ordem("propor melhoria")); asyncio.run(ag._rodar_ordem("propor melhoria"))
+    d = vault.read(vault.daily_rel())
+    assert j.ordens == [] and ag._adiadas == ["propor melhoria"] and d.count("Rotina adiada (cérebro trancado)") == 1
+    assert ag.soltar_adiadas() == []                                      # ainda trancado: espera
+    j.acesso = _Acesso()                                                  # destrancou
+    assert ag.soltar_adiadas(datetime.now(FUSO)) == ["propor melhoria"] and ag._adiadas == []
+    assert "Cérebro destrancou: rodando a rotina adiada: propor melhoria" in vault.read(vault.daily_rel())
+    asyncio.run(ag._rodar_ordem("briefing"))
+    d = vault.read(vault.daily_rel())
+    assert "Rotina iniciada, chamando o modelo: briefing" in d and "Rotina concluída em 0 s: briefing" in d
