@@ -218,6 +218,7 @@ class OuvidoDuplex(Ouvido):
         self._t_texto = 0.0
         self._barge_ms = 0
         self._supressor_eco = SupressorDeEco()
+        self._mic = None; self._mic_gen = 0; self._ultimo_frame = 0.0; self._ultima_verificacao = 0.0; self._vigia_mic = None
         self._barge_stats: dict = {}                      # por fala do Jaime: voz ouvida, acima do eco, vetada, cortou
         self._janela_energia: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._janela_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
@@ -271,13 +272,31 @@ class OuvidoDuplex(Ouvido):
         except Exception as e:
             self.erro = f"{type(e).__name__}: {e}"
             bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False); return
+        self._capturar(self._mic_gen)
+
+    # ── captura (thread) e o watchdog que a reabre ───────────────────────────────────────
+    # 18→21/09: o laço de captura morreu num sono do Mac e ninguém percebeu — 3 dias surdo com ativo=True e erro=''.
+    MIC_SEM_AUDIO_S = 60      # sem frame por isto, com o Mac acordado, o microfone está morto
+    MIC_SALTO_S = 120         # relógio saltou (sono): reabre por precaução, o CoreAudio nem sempre volta
+
+    def _iniciar_captura(self) -> None:
+        threading.Thread(target=self._capturar, args=(self._mic_gen,), name=f"ouvido-{self._mic_gen}", daemon=True).start()
+
+    def _capturar(self, gen: int) -> None:
+        if gen != self._mic_gen:
+            return                                        # já foi substituída antes de abrir o aparelho
+        import numpy as np, sounddevice as sd
         ultimo_nivel = 0.0
         try:
             with sd.RawInputStream(samplerate=SR, blocksize=FRAME, dtype="int16", channels=1) as mic:
+                self._mic = mic
                 bus.emitir("voz", estado="ouvindo", falando=False, ativacao=self.s.ativacao, nome=self.s.nome, modo="duplex",
                            stt=getattr(self.fluxo, "nome", "?"), barge_in=self.barge_in)
-                while not self._parar.is_set():
+                while not self._parar.is_set() and gen == self._mic_gen:
                     frame, _ = mic.read(FRAME)
+                    self._ultimo_frame = time.time()
+                    if self.erro.startswith("microfone parado"):
+                        self.erro = ""                    # voltou a ouvir
                     frame = bytes(frame)
                     pcm = np.frombuffer(frame, dtype=np.int16)
                     if not self.ativo:
@@ -295,8 +314,53 @@ class OuvidoDuplex(Ouvido):
                         self._fim_da_fala()               # o Jaime acabou de falar: resumo do barge-in dessa fala
                     self._alimentar(prob, frame)
         except Exception as e:
+            if gen != self._mic_gen:
+                return                                    # captura antiga abortada pelo watchdog: sai em silêncio
             self.erro = f"{type(e).__name__}: {e}"
             bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
+        finally:
+            if gen == self._mic_gen:
+                self._mic = None
+
+    def verificar_microfone(self, agora: float | None = None) -> str:
+        """Diz por que o microfone precisa ser reaberto ('' se está bem). Puro: quem age é `reabrir_microfone`."""
+        agora = time.time() if agora is None else agora
+        anterior = self._ultima_verificacao or agora
+        self._ultima_verificacao = agora
+        if agora - anterior >= self.MIC_SALTO_S:
+            return f"relógio saltou {(agora - anterior) / 60:.0f} min (o Mac dormiu)"
+        if self._ultimo_frame and agora - self._ultimo_frame >= self.MIC_SEM_AUDIO_S:
+            return f"sem áudio há {agora - self._ultimo_frame:.0f} s com o Mac acordado"
+        return ""
+
+    def reabrir_microfone(self, motivo: str) -> None:
+        """Aborta a captura presa e sobe outra. Registra no diário: é o dado de que 'o ouvido morreu e voltou'."""
+        self._mic_gen += 1
+        self.erro = f"microfone parado: {motivo}"
+        bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
+        mic, self._mic = self._mic, None
+        if mic is not None:
+            for fn in (getattr(mic, "abort", None), getattr(mic, "close", None)):
+                try:
+                    if fn: fn()
+                except Exception:
+                    pass
+        self._ultimo_frame = time.time()
+        vault = getattr(self.jaime, "vault", None)
+        if vault is not None:
+            try: vault.diario(f"Ouvido reaberto: {motivo}", "Log")
+            except Exception: pass
+        self._iniciar_captura()
+
+    async def _vigiar_microfone(self) -> None:
+        while not self._parar.is_set():
+            await asyncio.sleep(15)
+            try:
+                motivo = self.verificar_microfone()
+                if motivo:
+                    self.reabrir_microfone(motivo)
+            except Exception as e:
+                bus.emitir("voz", estado="erro", erro=f"watchdog do microfone: {type(e).__name__}: {e}"[:200], falando=False)
 
     def _consultar_fim_de_turno(self) -> None:
         """Enquanto o silêncio cresce, pergunta ao ÁUDIO se o João terminou — e é esta resposta que manda.
@@ -516,6 +580,8 @@ class OuvidoDuplex(Ouvido):
     # ── STT / antecipação (loop) ─────────────────────────
     async def _consumir(self):
         fila = self._garantir_fila()
+        if self._vigia_mic is None:
+            self._vigia_mic = asyncio.create_task(self._vigiar_microfone())
         try:
             if self.fluxo and not self.fluxo.conectado:
                 await self.fluxo.iniciar()
