@@ -209,6 +209,12 @@ e abre num pop-up isolado (iframe com sandbox). Nunca responde "não tenho tela 
 **Duas agendas.** A sua (compromissos, lembretes, prazos) e a dele (rotinas, estudo, criação, melhorias),
 em trilhos separados, porque o que ele decide fazer sozinho não é obrigação sua.
 
+**Mãos no ar (opcional).** Com `JAIME_SPATIAL=sim|camera` o cockpit ganha uma camada espacial: objetos virtuais,
+pinça para selecionar e arrastar, "abre isso" pela voz, ações no computador sempre com prévia, recibo e Undo, várias
+telas e câmeras, Air Canvas, gestos que você ensina, IA local e ajustes que se provam em replay antes de valer.
+Desligada por padrão. Tudo em [`docs/ESPACIAL.md`](docs/ESPACIAL.md); `python -m jaime espacial hud` mostra a demo
+sem câmera.
+
 ---
 
 ## 7. Autonomia: do "tive uma ideia" ao "entreguei"
