@@ -9,6 +9,8 @@ from .core import SpatialCore
 from .simulador import objetos_demo
 
 ESTADO: dict = {"servico": None, "cfg": None, "contexto": None}
+PARAMETROS = Path("~/Jaime/espacial/parametros.json").expanduser()
+EXPERIMENTOS = Path("~/Jaime/espacial/experimentos.jsonl").expanduser()
 
 
 def nomes_de_projetos(vault: Path, maximo: int = 6) -> list[str]:
@@ -40,6 +42,11 @@ def montar(jaime, cfg: ConfigEspacial | None = None, emitir=None):
             return False
 
     s = ServicoEspacial(cfg, emitir=emitir, core=core, dono_ok=dono_ok)
+    # fase 9: limiares promovidos por experimento medido (ou os padrões); rollback em `espacial reverter`
+    from .experimentos import Parametros
+    from .gestures import PinchMachine
+    params = Parametros(PARAMETROS)
+    s.pinca = PinchMachine(core, min_confidence=cfg.rastreio_conf_min, **params.valores)
     ESTADO["servico"] = s
     # fase 2: voz contextual. Em sim/replay as seleções são do ator "demo" — a VOZ continua sendo do João autenticado
     from .referencias import ContextoVoz, Resolvedor

@@ -64,10 +64,14 @@ def _git(pasta: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=pasta, capture_output=True, text=True, timeout=120)
 
 class Evolucao:
-    def __init__(self, jaime, repo_root: Path, implementador=None, testador=None):
+    def __init__(self, jaime, repo_root: Path, implementador=None, testador=None, gate=None):
         self.jaime, self.repo = jaime, Path(repo_root)
         self.implementador = implementador or self._implementar_com_sdk
         self.testador = testador or self._pytest
+        # evolução MEDIDA (docs/ESPACIAL.md §evolução): além do pytest verde, um gate opcional compara o candidato
+        # com o baseline em replay (acerto, falsas ativações, latência). `gate(pasta, proposta) -> (ok, relatório)`.
+        # Sem gate, o fluxo é exatamente o de antes.
+        self.gate = gate
 
     # ── propostas ─────────────────────────────────────
     def propostas(self) -> list[Proposta]:
@@ -174,11 +178,19 @@ class Evolucao:
         bus.emitir("evolucao", id=p.id, titulo=p.titulo, estado=p.estado)
         relato = await self.implementador(p, pasta)
         ok, saida = await asyncio.to_thread(self.testador, pasta)
+        medicao = ""
+        if ok and self.gate is not None:
+            try:
+                ok, medicao = await asyncio.to_thread(self.gate, pasta, p)
+            except Exception as e:
+                ok, medicao = False, f"gate quebrou: {type(e).__name__}: {str(e)[:160]}"
         p.estado = "pronta" if ok else "falhou"
         (pasta / "docs").mkdir(exist_ok=True)
         (pasta / "docs" / f"PR-jaime-{fazer_slug(p.titulo)[:40]}.md").write_text(
             f"# PR — {p.titulo}\n\n**Branch:** `{p.branch}` → `main` (proposta {p.id}, {p.criada})\n\n## Motivo\n{p.motivo}\n\n## Plano\n{p.plano}\n\n"
-            f"## Testes\n{p.testes}\n\n## Relato do Jaime\n{relato}\n\n## pytest\n```\n{saida}\n```\n", encoding="utf-8")
+            f"## Testes\n{p.testes}\n\n## Relato do Jaime\n{relato}\n\n## pytest\n```\n{saida}\n```\n"
+            + (f"\n## Medição contra o baseline\n{medicao}\n\n## Rollback\nNão mergear; se já mergeado, `git revert` do commit desta branch.\n" if medicao else ""),
+            encoding="utf-8")
         _git(pasta, "add", "-A"); _git(pasta, "commit", "-q", "-m", f"jaime: {p.titulo} ({p.id})")
         self._atualizar(p)
         self.jaime.vault.diario(f"Melhoria {p.id} {p.estado}: branch {p.branch} em {pasta} — merge só com 'confirmo'", "Feito" if ok else "Pendente")

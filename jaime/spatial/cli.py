@@ -5,6 +5,8 @@
   gravar <cenário> <arq>    grava um cenário sintético em JSONL (só landmarks) para replay
   replay <arquivo.jsonl>    reproduz um JSONL e imprime os eventos
   inventario                SO/CPU/GPU/VRAM/câmeras/monitores/engines/frota (só leitura; sem segredos)
+  experimento k=v "hipótese"  mede um limiar candidato contra o atual em replay; promove só se passar no gate
+  reverter                  volta os limiares da pinça à versão anterior
   hud [porta]               cockpit + camada espacial em modo sim, SEM cérebro/voz (porta 8788; não mexe no serviço da 8787)
   cenarios                  lista os cenários"""
 from __future__ import annotations
@@ -89,6 +91,22 @@ def rodar(acao: str, args: list[str]) -> int:
         except Exception:
             vault = None
         print(json.dumps(coletar(vault), ensure_ascii=False, indent=1)); return 0
+    if acao in ("experimento", "reverter"):
+        from .experimentos import Laboratorio, Parametros
+        from .integracao import EXPERIMENTOS, PARAMETROS
+        lab = Laboratorio(Parametros(PARAMETROS), EXPERIMENTOS)
+        if acao == "reverter":
+            v = lab.reverter(); print(f"✔ limiares na versão {v}: {lab.p.valores}"); return 0
+        mud = {}
+        for a in args:
+            if "=" in a:
+                k, v = a.split("=", 1); mud[k.strip()] = float(v)
+        hip = " ".join(a for a in args if "=" not in a) or "sem hipótese"
+        if not mud:
+            print("uso: python -m jaime espacial experimento dwell_s=0.06 \"pega mais responsiva\""); return 2
+        from dataclasses import asdict
+        e = lab.testar(hip, mud)
+        print(json.dumps(asdict(e), ensure_ascii=False, indent=1)); return 0 if e.decisao == "promovido" else 1
     if acao == "hud":
         return _hud(int(args[0]) if args else 8788)
     print(__doc__); return 2
