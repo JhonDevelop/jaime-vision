@@ -25,6 +25,9 @@ PISTAS = {
 # quanto cada pista pesa: sinais fortes decidem sozinhos
 PESOS = {"código": 1.0, "pesquisa": 0.9, "redação": 0.8, "decisão": 1.0, "imagem": 1.1, "rotina": 0.9}
 
+# o João pedindo explicitamente o modelo local (docs/ESPACIAL.md §IA local): a única rota local fora de JAIME_LOCAL_AI_TIPOS
+LOCAL_RX = re.compile(r"\b(pelo|no|com o|usa o|use o) modelo local\b|\blocalmente\b|\bsem (usar a )?nuvem\b|\boffline\b", re.I)
+
 CORRECAO_RX = re.compile(r"\b(errado|errou|n[aã]o era isso|n[aã]o [eé] isso|refaz|refaça|de novo|n[aã]o foi isso|tá errado|est[aá] errado|não era assim)\b", re.I)
 
 @dataclass
@@ -60,7 +63,7 @@ def classificar(texto: str, contexto: str = "", canal: str = "cli") -> tuple[str
 
 class Roteador:
     def __init__(self, modelos: dict, placar: Placar, exploracao: float = 0.10, rng: random.Random | None = None,
-                 openai: str = ""):
+                 openai: str = "", local: str = "", local_tipos: tuple[str, ...] = ()):
         """modelos: {"decisao": ..., "codigo": ..., "padrao": ..., "rotina": ...} vindos do .env.
         openai: modelo da OpenAI (ex.: "gpt-5.5") quando houver chave — entra como candidato "openai:<modelo>"
         para pesquisa e redação. Um candidato "openai:" produz só texto: nunca recebe as mãos."""
@@ -69,6 +72,10 @@ class Roteador:
         self.exploracao = exploracao
         self.rng = rng or random.Random()
         self.openai = f"openai:{openai}" if openai else ""
+        # IA local NÃO entra nos candidatos (nem por exploração): só por rota explícita — tipo liberado pelo João
+        # depois do benchmark, ou pedido na frase. O Central continua o padrão.
+        self.local = f"local:{local}" if local else ""
+        self.local_tipos = tuple(local_tipos)
 
     def candidatos(self, tipo: str) -> list[str]:
         m = self.m
@@ -105,6 +112,10 @@ class Roteador:
 
     def decidir(self, texto: str, contexto: str = "", canal: str = "cli") -> Escolha:
         tipo, conf = classificar(texto, contexto, canal)
+        if self.local and (LOCAL_RX.search(texto or "") or tipo in self.local_tipos):
+            motivo = ("o João pediu o modelo local" if LOCAL_RX.search(texto or "")
+                      else f"rota explícita: '{tipo}' liberado para IA local (JAIME_LOCAL_AI_TIPOS)")
+            return Escolha(tipo, conf, self.local, motivo, False)
         modelo, motivo, expl = self.escolher(tipo)
         return Escolha(tipo, conf, modelo, motivo, expl)
 

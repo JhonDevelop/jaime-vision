@@ -77,8 +77,11 @@ def _cortex(acao: str, texto: str) -> int:
     """`jaime cortex explicar "<tarefa>"`: tipo, modelo escolhido e porquê, com o placar atual."""
     from .cortex.placar import Placar
     from .cortex.roteador import Roteador
+    if acao == "bench-local":
+        from .cortex.bench_local import main as bench_local      # IA local: benchmark ANTES de qualquer rota
+        return bench_local()
     if acao != "explicar" or not texto:
-        print('uso: python -m jaime cortex explicar "<tarefa>"'); return 2
+        print('uso: python -m jaime cortex explicar "<tarefa>" | bench-local'); return 2
     r = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
                  Placar(settings.vault), exploracao=0.0)

@@ -3,7 +3,7 @@
 Fluxo de cada fala: acesso (palavra-passe) → Claude (com maesters e Vigia) → eventos p/ HUD →
 registro da conversa no vault → reflexão a cada N turnos → espelho no Notion."""
 from __future__ import annotations
-import asyncio, re
+import asyncio, os, re
 from datetime import datetime
 from claude_agent_sdk import (
     ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, UserMessage, ResultMessage, StreamEvent,
@@ -117,10 +117,15 @@ class Jaime:
         # OpenAI: texto, pesquisa e decisões; nunca as mãos. Sem chave → o roteador nem a lista.
         self.openai = ProvedorOpenAI(settings.openai_key, settings.openai_model)
         # uso mínimo da OpenAI (pedido do João): o roteador nem lista os modelos dela; o juiz só com "pensa bem"
+        # IA local (docs/ESPACIAL.md): desligada por padrão; só texto; rota explícita; estrito = sem nuvem escondida
+        from ..cortex.provedores.local import ProvedorLocal
+        self.local = ProvedorLocal.do_ambiente()
         self.roteador = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
                                  self.placar, settings.cortex_exploracao,
-                                 openai=settings.openai_model if (self.openai.disponivel and settings.openai_uso == "normal") else "")
+                                 openai=settings.openai_model if (self.openai.disponivel and settings.openai_uso == "normal") else "",
+                                 local=self.local.modelo if self.local.disponivel else "",
+                                 local_tipos=tuple(t.strip() for t in os.environ.get("JAIME_LOCAL_AI_TIPOS", "").split(",") if t.strip()))
         self.juiz = Juiz(ProvedorAnthropic(settings.model_padrao, str(settings.root)), self.openai,
                          ProvedorAnthropic(settings.model_decisao, str(settings.root)))
         self.modelo_atual = settings.model
@@ -586,6 +591,25 @@ class Jaime:
                 bus.emitir("fala", texto=v.texto); bus.emitir("fala_fim")
                 partes.append(v.texto); yield v.texto
                 self.placar.registrar(f"juiz:{v.escolha}", escolha.tipo, "acerto", v.latencia, v.custo, texto[:80])
+            elif escolha.modelo.startswith("local:"):
+                bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
+                           motivo=escolha.motivo, exploracao=False)
+                r = await self.local.responder(texto, self._contexto_texto(contexto))
+                if r.ok:
+                    bus.emitir("fala", texto=r.texto); bus.emitir("fala_fim")
+                    partes.append(r.texto); yield r.texto
+                    self.placar.registrar(escolha.modelo, escolha.tipo, "acerto", r.latencia, 0.0, texto[:80])
+                else:
+                    self.placar.registrar(escolha.modelo, escolha.tipo, "erro", 0, 0, r.erro[:80])
+                    if self.local.estrito:
+                        # modo estrito: a nuvem NÃO entra escondida — o João fica sabendo e decide
+                        aviso = f"A IA local não respondeu ({r.erro[:80]}). Em modo estrito eu não uso a nuvem no lugar dela."
+                        bus.emitir("fala", texto=aviso); bus.emitir("fala_fim"); partes.append(aviso); yield aviso
+                    else:
+                        bus.emitir("placar", msg=f"{escolha.modelo} falhou ({r.erro[:60]}); indo pela Anthropic (JAIME_LOCAL_AI_STRICT=off)")
+                        escolha.modelo = self.s.model_padrao
+                        async for t in self._turno_anthropic(escolha, texto, canal, contexto, inicio):
+                            partes.append(t); yield t
             elif escolha.modelo.startswith("openai:"):
                 # texto pela OpenAI; se falhar (sem crédito, rede), cai na Anthropic no mesmo turno
                 bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
