@@ -29,6 +29,7 @@ class ConfigEspacial:
     hz_efemero: float = 30.0               # teto de eventos efêmeros (cursor/drag) por segundo no bus
     perda_s: float = 0.25                  # mão ausente por mais que isso = tracking perdido
     ttl_referencia_s: float = 20.0         # "isso" vale até quanto tempo depois da seleção
+    raizes: list[str] = field(default_factory=list)   # pastas onde ações espaciais podem abrir/mover para a Lixeira
 
     @property
     def ativo(self) -> bool:
@@ -55,4 +56,5 @@ class ConfigEspacial:
             repetir=_on(g("JAIME_SPATIAL_REPETIR", "on")),
             espelhar=_on(g("JAIME_SPATIAL_ESPELHAR", "on")),
             ttl_referencia_s=float(g("JAIME_SPATIAL_TTL_S", "20")),
+            raizes=[r.strip() for r in g("JAIME_SPATIAL_RAIZES").split(",") if r.strip()],
         )

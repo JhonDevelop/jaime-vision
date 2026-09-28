@@ -25,7 +25,7 @@ def montar(jaime, cfg: ConfigEspacial | None = None, emitir=None):
     cfg = cfg or ConfigEspacial.do_ambiente()
     ESTADO["cfg"] = cfg
     if not cfg.ativo:
-        ESTADO["servico"] = None
+        ESTADO.update(servico=None, contexto=None, acoes=None, intencoes=None, telas=None)
         return None
     core = SpatialCore()
     vault = getattr(getattr(jaime, "s", None), "vault", None)
@@ -47,12 +47,63 @@ def montar(jaime, cfg: ConfigEspacial | None = None, emitir=None):
     resolvedor = Resolvedor(core, ttl_s=cfg.ttl_referencia_s, atores=atores, confianca_min=cfg.confianca_min)
     voz = ContextoVoz(s, resolvedor, agendar=_agendar)
     ESTADO["contexto"] = voz
+    # fase 3/4: ações no SO (prévia → Vigia → recibo/Undo; dry-run por padrão) e vigia de monitores
+    from .acoes import AdaptadorAcoes, executor_do_sistema
+    from .intencoes import Intencoes
+    from .telas import VigiaTelas
+    telas = VigiaTelas(ao_mudar=lambda ev: s.emitir("espacial", **ev))
+    acoes = AdaptadorAcoes(core, executor_do_sistema(), dono_ok, vigia=_vigia_de(jaime), dry_run=cfg.dry_run,
+                           raizes=_raizes(jaime, cfg), proibidas=_proibidas(jaime), emitir=s.emitir, telas=telas,
+                           limiar=cfg.confianca_min, log=Path("~/Jaime/espacial/recibos.jsonl").expanduser())
+    intencoes = Intencoes(core, acoes, s.emitir, _agendar)
+    s.ouvintes.append(intencoes)
+    s.extras.append(lambda: _vigiar_telas(telas))
+    ESTADO.update(acoes=acoes, intencoes=intencoes, telas=telas)
     try:
         jaime.espacial = s
         jaime.espacial_voz = voz
+        jaime.espacial_acoes = acoes
     except Exception:
         pass
     return s
+
+
+def _vigia_de(jaime):
+    """O MESMO Vigia das ferramentas do modelo (PreToolUse), chamado com o nome da ação espacial."""
+    v = getattr(jaime, "vigia", None)
+    if v is None or not hasattr(v, "pre_tool_use"):
+        return None
+    async def checar(nome: str, args: dict) -> dict:
+        return await v.pre_tool_use({"tool_name": nome, "tool_input": args}, None, None)
+    return checar
+
+
+def _raizes(jaime, cfg) -> list[Path]:
+    if cfg.raizes:
+        return [Path(r).expanduser() for r in cfg.raizes]
+    ws = getattr(getattr(jaime, "s", None), "workspace", None)
+    return [Path(ws)] if ws else []
+
+
+def _proibidas(jaime) -> list[Path]:
+    s = getattr(jaime, "s", None)
+    out = [Path("~/.ssh").expanduser()]
+    if s is not None:
+        if getattr(s, "vault", None):
+            out.append(Path(s.vault))
+        if getattr(s, "root", None):
+            out += [Path(s.root) / ".env", Path(s.root) / "jaime" / "vigia"]
+    return out
+
+
+async def _vigiar_telas(telas, intervalo: float = 2.0):
+    import asyncio
+    while True:
+        await asyncio.sleep(intervalo)
+        try:
+            await asyncio.to_thread(telas.checar)
+        except Exception:
+            pass
 
 
 def _agendar(coro):

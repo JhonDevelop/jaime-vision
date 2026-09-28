@@ -94,3 +94,15 @@ def test_servidor_e_cockpit_estao_ligados_a_camada_espacial():
     assert "/hud/espacial.js" in cockpit and "case 'espacial'" in cockpit
     js = (RAIZ / "jaime" / "hud" / "static" / "espacial.js").read_text(encoding="utf-8")
     assert "if (!e.ativo) return" in js           # com a flag off o JS não instala nada
+
+
+def test_mcp_espacial_so_entra_nas_opcoes_com_a_flag_ligada(tmp_path):
+    from jaime.orchestrator.jaime import Jaime
+    j = Jaime.__new__(Jaime)
+    assert j._servidor_espacial() == {}                       # flag off: nada de MCP novo
+    jj = _jaime(tmp_path)
+    s = integracao.montar(jj, ConfigEspacial(modo="sim"), emitir=Bus().emitir)
+    j.espacial, j.espacial_acoes, j.espacial_voz = s, jj.espacial_acoes, jj.espacial_voz
+    assert set(j._servidor_espacial()) == {"espacial"}
+    integracao.montar(jj, ConfigEspacial())                    # desligar limpa o estado global das rotas
+    assert integracao.ESTADO["acoes"] is None and integracao.ESTADO["servico"] is None

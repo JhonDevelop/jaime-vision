@@ -70,15 +70,33 @@
       case 'gesture.click': pisca(e.object_id, '#49e6a0'); break;
       case 'gesture.cancel': case 'spatial.tracking_lost': moverObj(e); pisca(e.object_id, '#ff5c72'); if (k === 'spatial.tracking_lost') rac('mão perdida', (e.data && e.data.reason) || ''); break;
       case 'spatial.object': if (e.obj_novo) { S.cena.objetos = S.cena.objetos.filter(o => o.id !== e.obj_novo.id).concat([e.obj_novo]); } break;
-      case 'spatial.removed': S.cena.objetos = S.cena.objetos.filter(o => o.id !== e.object_id); break;
       case 'voice.reference':
         (e.objetos || []).forEach(id => pisca(id, e.status === 'ok' ? '#49e6a0' : '#ffb347'));
         rac('isso =', e.status === 'ok' ? (e.objetos || []).map(rotulo).join(' + ') : (e.pergunta || e.status)); break;
       case 'action.preview': case 'action.receipt': case 'action.undo': case 'action.denied':
-        rac(k.replace('action.', 'ação '), (e.resumo || e.motivo || '').slice(0, 90)); pisca(e.object_id, k === 'action.denied' ? '#ff5c72' : '#ffb347'); break;
+        rac(k.replace('action.', 'ação '), (e.resumo || e.motivo || '').slice(0, 90)); pisca(e.object_id, k === 'action.denied' ? '#ff5c72' : '#ffb347');
+        if (k === 'action.preview' && e.status === 'review') aviso(`${e.resumo}. ${e.undo ? 'Undo: ' + e.undo + '.' : ''}`, 'Confirmar', `/espacial/acoes/${e.proposta_id}/confirmar`);
+        else if (k === 'action.receipt') aviso(e.resumo + (e.erro ? ' — ' + e.erro : ''), e.executado ? 'Desfazer' : '', `/espacial/recibos/${e.recibo_id}/desfazer`);
+        else if (k === 'action.denied' && e.motivo) aviso('não fiz: ' + e.motivo, '', '');
+        break;
+      case 'spatial.removed': S.cena.objetos = S.cena.objetos.filter(o => o.id !== e.object_id); if (e.desfazer) aviso(e.resumo || 'descartado', 'Desfazer', `/espacial/descartes/${e.desfazer}/desfazer`); break;
+      case 'workspace.displays_changed': aviso(`monitores mudaram (${e.total}) — ações de janela suspensas`, 'Validar', '/espacial/telas/validar'); break;
     }
   }
 
+  function aviso(texto, botao, url) {   // prévia/recibo com um botão (Confirmar/Desfazer); some sozinho em 9 s
+    const d = document.createElement('div');
+    d.className = 'chip';
+    d.style.cssText = 'position:fixed;right:16px;bottom:52px;z-index:22;max-width:420px;white-space:normal;color:#dfe9f5;background:rgba(8,12,20,.92)';
+    d.textContent = texto.slice(0, 180) + ' ';
+    if (botao && url) {
+      const b = document.createElement('b'); b.textContent = botao; b.style.cssText = 'cursor:pointer;margin-left:8px';
+      b.onclick = async () => { try { await fetch(url, { method: 'POST' }); } catch (e) {} d.remove(); };
+      d.appendChild(b);
+    }
+    document.querySelectorAll('.esp-aviso').forEach(x => x.remove()); d.classList.add('esp-aviso');
+    document.body.appendChild(d); setTimeout(() => d.remove(), 9000);
+  }
   function rac(a, b) { // reaproveita o painel de raciocínio do cockpit, se existir
     try { if (typeof window.rac === 'function') window.rac(a, b); } catch (e) {}
   }

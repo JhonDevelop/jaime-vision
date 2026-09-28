@@ -30,6 +30,10 @@ async def lifespan(app: FastAPI):
     global ouvido
     monitor = asyncio.create_task(loop_monitor())
     sonda = asyncio.create_task(conexoes.sondar())
+    # expansão espacial (docs/ESPACIAL.md) montada ANTES do start: o MCP `espacial` entra nas opções do cliente.
+    # JAIME_SPATIAL=off (padrão) devolve None e não cria nada — nem task, nem câmera, nem MCP.
+    from .spatial.integracao import montar as montar_espacial
+    espacial = montar_espacial(jaime)
     await jaime.start(apresentar=True)
     if settings.voz != "off" and settings.voz_modo == "conversa" and settings.openai_key:
         # fase 3: fala-para-fala pelo Realtime; o Ouvido (pipeline) fica de fora
@@ -120,9 +124,6 @@ async def lifespan(app: FastAPI):
     telegram_t = asyncio.create_task(telegram.rodar())
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
-    # expansão espacial (docs/ESPACIAL.md): JAIME_SPATIAL=off (padrão) não cria nada — nem task, nem câmera, nem MCP
-    from .spatial.integracao import montar as montar_espacial
-    espacial = montar_espacial(jaime)
     if espacial:
         await espacial.iniciar()
     yield

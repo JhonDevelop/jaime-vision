@@ -53,7 +53,8 @@ class ServicoEspacial:
         self._ultimo_frame = 0.0
         self._ultimo_efemero: dict[str, float] = {}
         self._suspenso = ""
-        self.ouvintes: list[Callable[[SpatialEvent], None]] = []   # fase 2/3: resolvedor, ações
+        self.ouvintes: list[Callable[[SpatialEvent], None]] = []   # fase 3: gestos → intenções
+        self.extras: list[Callable[[], object]] = []                # tasks auxiliares (ex.: vigia de monitores), mesmo ciclo de vida
 
     # ── ciclo de vida ──────────────────────────────────
     def _fonte_padrao(self):
@@ -87,6 +88,7 @@ class ServicoEspacial:
         self._tasks = [asyncio.create_task(self._produzir(), name="espacial:fonte"),
                        asyncio.create_task(self._consumir(), name="espacial:gestos"),
                        asyncio.create_task(self._vigiar(), name="espacial:watchdog")]
+        self._tasks += [asyncio.create_task(f(), name=f"espacial:extra{i}") for i, f in enumerate(self.extras)]
         self._publicar_cena()
         self._estado_bus()
 

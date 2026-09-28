@@ -224,7 +224,8 @@ class Jaime:
                          "acervo": build_acervo_server(self.acervo),
                          "relacoes": build_relacoes_server(self.relacoes),
                          "curiosidade": build_curiosidade(self.curiosidade),
-                         "agente": build_agente_server(self.carteira, self.harness)},
+                         "agente": build_agente_server(self.carteira, self.harness),
+                         **self._servidor_espacial()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -234,6 +235,14 @@ class Jaime:
         if self.s.thinking_tokens > 0:
             kw["max_thinking_tokens"] = self.s.thinking_tokens   # mostra parte do raciocínio no HUD
         return ClaudeAgentOptions(**kw)
+
+    def _servidor_espacial(self) -> dict:
+        """MCP `espacial` só existe com JAIME_SPATIAL ligado (docs/ESPACIAL.md); desligado, o dicionário fica vazio."""
+        s = getattr(self, "espacial", None)
+        if s is None:
+            return {}
+        from ..spatial.tools import build_espacial_server
+        return {"espacial": build_espacial_server(s, getattr(self, "espacial_acoes", None), getattr(self, "espacial_voz", None))}
 
     async def start(self, apresentar: bool = True) -> str:
         nova = self.estado.registrar_maquina()
