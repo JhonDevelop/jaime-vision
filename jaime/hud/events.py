@@ -10,9 +10,12 @@ class Bus:
         self._subs: set[asyncio.Queue] = set()
         self.historico: deque = deque(maxlen=300)
 
-    def emitir(self, tipo: str, **dados) -> None:
+    def emitir(self, tipo: str, _efemero: bool = False, **dados) -> None:
+        """`_efemero=True`: vai aos assinantes, mas não ao histórico (cursor/arrasto da mão a 30 Hz apagariam
+        em segundos os 300 eventos que o HUD recarrega ao abrir)."""
         evt = {"t": round(time.time(), 3), "tipo": tipo, **dados}
-        self.historico.append(evt)
+        if not _efemero:
+            self.historico.append(evt)
         for q in list(self._subs):
             try:
                 q.put_nowait(evt)

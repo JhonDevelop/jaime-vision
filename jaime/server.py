@@ -120,7 +120,14 @@ async def lifespan(app: FastAPI):
     telegram_t = asyncio.create_task(telegram.rodar())
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
+    # expansão espacial (docs/ESPACIAL.md): JAIME_SPATIAL=off (padrão) não cria nada — nem task, nem câmera, nem MCP
+    from .spatial.integracao import montar as montar_espacial
+    espacial = montar_espacial(jaime)
+    if espacial:
+        await espacial.iniciar()
     yield
+    if espacial:
+        await espacial.parar("servidor desligando")      # solta a câmera antes de derrubar o resto
     monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); despertador_t.cancel(); jaime.agenda.stop()
     if pensar_t: pensar_t.cancel()
     app.state.vontade.parar()   # fase 3 — E
@@ -139,6 +146,8 @@ def _falar_quando_pronto(texto: str):
 
 app = FastAPI(title="Jaime", lifespan=lifespan)
 app.include_router(telephony_router)
+from .spatial.rotas import router as espacial_router   # noqa: E402 — rotas inertes com JAIME_SPATIAL=off
+app.include_router(espacial_router)
 
 # Rotas que podem ser abertas sem token: é por elas que o convidado PEDE o token.
 ABERTAS = ("/entrar", "/favicon.ico")
