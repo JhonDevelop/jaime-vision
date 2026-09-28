@@ -71,7 +71,8 @@ câmera/sim/replay ─► fila (1–2, descarta o velho) ─► landmarks (threa
   sem ambiguidade; só ações reversíveis; "esquece o gesto X" apaga os exemplos.
 - **IA local:** `JAIME_LOCAL_AI=on` + modelo + endpoint do dono. Nunca troca o Central sozinha: rota só por
   `JAIME_LOCAL_AI_TIPOS` (depois do `python -m jaime cortex bench-local`) ou "…pelo modelo local". Estrito = sem nuvem
-  escondida. PAIR/OpenShell são proxies opcionais para um nó RTX da frota; o Mac Intel não roda CUDA.
+  escondida. Fora do loopback exige HTTPS (HTTP na LAN só com token + `JAIME_LOCAL_AI_LAN_HTTP=on`); confirmação do
+  Vigia nunca vai ao local. PAIR/OpenShell são proxies opcionais para um nó RTX da frota; o Mac Intel não roda CUDA.
 - **Evolução medida:** `python -m jaime espacial experimento dwell_s=0.06 "hipótese"` mede em replay contra o atual e
   promove só se passar (acerto, falsos/h, latência); `python -m jaime espacial reverter` volta. Só limiares se
   promovem sozinhos; o resto vira PR com o mesmo gate (`Evolucao(gate=…)`).
@@ -85,7 +86,8 @@ câmera/sim/replay ─► fila (1–2, descarta o velho) ─► landmarks (threa
 
 `GET /espacial/estado` · `POST /espacial/ligar|desligar` · `POST /espacial/selecionar` · `POST /espacial/latencia` ·
 `GET /espacial/acoes` · `POST /espacial/acoes/{id}/confirmar` · `POST /espacial/recibos/{id}/desfazer` ·
-`POST /espacial/descartes/{token}/desfazer` · `POST /espacial/telas/validar`. Confirmar e desfazer só da própria máquina.
+`POST /espacial/descartes/{token}/desfazer` · `POST /espacial/telas/validar`. Rotas que mudam estado (ligar, selecionar, confirmar, desfazer, validar) só da própria máquina e do próprio HUD
+(checagem de Origin). Abrir programa/script por gesto é sempre revisão.
 
 ## Privacidade
 
