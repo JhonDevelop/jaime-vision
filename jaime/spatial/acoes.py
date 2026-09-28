@@ -259,6 +259,11 @@ class AdaptadorAcoes:
             if self.telas is not None and self.telas.suspenso:
                 pv.status, pv.motivo = "deny", self.telas.suspenso; return self._guardar(p, pv)
             app = p.args.get("app") or (obj.metadata.get("app") if obj else "")
+            if app and p.args.get("monitor") and "x" not in p.args:
+                # "para o monitor da direita": destino calculado pela geometria lógica atual (fase 4)
+                erro = self._destino_por_monitor(p, app)
+                if erro:
+                    pv.status, pv.motivo = "deny", erro; return self._guardar(p, pv)
             if not app or "x" not in p.args or "y" not in p.args:
                 pv.status, pv.motivo = "deny", "faltou app/posição de destino"; return self._guardar(p, pv)
             pv.recurso = f"janela {app}" + (f" «{p.args.get('titulo')}»" if p.args.get("titulo") else "")
@@ -267,6 +272,26 @@ class AdaptadorAcoes:
         if self.dry_run:
             pv.efeitos = [f"[dry-run] {e}" for e in pv.efeitos]
         return self._guardar(p, pv)
+
+    def _destino_por_monitor(self, p: ActionProposal, app: str) -> str:
+        from .telas import display_em, destino_janela, escolher
+        if self.telas is None or not self.telas.displays:
+            return "sem geometria de monitores"
+        if self.executor is None:
+            return "sem backend de SO para ler a janela"
+        try:
+            jan = self.executor.janela(app, p.args.get("titulo", ""))
+        except Exception as e:
+            return f"não consegui ler a janela: {type(e).__name__}"
+        if not jan:
+            return "janela não encontrada"
+        origem = display_em(self.telas.displays, jan[0] + 5, jan[1] + 5)
+        alvo = escolher(self.telas.displays, str(p.args["monitor"]), origem)
+        if not alvo:
+            return f"não há monitor '{p.args['monitor']}' neste layout"
+        p.args["x"], p.args["y"] = destino_janela(jan, origem, alvo)
+        p.args["monitor_id"] = alvo.id
+        return ""
 
     def _guardar(self, p: ActionProposal, pv: Preview) -> Preview:
         self.previas[p.id] = (p, pv)

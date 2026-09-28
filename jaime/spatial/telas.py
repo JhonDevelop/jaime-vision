@@ -179,3 +179,79 @@ class VigiaTelas:
     def estado(self) -> dict:
         return {"backend": self.origem, "hash": self.hash, "suspenso": self.suspenso,
                 "displays": [d.to_dict() for d in self.displays]}
+
+
+# ── alvo por monitor ("manda essa janela para o monitor da direita") ─────────
+def escolher(displays: list[Display], qual: str, referencia: Display | None = None) -> Display | None:
+    """qual: id | 'principal' | 'embutido' | 'direita' | 'esquerda' | 'cima' | 'baixo' (relativo à `referencia`)."""
+    if not displays:
+        return None
+    q = (qual or "").strip().lower()
+    por_id = next((d for d in displays if d.id == q or d.nome.lower() == q), None)
+    if por_id:
+        return por_id
+    if q in ("principal", "main"):
+        return next((d for d in displays if d.principal), displays[0])
+    if q in ("embutido", "notebook", "do notebook"):
+        return next((d for d in displays if d.embutido), None)
+    ref = referencia or next((d for d in displays if d.principal), displays[0])
+    cx, cy = ref.centro()
+    eixo = {"direita": (1, 0), "esquerda": (-1, 0), "baixo": (0, 1), "cima": (0, -1)}.get(q)
+    if not eixo:
+        return None
+    cands = []
+    for d in displays:
+        if d.id == ref.id:
+            continue
+        dx, dy = d.centro()[0] - cx, d.centro()[1] - cy
+        proj = dx * eixo[0] + dy * eixo[1]
+        perp = abs(dx * eixo[1]) + abs(dy * eixo[0])
+        if proj > 0 and proj >= perp:          # "da direita" tem de estar MAIS à direita do que acima/abaixo
+            cands.append((proj, d))
+    return min(cands, key=lambda c: c[0])[1] if cands else None
+
+
+def destino_janela(janela: tuple[int, int, int, int], origem: Display | None, destino: Display) -> tuple[int, int]:
+    """Mantém a posição RELATIVA da janela ao trocar de monitor (escala mista: a conta é em unidades lógicas,
+    que é o que a API de janelas usa) e garante que o canto fique dentro da tela de destino."""
+    x, y, w, h = janela
+    if origem:
+        fx = (x - origem.x) / max(origem.largura, 1); fy = (y - origem.y) / max(origem.altura, 1)
+    else:
+        fx = fy = 0.1
+    nx = destino.x + int(fx * destino.largura); ny = destino.y + int(fy * destino.altura)
+    nx = min(max(nx, destino.x), destino.x + max(destino.largura - min(w, destino.largura), 0))
+    ny = min(max(ny, destino.y), destino.y + max(destino.altura - min(h, destino.altura), 0))
+    return nx, ny
+
+
+# ── calibração física (monitor no espaço da sala, em metros) ────────────────
+def salvar_calibracao(caminho, displays: list[Display], planos: dict) -> None:
+    """planos: display_id → {"origem": [x,y,z], "direita": [x,y,z], "baixo": [x,y,z]} (metros, vetores do plano).
+    Guarda junto a impressão do layout: calibração de outro layout não vale."""
+    import json
+    from pathlib import Path
+    p = Path(caminho).expanduser(); p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"v": 1, "layout": impressao(displays), "planos": planos}, indent=1), encoding="utf-8")
+
+
+def carregar_calibracao(caminho, displays: list[Display]) -> tuple[dict, str]:
+    """(DisplayPlane por id, motivo_se_inválida)."""
+    import json
+    from pathlib import Path
+    from .core import Vec3
+    from .geometry import DisplayPlane
+    p = Path(caminho).expanduser() if caminho else None
+    if not p or not p.exists():
+        return {}, "sem arquivo de calibração"
+    d = json.loads(p.read_text(encoding="utf-8"))
+    if d.get("layout") != impressao(displays):
+        return {}, "calibração é de outro layout de monitores — recalibrar"
+    por_id = {x.id: x for x in displays}
+    out = {}
+    for did, pl in d.get("planos", {}).items():
+        if did in por_id:
+            disp = por_id[did]
+            out[did] = DisplayPlane(did, Vec3(*pl["origem"]), Vec3(*pl["direita"]), Vec3(*pl["baixo"]),
+                                    (disp.x, disp.y, disp.largura, disp.altura))
+    return out, ""

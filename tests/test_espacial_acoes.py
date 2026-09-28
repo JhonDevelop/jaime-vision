@@ -268,3 +268,16 @@ def test_mcp_espacial_estado_criar_propor_executar_e_desfazer(tmp_path):
     assert json.loads(txt(run(handlers["desfazer"]({"recibo_id": r["id"]}))))["ok"]
     assert (raiz / "bub" / "rascunho.txt").exists()
     assert "criado" in txt(run(handlers["criar_objeto"]({"label": "API", "kind": "backend", "x": 0.3, "y": 0.6})))
+
+
+def test_mover_janela_para_o_monitor_da_direita_calcula_o_destino(tmp_path):
+    esq = Display("a", "embutido", 0, 0, 1440, 900, 2.0, principal=True, embutido=True)
+    dir_ = Display("b", "externo 1", 1440, 0, 2560, 1440, 1.0)
+    vt = VigiaTelas(backend=lambda: [esq, dir_])
+    a, c, so, *_ = _montar(tmp_path, dry_run=False, telas=vt)
+    p = ActionProposal("move_window", "projeto:bub", "joao", 0.99, "voz", {"app": "Finder", "monitor": "direita"})
+    pv = run(a.propor(p))
+    assert pv.status == "allow" and p.args["monitor_id"] == "b" and dir_.contem(p.args["x"], p.args["y"])
+    assert run(a.executar(p.id)).executado and dir_.contem(*so.janelas["Finder"][:2])
+    p2 = ActionProposal("move_window", "projeto:bub", "joao", 0.99, "voz", {"app": "Finder", "monitor": "cima"})
+    assert run(a.propor(p2)).status == "deny"
