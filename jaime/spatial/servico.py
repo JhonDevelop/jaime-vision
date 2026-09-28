@@ -75,6 +75,9 @@ class ServicoEspacial:
     async def iniciar(self) -> None:
         if self.rodando:
             return
+        for t in self._tasks:                 # restos de uma execução que terminou sozinha
+            t.cancel()
+        self._tasks = []
         self.erro = self.motivo_parada = ""
         try:
             if self.fonte is None:
@@ -111,12 +114,31 @@ class ServicoEspacial:
             except (asyncio.CancelledError, Exception):
                 pass
         self._tasks = []
+        self._soltar_fonte()
+        self._estado_bus()
+
+    def _encerrar_resto(self) -> None:
+        """A fonte acabou (ou caiu): cancela as OUTRAS tasks (watchdog, monitores…) e esquece a fonte, para um
+        `iniciar()` depois criar uma nova em vez de reusar a fechada. Não cancela a task que está chamando."""
+        atual = asyncio.current_task()
+        for t in self._tasks:
+            if t is not atual:
+                t.cancel()
+        self._soltar_fonte()
+
+    def _soltar_fonte(self) -> None:
+        if self.fonte is not None:
+            try:
+                self.fonte.fechar()
+            except Exception:
+                pass
+        self.fonte = None
         try:
             self.rastreador.fechar()
         except Exception:
             pass
-        self.fonte = None
-        self._estado_bus()
+        if self.cfg.modo == "camera":
+            self.rastreador = RastreadorIdentidade()      # o MediaPipe fechado não serve mais: iniciar() cria outro
 
     async def desligar_rastreamento(self, motivo: str = "kill switch") -> dict:
         """Kill switch (HUD/voz): para o rastreamento na hora; o resto do Jaime segue."""
@@ -170,7 +192,8 @@ class ServicoEspacial:
             for ev in self.pinca.lost_all("fonte terminou"):
                 self._publicar(ev)
             self.rodando = self.rastreando = False
-            self.motivo_parada = self.motivo_parada or "fonte terminou"
+            self.motivo_parada = self.motivo_parada or ("erro na fonte" if self.erro else "fonte terminou")
+            self._encerrar_resto()
             self._estado_bus()
 
     async def _vigiar(self) -> None:

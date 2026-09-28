@@ -6,8 +6,9 @@ próprio. A máquina continua processando tokens e custa GPU, energia, memória 
 Regras (docs/ESPACIAL.md §IA local):
 - desligado por padrão (`JAIME_LOCAL_AI=off`); o Central (Claude) continua sendo o cérebro — o local entra por
   ROTA EXPLÍCITA (`JAIME_LOCAL_AI_TIPOS`, ou o João pedindo "pelo modelo local"), depois de benchmark no placar;
-- endpoint só de host configurado pelo dono (nunca URL vinda da fala/prompt); fora do loopback exige HTTPS ou
-  token (`JAIME_LOCAL_AI_TOKEN`) — a LAN não é confiável por padrão;
+- endpoint só de host configurado pelo dono (nunca URL vinda da fala/prompt); fora do loopback exige HTTPS —
+  HTTP na LAN só com token E `JAIME_LOCAL_AI_LAN_HTTP=on` (vai em claro); `inference.local`/OpenShell entram pela
+  lista do dono como qualquer host de rede;
 - `JAIME_LOCAL_AI_STRICT=on`: uma chamada roteada ao local que falha NÃO cai silenciosamente na nuvem;
 - produz só TEXTO (sem as mãos do Agent SDK): as ações continuam pelo cliente da Anthropic + Vigia;
 - disjuntor: falhas seguidas abrem o circuito por um tempo (um servidor caído não segura cada turno 30 s).
@@ -18,18 +19,18 @@ import asyncio, os, time
 from urllib.parse import urlsplit
 from .base import Resposta, Cronometro
 
-HOSTS_LOCAIS = {"localhost", "127.0.0.1", "::1", "host.openshell.internal", "inference.local"}
+HOSTS_LOCAIS = {"localhost", "127.0.0.1", "::1"}      # loopback DE VERDADE; ".local"/".internal" resolvem na rede (mDNS)
 
 
 class ProvedorLocal:
     nome = "local"
 
     def __init__(self, base_url: str = "", modelo: str = "", ligado: bool = False, estrito: bool = True,
-                 hosts_extra: set[str] | None = None, token: str = "", timeout: float = 30.0,
+                 hosts_extra: set[str] | None = None, token: str = "", timeout: float = 30.0, lan_http: bool = False,
                  max_concorrencia: int = 2, falhas_para_abrir: int = 3, aberto_por_s: float = 60.0,
                  transporte=None, relogio=time.monotonic):
         self.base_url, self.modelo, self.ligado, self.estrito = base_url.rstrip("/"), modelo, ligado, estrito
-        self.token, self.timeout = token, timeout
+        self.token, self.timeout, self.lan_http = token, timeout, lan_http
         self.hosts = HOSTS_LOCAIS | set(hosts_extra or ())
         self._sem = asyncio.Semaphore(max_concorrencia)
         self.falhas_para_abrir, self.aberto_por_s = falhas_para_abrir, aberto_por_s
@@ -42,10 +43,14 @@ class ProvedorLocal:
         e = os.environ if env is None else env
         g = lambda k, d="": (e.get(k, "") or "").strip() or d
         on = lambda v: v.lower() in ("1", "on", "true", "sim")
+        try:
+            timeout = float(g("JAIME_LOCAL_AI_TIMEOUT_S", "30").replace(",", "."))
+        except ValueError:
+            timeout = 30.0
         return cls(base_url=g("JAIME_LOCAL_AI_BASE_URL", "http://127.0.0.1:11434/v1"), modelo=g("JAIME_LOCAL_AI_MODEL"),
                    ligado=on(g("JAIME_LOCAL_AI", "off")), estrito=on(g("JAIME_LOCAL_AI_STRICT", "on")),
                    hosts_extra={h.strip() for h in g("JAIME_LOCAL_AI_HOSTS").split(",") if h.strip()},
-                   token=g("JAIME_LOCAL_AI_TOKEN"), timeout=float(g("JAIME_LOCAL_AI_TIMEOUT_S", "30")), **kw)
+                   token=g("JAIME_LOCAL_AI_TOKEN"), timeout=timeout, lan_http=on(g("JAIME_LOCAL_AI_LAN_HTTP", "off")), **kw)
 
     def _validar(self) -> str:
         if not self.ligado:
@@ -58,8 +63,10 @@ class ProvedorLocal:
         if u.hostname not in self.hosts:
             return f"host {u.hostname} não está na lista do dono (JAIME_LOCAL_AI_HOSTS)"
         loopback = u.hostname in HOSTS_LOCAIS
-        if not loopback and u.scheme != "https" and not self.token:
-            return "fora desta máquina exige HTTPS ou JAIME_LOCAL_AI_TOKEN"
+        if not loopback and u.scheme != "https":
+            # HTTP na LAN manda o prompt (e o token) em claro: só com token E opt-in explícito do dono
+            if not (self.token and self.lan_http):
+                return "fora desta máquina exige HTTPS (ou JAIME_LOCAL_AI_TOKEN + JAIME_LOCAL_AI_LAN_HTTP=on, sabendo que vai em claro)"
         return ""
 
     @property

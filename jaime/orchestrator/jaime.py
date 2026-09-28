@@ -552,13 +552,16 @@ class Jaime:
                 # resposta à proposta "posso passar a fazer X sem perguntar?"
                 self.vault.diario(f"Confiança: {r}", "Decisões")
                 bus.emitir("fala", texto=r); bus.emitir("fala_fim"); yield r; return
+            turno_de_acao = False             # confirmação do Vigia: o turno precisa das mãos (nunca vai à IA local)
             if self.vigia.lote and eh_aprovacao_lote(texto):
+                turno_de_acao = True
                 # confirmação em lote (fase 3): "sim" libera exatamente as ações anotadas neste turno
                 acoes = self.vigia.liberar_lote()
                 self.vault.diario("Lote liberado pelo João: " + "; ".join(a.descricao for a in acoes), "Decisões")
                 texto = ("sim — execute agora, na ordem e sem perguntar de novo, exatamente as ações que o Vigia anotou: "
                          + "; ".join(a.descricao for a in acoes) + ". Se alguma falhar, pare e relate o que aconteceu.")
             elif eh_confirmacao(texto):
+                turno_de_acao = True
                 self.vigia.armar(); texto = "confirmo — pode executar a ação que o Vigia bloqueou."
                 if self.autonomo.confirmar():
                     # a missão autônoma pausada retoma sozinha; não precisa de um turno do modelo
@@ -578,6 +581,9 @@ class Jaime:
             self.humor.registrar_tom(detectar_tom(texto)); self.humor.registrar_hora(datetime.now().hour)
             bus.emitir("humor", **self.humor.dados())
             escolha = self.roteador.decidir(texto, contexto, canal)
+            if turno_de_acao and escolha.modelo.startswith("local:"):
+                escolha.modelo, escolha.motivo, _ = self.roteador.escolher(escolha.tipo)
+                escolha.motivo = "confirmação do Vigia precisa das mãos: " + escolha.motivo
             partes, inicio = [], asyncio.get_event_loop().time()
             self._custo_turno = 0.0; self._erros_turno = 0
             if self.openai.disponivel and (pede_juiz(texto, "") if self.s.openai_uso == "minimo" else pede_juiz(texto, escolha.tipo)):

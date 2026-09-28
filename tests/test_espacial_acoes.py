@@ -225,16 +225,6 @@ def test_jogar_arquivo_real_na_lixeira_so_gera_previa_em_revisao(tmp_path):
     assert prev and prev[-1]["status"] == "review"
 
 
-def test_rotas_de_confirmar_e_desfazer_so_da_propria_maquina(tmp_path):
-    from fastapi import FastAPI, Request
-    from fastapi.testclient import TestClient
-    from jaime.spatial import rotas
-    req = SimpleNamespace(client=SimpleNamespace(host="192.168.0.20"))
-    with pytest.raises(Exception):
-        rotas._so_local(req)
-    rotas._so_local(SimpleNamespace(client=SimpleNamespace(host="127.0.0.1")))
-
-
 def test_mcp_espacial_estado_criar_propor_executar_e_desfazer(tmp_path):
     import json
     from jaime.spatial.config import ConfigEspacial
@@ -262,8 +252,9 @@ def test_mcp_espacial_estado_criar_propor_executar_e_desfazer(tmp_path):
     assert pv["status"] == "allow" and pv["alvo_id"] == "projeto:bub"
     r = json.loads(txt(run(handlers["executar"]({"proposta_id": pv["proposta_id"]}))))
     assert r["executado"] and so.chamadas[-1][0] == "abrir"
-    assert "apagar" in txt(run(handlers["propor_acao"]({"verbo": "move_to_trash", "alvo": "rascunho"})))
-    r = json.loads(txt(run(handlers["apagar"]({"alvo": "rascunho"}))))
+    pv = json.loads(txt(run(handlers["propor_acao"]({"verbo": "move_to_trash", "alvo": "rascunho"}))))
+    assert pv["status"] == "review" and "apagar" in pv["proximo_passo"]
+    r = json.loads(txt(run(handlers["apagar"]({"proposta_id": pv["proposta_id"], "caminho": pv["recurso"]}))))
     assert r["executado"] and not (raiz / "bub" / "rascunho.txt").exists()
     assert json.loads(txt(run(handlers["desfazer"]({"recibo_id": r["id"]}))))["ok"]
     assert (raiz / "bub" / "rascunho.txt").exists()
@@ -281,3 +272,85 @@ def test_mover_janela_para_o_monitor_da_direita_calcula_o_destino(tmp_path):
     assert run(a.executar(p.id)).executado and dir_.contem(*so.janelas["Finder"][:2])
     p2 = ActionProposal("move_window", "projeto:bub", "joao", 0.99, "voz", {"app": "Finder", "monitor": "cima"})
     assert run(a.propor(p2)).status == "deny"
+
+
+# ── achados da revisão de integração ────────────────────────────────────────
+def test_abrir_programa_ou_script_e_revisao_nunca_duplo_clique_direto(tmp_path):
+    a, c, so, ev, rel, raiz, _ = _montar(tmp_path, dry_run=False)
+    for nome in ("instalar.command", "Calc.app", "setup.exe", "atalho.lnk"):
+        alvo = raiz / "bub" / nome
+        alvo.mkdir() if nome.endswith(".app") else alvo.write_text("x")
+        c.add(SpatialObject(f"x:{nome}", "arquivo", Vec3(0.5, 0.5, 0), label=nome, resource_ref=str(alvo)))
+        p = ActionProposal("open", f"x:{nome}", "joao", 0.99, "gesto")
+        pv = run(a.propor(p))
+        assert pv.status == "review" and "executar" in pv.motivo, nome
+        assert not run(a.executar(p.id)).executado
+    script = raiz / "bub" / "roda"; script.write_text("#!/bin/sh\n"); script.chmod(0o755)
+    c.add(SpatialObject("x:roda", "arquivo", Vec3(0.5, 0.5, 0), resource_ref=str(script)))
+    assert run(a.propor(ActionProposal("open", "x:roda", "joao", 0.99))).status == "review"
+    assert so.chamadas == []
+
+
+def test_dois_confirmares_ao_mesmo_tempo_executam_uma_vez(tmp_path):
+    async def vigia_lento(nome, args):
+        await asyncio.sleep(0.05); return {}
+    a, c, so, *_ = _montar(tmp_path, dry_run=False, vigia=vigia_lento)
+    p = ActionProposal("open", "projeto:bub", "joao", 0.95)
+    run(a.propor(p))
+    async def dois():
+        return await asyncio.gather(a.executar(p.id), a.executar(p.id))
+    r1, r2 = run(dois())
+    assert [x for x in so.chamadas if x[0] == "abrir"] == [so.chamadas[0]] and len(so.chamadas) == 1
+    assert {r1.erro, r2.erro} == {"", "já em execução"} and a.duplicados_bloqueados == 1
+
+
+def test_vault_com_outra_caixa_continua_protegido(tmp_path):
+    raiz = tmp_path / "ws"; (raiz / "vault" / "40-Diario").mkdir(parents=True)
+    (raiz / "vault" / "40-Diario" / "hoje.md").write_text("privado")
+    c = SpatialCore()
+    a = AdaptadorAcoes(c, FakeSO(), lambda: True, dry_run=False, raizes=[raiz], proibidas=[raiz / "vault"])
+    ref = str(raiz / "VAULT" / "40-Diario" / "hoje.md")      # APFS/NTFS abrem o mesmo arquivo
+    caminho, motivo = a.recurso(str(raiz / "vault" / "40-Diario" / "hoje.md"))
+    assert caminho is None and "protegido" in motivo
+    from jaime.spatial.acoes import _dentro
+    assert _dentro(Path(str((raiz / "vault").resolve()).upper() + "/x"), (raiz / "vault").resolve(), True)
+
+
+def test_apagar_so_executa_o_caminho_da_previa(tmp_path):
+    import json
+    from jaime.spatial.config import ConfigEspacial
+    from jaime.spatial.referencias import ContextoVoz, Resolvedor
+    from jaime.spatial.servico import ServicoEspacial
+    from jaime.spatial import tools as mod
+    a, c, so, ev, rel, raiz, _ = _montar(tmp_path, dry_run=False)
+    s = ServicoEspacial(ConfigEspacial(modo="camera"), emitir=lambda *x, **k: None, core=c, dono_ok=lambda: True)
+    orig = mod.create_sdk_mcp_server
+    mod.create_sdk_mcp_server = lambda name, version, tools: {t.name: t.handler for t in tools}
+    try:
+        h = mod.build_espacial_server(s, a, ContextoVoz(s, Resolvedor(c)))
+    finally:
+        mod.create_sdk_mcp_server = orig
+    txt = lambda r: r["content"][0]["text"]
+    pv = json.loads(txt(run(h["propor_acao"]({"verbo": "move_to_trash", "alvo": "rascunho", "args_json": ""}))))
+    assert pv["status"] == "review" and "apagar" in pv["proximo_passo"]
+    # o Vigia perguntou por OUTRO caminho: nada acontece
+    assert "não confere" in txt(run(h["apagar"]({"proposta_id": pv["proposta_id"], "caminho": str(raiz / "outro.txt")})))
+    assert (raiz / "bub" / "rascunho.txt").exists()
+    # prévia de abrir não vira Lixeira
+    po = json.loads(txt(run(h["propor_acao"]({"verbo": "open", "alvo": "BUB", "args_json": ""}))))
+    assert "não é uma ida à Lixeira" in txt(run(h["apagar"]({"proposta_id": po["proposta_id"], "caminho": po["recurso"]})))
+    r = json.loads(txt(run(h["apagar"]({"proposta_id": pv["proposta_id"], "caminho": pv["recurso"]}))))
+    assert r["executado"] and not (raiz / "bub" / "rascunho.txt").exists()
+
+
+def test_rotas_que_mudam_estado_recusam_outra_maquina_e_outro_site(tmp_path):
+    from jaime.spatial import rotas
+    from fastapi import HTTPException
+    req = lambda host, origem="": SimpleNamespace(client=SimpleNamespace(host=host), headers={"origin": origem} if origem else {},
+                                                  url=SimpleNamespace(hostname="127.0.0.1"))
+    with pytest.raises(HTTPException):
+        rotas._so_local(req("192.168.0.20"))
+    with pytest.raises(HTTPException):
+        rotas._so_local(req("127.0.0.1", "https://site-malicioso.com"))
+    rotas._so_local(req("127.0.0.1", "http://127.0.0.1:8787"))
+    rotas._so_local(req("127.0.0.1"))

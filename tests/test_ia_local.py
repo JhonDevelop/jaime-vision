@@ -31,25 +31,32 @@ def test_desligado_por_padrao_e_exige_modelo():
     assert ProvedorLocal.do_ambiente({"JAIME_LOCAL_AI": "on", "JAIME_LOCAL_AI_MODEL": "qwen3:8b"}).disponivel
 
 
-@pytest.mark.parametrize("url,hosts,token,ok", [
-    ("http://127.0.0.1:11434/v1", "", "", True),
-    ("https://api.vendor.com/v1", "", "", False),                      # nuvem disfarçada de local
-    ("http://192.168.0.50:11434/v1", "", "", False),                   # LAN sem estar na lista
-    ("http://192.168.0.50:11434/v1", "192.168.0.50", "", False),       # LAN sem TLS nem token
-    ("http://192.168.0.50:11434/v1", "192.168.0.50", "segredo", True),
-    ("https://rtx.local:8443/v1", "rtx.local", "", True),
-    ("http://inference.local/v1", "", "", True),                       # OpenShell
+@pytest.mark.parametrize("url,hosts,token,lan_http,ok", [
+    ("http://127.0.0.1:11434/v1", "", "", "", True),
+    ("https://api.vendor.com/v1", "", "", "", False),                      # nuvem disfarçada de local
+    ("http://192.168.0.50:11434/v1", "", "", "", False),                   # LAN sem estar na lista
+    ("http://192.168.0.50:11434/v1", "192.168.0.50", "", "", False),       # LAN sem TLS
+    ("http://192.168.0.50:11434/v1", "192.168.0.50", "segredo", "", False),  # token em claro sem opt-in
+    ("http://192.168.0.50:11434/v1", "192.168.0.50", "segredo", "on", True),
+    ("https://rtx.lan:8443/v1", "rtx.lan", "", "", True),
+    ("http://inference.local/v1", "", "", "", False),                      # mDNS: qualquer um na rede responde
+    ("https://inference.local/v1", "inference.local", "", "", True),       # OpenShell pela lista do dono
 ])
-def test_hosts_do_dono_e_lan_com_tls_ou_token(url, hosts, token, ok):
+def test_hosts_do_dono_e_lan_com_tls(url, hosts, token, lan_http, ok):
     p = ProvedorLocal.do_ambiente({"JAIME_LOCAL_AI": "on", "JAIME_LOCAL_AI_MODEL": "m", "JAIME_LOCAL_AI_BASE_URL": url,
-                                   "JAIME_LOCAL_AI_HOSTS": hosts, "JAIME_LOCAL_AI_TOKEN": token})
+                                   "JAIME_LOCAL_AI_HOSTS": hosts, "JAIME_LOCAL_AI_TOKEN": token, "JAIME_LOCAL_AI_LAN_HTTP": lan_http})
     assert p.disponivel is ok, p.motivo_indisponivel
+
+
+def test_timeout_com_virgula_nao_derruba():
+    assert ProvedorLocal.do_ambiente({"JAIME_LOCAL_AI_TIMEOUT_S": "2,5"}).timeout == 2.5
+    assert ProvedorLocal.do_ambiente({"JAIME_LOCAL_AI_TIMEOUT_S": "abc"}).timeout == 30.0
 
 
 def test_responde_sem_custo_por_token_e_manda_token_na_lan():
     ch = []
     p = ProvedorLocal("http://192.168.0.50:11434/v1", "qwen3:8b", True, hosts_extra={"192.168.0.50"}, token="segredo",
-                      transporte=servidor("Olá, João.", chamadas=ch))
+                      lan_http=True, transporte=servidor("Olá, João.", chamadas=ch))
     r = asyncio.run(p.responder("oi", "contexto"))
     assert r.ok and r.texto == "Olá, João." and r.custo == 0.0 and r.modelo == "local:qwen3:8b" and r.tokens == 15
     assert ch[0][2] == "Bearer segredo"
@@ -83,6 +90,7 @@ def test_roteador_local_so_por_rota_explicita_nunca_por_exploracao(tmp_path):
     r2 = Roteador(MODELOS, Placar(tmp_path), exploracao=0.0, local="qwen3:8b", local_tipos=("rotina",))
     assert r2.decidir("anota na agenda o dentista amanhã").modelo == "local:qwen3:8b"
     assert r2.decidir("refatora a função de deploy do repositório").modelo == "claude-opus"   # Central segue
+    assert not r.decidir("o site da BUB está offline?").modelo.startswith("local:")      # "offline" é assunto, não pedido
     r3 = Roteador(MODELOS, Placar(tmp_path), exploracao=0.0)          # sem IA local configurada: frase não muda nada
     assert r3.decidir("resume isso pelo modelo local").modelo.startswith("claude")
 
@@ -159,3 +167,14 @@ def test_nao_estrito_cai_na_nuvem_e_diz_que_caiu():
 def test_local_saudavel_responde_sem_nuvem():
     j = _jaime(ProvedorLocal("http://127.0.0.1:11434/v1", "qwen3:8b", True, transporte=servidor("Feito localmente.")))
     assert _turno(j, "resume o dia pelo modelo local") == "Feito localmente." and j.nuvem == []
+
+
+def test_confirmacao_do_vigia_nunca_vai_para_o_local_mesmo_com_o_tipo_liberado():
+    p = ProvedorLocal("http://127.0.0.1:11434/v1", "qwen3:8b", True, transporte=servidor("não tenho mãos"))
+    j = _jaime(p)
+    j.roteador = Roteador(MODELOS, SimpleNamespace(taxa=lambda *a: 0.5, amostras=lambda *a: 0), 0.0, local="qwen3:8b",
+                          local_tipos=("código", "voz", "rotina", "redação", "decisão", "pesquisa"))
+    acoes = [SimpleNamespace(descricao="rodar `git push origin main`", classe="bash:git push")]
+    j.vigia.lote = list(acoes)
+    j.vigia.liberar_lote = lambda: acoes
+    assert _turno(j, "sim") == "resposta da nuvem" and len(j.nuvem) == 1

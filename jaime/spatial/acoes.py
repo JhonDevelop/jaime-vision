@@ -32,6 +32,18 @@ VERBOS = {
     "install": ("install", "instalar"),
 }
 NUNCA = frozenset({"delete_forever", "send", "publish", "install", "run_command"})
+# "abrir" é reversível para pasta e documento; para o que EXECUTA código, abrir = rodar → sempre revisão
+EXECUTAVEIS = frozenset({".app", ".command", ".tool", ".sh", ".zsh", ".bash", ".pkg", ".mpkg", ".dmg", ".terminal", ".scpt",
+                         ".applescript", ".workflow", ".action", ".exe", ".bat", ".cmd", ".ps1", ".msi", ".lnk", ".vbs",
+                         ".js", ".jse", ".wsf", ".jar", ".py", ".pyw", ".url", ".webloc", ".inetloc", ".reg", ".scr", ".appimage", ".desktop"})
+
+
+def _dentro(p: Path, raiz: Path, sem_caixa: bool) -> bool:
+    """p == raiz ou está dentro dela. `sem_caixa`: APFS/NTFS ignoram maiúsculas — "VAULT" é o vault."""
+    a, b = (str(p), str(raiz))
+    if sem_caixa:
+        a, b = a.casefold(), b.casefold()
+    return a == b or a.startswith(b.rstrip(os.sep) + os.sep)
 PREVIA_TTL_S = 90.0
 
 
@@ -208,6 +220,7 @@ class AdaptadorAcoes:
         self.recibos: dict[str, ActionReceipt] = {}       # proposta_id → recibo (idempotência)
         self.por_recibo: dict[str, ActionReceipt] = {}
         self.duplicados_bloqueados = 0
+        self._em_curso: set[str] = set()
         self.log = log
 
     # ── recurso canônico ───────────────────────────────
@@ -221,11 +234,18 @@ class AdaptadorAcoes:
             p = Path(ref).expanduser().resolve(strict=True)
         except (FileNotFoundError, OSError, RuntimeError):
             return None, "o arquivo não existe (um objeto virtual não prova que o arquivo existe)"
-        if any(p == r or r in p.parents for r in self.proibidas):
+        # protegido: comparação SEM caixa (conservador); liberado: comparação exata (também conservador)
+        if any(_dentro(p, r, True) for r in self.proibidas):
             return None, "caminho protegido (vault/identidade/segredos)"
-        if not any(p == r or r in p.parents for r in self.raizes):
+        if not any(_dentro(p, r, False) for r in self.raizes):
             return None, "fora das pastas liberadas para ações espaciais"
         return p, ""
+
+    @staticmethod
+    def executavel(p: Path) -> bool:
+        if p.suffix.lower() in EXECUTAVEIS:
+            return True
+        return p.is_file() and os.access(p, os.X_OK)
 
     # ── prévia ─────────────────────────────────────────
     async def propor(self, p: ActionProposal) -> Preview:
@@ -251,6 +271,9 @@ class AdaptadorAcoes:
             if p.verbo == "open":
                 pv.efeitos = [f"abre {caminho} no {'Finder' if platform.system() == 'Darwin' else 'app padrão'}"]
                 pv.undo = "nada a desfazer (abrir não altera o arquivo)"
+                if self.executavel(caminho):
+                    pv.status, pv.motivo = "review", "isso é um programa/script: abrir = executar — precisa de confirmação"
+                    pv.undo = "não há Undo para um programa executado"
             else:
                 pv.efeitos = [f"move {caminho} para a Lixeira (recuperável)"]
                 pv.undo = "restaura ao caminho original"
@@ -305,6 +328,17 @@ class AdaptadorAcoes:
         if proposta_id in self.recibos:                       # idempotência: o mesmo evento não age duas vezes
             self.duplicados_bloqueados += 1
             return self.recibos[proposta_id]
+        if proposta_id in self._em_curso:                     # dois confirmares ao mesmo tempo: o segundo não roda
+            self.duplicados_bloqueados += 1
+            return ActionReceipt(uuid4().hex[:12], proposta_id, "", "", False, self.dry_run, "já em execução", time.time(),
+                                 erro="já em execução")
+        self._em_curso.add(proposta_id)
+        try:
+            return await self._executar(proposta_id, confirmado)
+        finally:
+            self._em_curso.discard(proposta_id)
+
+    async def _executar(self, proposta_id: str, confirmado: bool) -> ActionReceipt:
         par = self.previas.get(proposta_id)
         if not par:
             return self._recibo_falho(proposta_id, "", "", "prévia não encontrada")

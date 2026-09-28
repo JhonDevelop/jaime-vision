@@ -13,6 +13,14 @@ def _on(v: str) -> bool:
     return (v or "").strip().lower() in ("1", "on", "sim", "true", "yes")
 
 
+def _num(v: str, padrao: float) -> float:
+    """Número tolerante: "0,85" (vírgula) vale; lixo cai no padrão — um typo no .env não derruba o boot."""
+    try:
+        return float(str(v).strip().replace(",", "."))
+    except (TypeError, ValueError):
+        return padrao
+
+
 @dataclass
 class ConfigEspacial:
     modo: str = "off"                      # off | sim (landmarks sintéticos) | replay (JSONL) | camera (webcam real)
@@ -44,17 +52,19 @@ class ConfigEspacial:
             modo = "camera"
         if modo not in MODOS:
             modo = "off"
+        if modo == "off":
+            return cls()                        # desligado: nada mais é lido (nem pode quebrar)
         return cls(
             modo=modo,
             cameras=[c.strip() for c in g("JAIME_SPATIAL_CAMERA_IDS", "0").split(",") if c.strip()],
             dry_run=_on(g("JAIME_SPATIAL_DRY_RUN", "on")),
-            fila=max(1, min(8, int(g("JAIME_SPATIAL_FRAME_QUEUE", "2")))),
-            confianca_min=float(g("JAIME_SPATIAL_MIN_CONFIDENCE", "0.85")),
+            fila=max(1, min(8, int(_num(g("JAIME_SPATIAL_FRAME_QUEUE", "2"), 2)))),
+            confianca_min=min(1.0, max(0.5, _num(g("JAIME_SPATIAL_MIN_CONFIDENCE", "0.85"), 0.85))),
             calibracao=g("JAIME_SPATIAL_CALIBRATION_FILE"),
             replay=g("JAIME_SPATIAL_REPLAY"),
             cenario=g("JAIME_SPATIAL_CENARIO", "demo"),
             repetir=_on(g("JAIME_SPATIAL_REPETIR", "on")),
             espelhar=_on(g("JAIME_SPATIAL_ESPELHAR", "on")),
-            ttl_referencia_s=float(g("JAIME_SPATIAL_TTL_S", "20")),
+            ttl_referencia_s=max(1.0, _num(g("JAIME_SPATIAL_TTL_S", "20"), 20.0)),
             raizes=[r.strip() for r in g("JAIME_SPATIAL_RAIZES").split(",") if r.strip()],
         )

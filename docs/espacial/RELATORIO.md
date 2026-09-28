@@ -28,7 +28,7 @@ Ambiente de medição: container Linux x86_64, Python 3.12, sem GPU/câmera/moni
 | momento | resultado |
 |---|---|
 | antes (HEAD `0948e37`) | 577 passaram, 1 falhou (cache_frases, ambiente), 3 pulados |
-| depois (`feat/espacial`) | **711 passaram**, 1 falhou (a mesma), 3 pulados — +134 testes novos, 0 regressão |
+| depois (`feat/espacial`) | **723 passaram**, 1 falhou (a mesma), 3 pulados — +146 testes novos, 0 regressão |
 
 ## Fase 0 — núcleo, flag, bus, simulador, HUD
 
@@ -105,6 +105,22 @@ Ambiente de medição: container Linux x86_64, Python 3.12, sem GPU/câmera/moni
 - **Arquivos:** `spatial/experimentos.py`, `jaime/evolucao.py` (+gate opcional, sem mudança quando ausente).
 - **Testes:** `test_espacial_experimentos.py` (15). **Demo:** `dwell_s 0,09→0,06` promovido (acerto 1,0 = baseline,
   0 falsos/h); `close_ratio 0,34` rejeitado (acerto 0,74, 1452 falsas ativações/h no replay); `reverter` volta.
+
+## Revisão de integração (agente revisor, antes da entrega)
+
+Doze pontos analisados, onze corrigidos com teste (o 12º estava ok):
+env com vírgula/lixo derrubava o boot mesmo com a flag off · `apagar` agora só executa o caminho EXATO da prévia (o
+alvo é fixado antes do Vigia perguntar) · turno de confirmação do Vigia nunca vai à IA local (precisa das mãos) e
+"offline"/"localmente" deixaram de rotear · "para" como preposição não desliga mais o rastreamento e frase longa
+encerra a desambiguação pendente · dois confirmares simultâneos executam uma vez · fonte que termina sozinha não
+deixa task órfã e religa do zero; a câmera só é solta depois do `read()` em curso · abrir programa/script
+(`.app`, `.command`, `.exe`, `.lnk`, executável…) é sempre revisão · rotas que mudam estado só da própria máquina e
+só do próprio HUD (Origin) · vault com outra caixa ("VAULT") continua protegido · `.local`/`.internal` não contam como
+loopback e HTTP na LAN exige opt-in explícito · potências não são avaliadas fora do processo com prazo.
+
+**Residual (do Vigia existente, não mexido):** depois de um "sim", o Vigia deixa passar UMA ação da mesma classe mesmo
+com texto diferente (`_permitida`). Na Lixeira espacial isso é contido porque só executa com prévia válida e caminho
+idêntico ao perguntado — mas é uma decisão de desenho do Vigia que vale revisar para todas as ferramentas.
 
 ## Próximo passo sugerido
 

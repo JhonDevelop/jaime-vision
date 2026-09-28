@@ -106,3 +106,30 @@ def test_mcp_espacial_so_entra_nas_opcoes_com_a_flag_ligada(tmp_path):
     assert set(j._servidor_espacial()) == {"espacial"}
     integracao.montar(jj, ConfigEspacial())                    # desligar limpa o estado global das rotas
     assert integracao.ESTADO["acoes"] is None and integracao.ESTADO["servico"] is None
+
+
+def test_env_com_virgula_ou_lixo_nao_derruba_o_boot():
+    assert ConfigEspacial.do_ambiente({"JAIME_SPATIAL": "off", "JAIME_SPATIAL_MIN_CONFIDENCE": "0,85x"}).modo == "off"
+    c = ConfigEspacial.do_ambiente({"JAIME_SPATIAL": "sim", "JAIME_SPATIAL_MIN_CONFIDENCE": "0,9", "JAIME_SPATIAL_TTL_S": "20s",
+                                    "JAIME_SPATIAL_FRAME_QUEUE": "dois"})
+    assert c.confianca_min == 0.9 and c.ttl_referencia_s == 20.0 and c.fila == 2
+
+
+def test_fonte_que_termina_sozinha_nao_deixa_task_orfa_e_religa_do_zero(tmp_path):
+    from jaime.spatial.fontes import FonteSequencia
+    from jaime.spatial.simulador import cenario, poses
+    j = _jaime(tmp_path)
+    s = integracao.montar(j, ConfigEspacial(modo="sim", repetir=False, fila=100_000), emitir=Bus().emitir)
+    s.fonte = FonteSequencia(poses(cenario("clique", s.core)), tempo_real=False)
+    async def go():
+        await s.iniciar()
+        tarefas = list(s._tasks)
+        while s.rodando:
+            await asyncio.sleep(0.005)
+        await asyncio.sleep(0.05)
+        assert all(t.done() for t in tarefas) and s.fonte is None           # watchdog e monitores também pararam
+        await s.iniciar()                                                   # religa com fonte NOVA (do .env), não a fechada
+        assert s.rodando and s.fonte is not None
+        await s.parar("fim")
+        assert all(t.done() for t in asyncio.all_tasks() if t.get_name().startswith("espacial:"))
+    asyncio.run(go())

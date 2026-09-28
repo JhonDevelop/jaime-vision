@@ -64,9 +64,10 @@ def build_espacial_server(servico, acoes=None, voz=None):
     tools = [estado, selecionar, criar_objeto]
 
     if acoes is not None:
-        @tool("propor_acao", "Monta a PRÉVIA de uma ação espacial no SO. verbo: open | move_window. alvo: id, rótulo ou "
-                             "'isso'. args_json: para move_window {\"app\":..., \"titulo\":..., \"x\":..., \"y\":...}. "
-                             "Devolve status (allow/review/deny), efeitos e proposta_id. Nada acontece ainda.",
+        @tool("propor_acao", "Monta a PRÉVIA de uma ação espacial no SO. verbo: open | move_window | move_to_trash. alvo: id, "
+                             "rótulo ou 'isso'. args_json: para move_window {\"app\":..., \"titulo\":..., \"x\":..., \"y\":...} ou "
+                             "{\"app\":..., \"monitor\": \"direita\"}. Devolve status (allow/review/deny), recurso (caminho real), "
+                             "efeitos e proposta_id. Nada acontece ainda.",
               {"verbo": str, "alvo": str, "args_json": str})
         async def propor_acao(args):
             oid = _alvo(args.get("alvo", ""))
@@ -77,28 +78,32 @@ def build_espacial_server(servico, acoes=None, voz=None):
             except json.JSONDecodeError:
                 extra = {}
             verbo = (args.get("verbo") or "").strip()
-            if verbo == "move_to_trash":
-                return _txt("para a Lixeira use `apagar` (o Vigia pede o 'sim' do João antes)")
             pv = await acoes.propor(ActionProposal(verbo, oid, _ator(), 1.0, "voz", extra))
-            return _txt(pv.to_dict())
+            d = pv.to_dict()
+            if verbo == "move_to_trash" and pv.status == "review":
+                d["proximo_passo"] = f"chame `apagar` com proposta_id={pv.proposta_id} e caminho={pv.recurso} (o Vigia pergunta ao João)"
+            return _txt(d)
 
         @tool("executar", "Executa uma prévia allow (open/move_window) pelo proposta_id. Em dry-run devolve o recibo "
-                          "sem tocar o SO. Repetir o mesmo id devolve o mesmo recibo.", {"proposta_id": str})
+                          "sem tocar o SO. Repetir o mesmo id devolve o mesmo recibo. Prévia em revisão não roda por aqui.",
+              {"proposta_id": str})
         async def executar(args):
             r = await acoes.executar(str(args.get("proposta_id", "")))
             return _txt(r.to_dict())
 
-        @tool("apagar", "Move para a LIXEIRA (recuperável) o arquivo por trás de um objeto da cena. alvo: id/rótulo/'isso'. "
-                        "O Vigia segura até o João dizer 'sim'. Nunca apaga definitivamente.",
-              {"alvo": str, "caminho": str})
+        @tool("apagar", "Move para a LIXEIRA (recuperável) o arquivo de uma prévia move_to_trash. Passe proposta_id e o "
+                        "caminho EXATO que a prévia mostrou — é esse caminho que o Vigia mostra ao João antes do 'sim'. "
+                        "Nunca apaga definitivamente.", {"proposta_id": str, "caminho": str})
         async def apagar(args):
-            oid = _alvo(args.get("alvo", ""))
-            if not oid:
-                return _txt("alvo não resolvido")
-            p = ActionProposal("move_to_trash", oid, _ator(), 1.0, "voz")
-            pv = await acoes.propor(p)
-            if pv.status == "deny":
-                return _txt(pv.to_dict())
+            # o alvo foi fixado na PRÉVIA (antes do Vigia); aqui só executa se o caminho perguntado é o da prévia
+            par = acoes.previas.get(str(args.get("proposta_id", "")))
+            if not par:
+                return _txt("prévia não encontrada — use propor_acao com verbo move_to_trash primeiro")
+            p, pv = par
+            if pv.verbo != "move_to_trash" or pv.status != "review":
+                return _txt(f"essa prévia não é uma ida à Lixeira em revisão ({pv.verbo}/{pv.status}: {pv.motivo})")
+            if str(args.get("caminho", "")).strip() != pv.recurso:
+                return _txt(f"o caminho não confere com a prévia ({pv.recurso}); nada foi feito")
             r = await acoes.executar(p.id, confirmado=True)      # chegou aqui = o Vigia já liberou com o "sim"
             return _txt(r.to_dict())
 

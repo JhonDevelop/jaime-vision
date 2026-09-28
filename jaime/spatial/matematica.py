@@ -80,6 +80,7 @@ class _Parser:
     def __init__(self, toks):
         import sympy as sp
         self.sp, self.t, self.i = sp, toks, 0
+        self.potencias = 0
 
     def ver(self):
         return self.t[self.i] if self.i < len(self.t) else ("fim", "")
@@ -116,9 +117,13 @@ class _Parser:
         base = self.atomo()
         if self.ver() == ("op", "^"):
             self.comer(); exp = self.fator()
+            self.potencias += 1
+            if self.potencias > 3:
+                raise ErroMatematica("potências demais numa expressão só")
             if exp.is_number and abs(float(exp)) > 50:
                 raise ErroMatematica("expoente grande demais")
-            return base ** exp
+            # sem avaliar: ((9^50)^50)^50 como número tem 10^5 dígitos — quem calcula é o processo com prazo
+            return self.sp.Pow(base, exp, evaluate=False)
         return base
 
     def atomo(self):
@@ -201,7 +206,7 @@ def _trabalho(texto: str, fila) -> None:
 def resolver(texto: str, prazo_s: float = 5.0) -> Solucao:
     """Resolve num processo separado com prazo. A análise sintática também roda antes, aqui, para recusar lixo
     sem nem abrir o processo."""
-    analisar(texto)                                  # levanta ErroMatematica para entrada inválida
+    analisar(texto)                                  # levanta ErroMatematica para entrada inválida (barato: potências não avaliadas)
     ctx = mp.get_context("spawn")
     fila = ctx.Queue()
     p = ctx.Process(target=_trabalho, args=(texto, fila), daemon=True)

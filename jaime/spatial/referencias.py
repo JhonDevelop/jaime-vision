@@ -31,8 +31,9 @@ LADO_RX = r"\b(?:da|a|na|de|do|mais a|mais pra|pra|para a)\s+(esquerda|direita|c
 ORDINAL = {"primeir": 0, "segund": 1, "terceir": 2, "ultim": -1}
 ACAO_RX = r"\b(abr[ea]|abrir|fech[ae]|mov[ea]|mover|lev[ae]|compar[ae]|mostr[ae]|apag[ae]|jog[ae]|arquiv[ae]|manda|envi[ae]|renomei[ae]|coloc[ae]|poe|junt[ae]|lig[ae]|conect[ae]|analis[ae]|resum[ae]|descrev[ae]|explic[ae])"
 CONCORDANCIA = {"isso", "isso mesmo", "isso ai", "e isso", "exato isso", "isso isso", "isso sim", "e isso ai"}
-DESLIGAR_RX = re.compile(r"\b(desliga|desligar|para|pare|parar|encerra|encerrar)\b.{0,12}\b(rastreamento|rastrear|as maos|os gestos|gestos|a camera das maos)\b"
-                         r"|\bcancela(r)? o gesto\b")
+# imperativo/infinitivo de verdade: "para" sozinho é preposição ("um atalho para os gestos") e não desliga nada
+DESLIGAR_RX = re.compile(r"\b(desliga|desligue|desligar|pare|parar|encerra|encerre|encerrar)\b.{0,12}\b(o rastreamento|rastreamento|as maos|os gestos|gestos)\b"
+                         r"|\bpara de rastrear\b|\bcancela(r)? o gesto\b")
 
 
 @dataclass
@@ -108,7 +109,10 @@ class Resolvedor:
         # resposta a uma pergunta de desambiguação feita há pouco
         if self.pendente and self.relogio() - self.pendente[1] <= self.ttl_s:
             cands = [self.core.objects[i] for i in self.pendente[0] if i in self.core.objects]
-            escolhido = self._escolher_entre(t, cands)
+            # só uma resposta CURTA desambigua; qualquer outra frase encerra a pergunta pendente
+            escolhido = self._escolher_entre(t, cands) if len(t.split()) <= 6 else None
+            if not escolhido and len(t.split()) > 6:
+                self.pendente = None
             if escolhido:
                 pedido = self.pendente[2]
                 self.pendente = None

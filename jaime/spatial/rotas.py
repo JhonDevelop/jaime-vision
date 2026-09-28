@@ -18,15 +18,22 @@ def _s():
 
 
 def _so_local(request: Request) -> None:
-    """Confirmar/desfazer ação no SO só da PRÓPRIA máquina — mesmo com JAIME_BIND aberto para convidados com token."""
+    """Mudar estado espacial (ligar câmera, selecionar como dono, confirmar/desfazer ação, validar monitores) só da
+    PRÓPRIA máquina — mesmo com JAIME_BIND aberto para convidados com token — e só do próprio HUD: um site aberto no
+    navegador do João não pode disparar um POST aqui (checagem de Origin)."""
     host = request.client.host if request.client else ""
     try:
-        if ipaddress.ip_address(host).is_loopback:
-            return
+        local = ipaddress.ip_address(host).is_loopback
     except ValueError:
-        if host in ("testclient", "localhost"):
-            return
-    raise HTTPException(403, "ação no computador só se confirma na própria máquina")
+        local = host in ("testclient", "localhost")
+    if not local:
+        raise HTTPException(403, "isso só se faz na própria máquina")
+    origem = request.headers.get("origin") or ""
+    if origem and origem != "null":
+        from urllib.parse import urlsplit
+        o = urlsplit(origem).hostname or ""
+        if o not in ("127.0.0.1", "localhost", "::1", (request.url.hostname or "")):
+            raise HTTPException(403, "pedido de outro site recusado")
 
 
 @router.get("/hud/espacial.js")
@@ -53,7 +60,8 @@ async def desligar():
 
 
 @router.post("/espacial/ligar")
-async def ligar():
+async def ligar(request: Request):
+    _so_local(request)
     s = _s()
     if not s:
         raise HTTPException(409, "JAIME_SPATIAL=off — ligar a expansão é decisão de configuração, não de clique")
@@ -76,8 +84,9 @@ async def cena():
 
 
 @router.post("/espacial/selecionar")
-async def selecionar(body: dict):
+async def selecionar(body: dict, request: Request):
     """Alternativa sem mão (mouse/teclado/acessibilidade): selecionar pelo HUD vale como seleção do dono."""
+    _so_local(request)
     s = _s()
     if not s:
         raise HTTPException(409, "espacial desligado")
@@ -122,14 +131,16 @@ async def recibo_desfazer(recibo_id: str, request: Request):
 
 
 @router.post("/espacial/descartes/{token}/desfazer")
-async def descarte_desfazer(token: str):
+async def descarte_desfazer(token: str, request: Request):
+    _so_local(request)
     i = ESTADO.get("intencoes")
     return {"ok": bool(i and i.desfazer_descarte(token))}
 
 
 @router.post("/espacial/telas/validar")
-async def telas_validar():
+async def telas_validar(request: Request):
     """Depois de um hotplug, o João confere o apontamento e libera as ações de janela de novo."""
+    _so_local(request)
     t = ESTADO.get("telas")
     if not t:
         raise HTTPException(409, "espacial desligado")

@@ -171,3 +171,23 @@ def test_com_lote_do_vigia_pendente_isso_e_aprovacao_e_nao_passa_pelo_espacial()
     except Exception:
         pass                                   # segue para o lote real (sem cliente de verdade aqui)
     assert chamadas == []
+
+
+def test_para_como_preposicao_nao_desliga_o_rastreamento():
+    c, rel, r = _cena()
+    chamados = []
+    v = ContextoVoz(SimpleNamespace(desligar_rastreamento=lambda m: m, emitir=lambda *a, **k: None), r, agendar=chamados.append)
+    for frase in ("cria um atalho para os gestos", "manda o link para as mãos do Rafael", "o que é bom para gestos de mão?"):
+        assert v.antes_do_turno(frase, "")[0] is None, frase
+    assert chamados == []
+    for frase in ("desliga os gestos", "pare o rastreamento", "para de rastrear"):
+        assert v.antes_do_turno(frase, "")[0] == "Rastreamento de mãos desligado.", frase
+
+
+def test_frase_longa_depois_da_pergunta_encerra_a_desambiguacao():
+    c, rel, r = _cena()
+    c.select("joao", "projeto:bub", 0.97); rel.t += 0.3
+    c.select("joao", "projeto:seventyone", 0.97)
+    assert r.resolver("apaga isso").status == "ambiguo"
+    res = r.resolver("pode me dizer a previsão do tempo para amanhã em Franca?")
+    assert res.status != "ok" and r.pendente is None

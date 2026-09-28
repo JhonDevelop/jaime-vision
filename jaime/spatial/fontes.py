@@ -84,9 +84,11 @@ class FonteOpenCV:
             import cv2  # noqa: F401
         except ImportError as e:
             raise RuntimeError("OpenCV ausente: `pip install opencv-python` (decisão do João; não instalo sozinho)") from e
+        import threading
         self.camera_id, self.indice, self.largura, self.altura, self.fps = str(indice), indice, largura, altura, fps
         self._cap = None
         self._fechada = False
+        self._lendo = threading.Lock()     # release() nunca durante um read() de outra thread (OpenCV não é thread-safe)
 
     def _abrir(self):
         import cv2
@@ -101,12 +103,18 @@ class FonteOpenCV:
             raise RuntimeError(f"câmera {self.indice} não abriu (permissão de Câmera? outra app usando?)")
         return cap
 
+    def _ler(self):
+        with self._lendo:
+            if self._cap is None:
+                return False, None
+            return self._cap.read()
+
     async def frames(self) -> AsyncIterator[CameraFrame]:
         self._cap = await asyncio.to_thread(self._abrir)
         n = 0
         try:
             while not self._fechada:
-                ok, img = await asyncio.to_thread(self._cap.read)
+                ok, img = await asyncio.to_thread(self._ler)
                 ts = time.monotonic()
                 if not ok:
                     raise RuntimeError("câmera parou de entregar frames")
@@ -116,13 +124,19 @@ class FonteOpenCV:
             self.fechar()
 
     def fechar(self) -> None:
+        """Pede para parar e solta a câmera numa thread que ESPERA o read() em curso terminar."""
+        import threading
         self._fechada = True
-        if self._cap is not None:
-            try:
-                self._cap.release()
-            except Exception:
-                pass
-            self._cap = None
+
+        def soltar():
+            with self._lendo:
+                cap, self._cap = self._cap, None
+                if cap is not None:
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+        threading.Thread(target=soltar, name="espacial:soltar-camera", daemon=True).start()
 
 
 class RastreadorMediaPipe:

@@ -26,7 +26,7 @@ PISTAS = {
 PESOS = {"código": 1.0, "pesquisa": 0.9, "redação": 0.8, "decisão": 1.0, "imagem": 1.1, "rotina": 0.9}
 
 # o João pedindo explicitamente o modelo local (docs/ESPACIAL.md §IA local): a única rota local fora de JAIME_LOCAL_AI_TIPOS
-LOCAL_RX = re.compile(r"\b(pelo|no|com o|usa o|use o) modelo local\b|\blocalmente\b|\bsem (usar a )?nuvem\b|\boffline\b", re.I)
+LOCAL_RX = re.compile(r"\b(pelo|no|com o|usa o|use o) modelo local\b|\b(pela|na|com a|usa a|use a) ia local\b|\bsem (usar a )?nuvem\b", re.I)
 
 CORRECAO_RX = re.compile(r"\b(errado|errou|n[aã]o era isso|n[aã]o [eé] isso|refaz|refaça|de novo|n[aã]o foi isso|tá errado|est[aá] errado|não era assim)\b", re.I)
 
