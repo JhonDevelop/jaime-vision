@@ -518,6 +518,14 @@ class Jaime:
         curta = self._porta(texto, canal)
         if curta is None and self.acesso.liberado:
             curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo
+        if curta is None and self.acesso.liberado and getattr(self, "espacial_voz", None) is not None \
+                and not (self.vigia.lote and eh_aprovacao_lote(texto)):
+            # expansão espacial (fase 2): "isso"/"esses" = o que o João selecionou na cena; ambíguo → pergunta de uma frase.
+            # Com lote do Vigia aguardando, "isso"/"faz isso" é aprovação e não passa por aqui.
+            try:
+                curta, contexto = self.espacial_voz.antes_do_turno(texto, contexto)
+            except Exception as e:
+                bus.emitir("resultado", texto=f"espacial: {type(e).__name__}", erro=True)
         if curta is not None:
             bus.emitir("fala", texto=curta); bus.emitir("fala_fim"); yield curta; return
         t_lock = asyncio.get_event_loop().time()

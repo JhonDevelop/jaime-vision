@@ -71,6 +71,9 @@
       case 'gesture.cancel': case 'spatial.tracking_lost': moverObj(e); pisca(e.object_id, '#ff5c72'); if (k === 'spatial.tracking_lost') rac('mão perdida', (e.data && e.data.reason) || ''); break;
       case 'spatial.object': if (e.obj_novo) { S.cena.objetos = S.cena.objetos.filter(o => o.id !== e.obj_novo.id).concat([e.obj_novo]); } break;
       case 'spatial.removed': S.cena.objetos = S.cena.objetos.filter(o => o.id !== e.object_id); break;
+      case 'voice.reference':
+        (e.objetos || []).forEach(id => pisca(id, e.status === 'ok' ? '#49e6a0' : '#ffb347'));
+        rac('isso =', e.status === 'ok' ? (e.objetos || []).map(rotulo).join(' + ') : (e.pergunta || e.status)); break;
       case 'action.preview': case 'action.receipt': case 'action.undo': case 'action.denied':
         rac(k.replace('action.', 'ação '), (e.resumo || e.motivo || '').slice(0, 90)); pisca(e.object_id, k === 'action.denied' ? '#ff5c72' : '#ffb347'); break;
     }

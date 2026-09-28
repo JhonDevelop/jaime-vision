@@ -41,11 +41,26 @@ def montar(jaime, cfg: ConfigEspacial | None = None, emitir=None):
 
     s = ServicoEspacial(cfg, emitir=emitir, core=core, dono_ok=dono_ok)
     ESTADO["servico"] = s
+    # fase 2: voz contextual. Em sim/replay as seleções são do ator "demo" — a VOZ continua sendo do João autenticado
+    from .referencias import ContextoVoz, Resolvedor
+    atores = (lambda: ("joao", "demo")) if cfg.modo in ("sim", "replay") else (lambda: ("joao",))
+    resolvedor = Resolvedor(core, ttl_s=cfg.ttl_referencia_s, atores=atores, confianca_min=cfg.confianca_min)
+    voz = ContextoVoz(s, resolvedor, agendar=_agendar)
+    ESTADO["contexto"] = voz
     try:
         jaime.espacial = s
+        jaime.espacial_voz = voz
     except Exception:
         pass
     return s
+
+
+def _agendar(coro):
+    import asyncio
+    try:
+        return asyncio.get_running_loop().create_task(coro)
+    except RuntimeError:          # sem loop (CLI/teste síncrono): roda até o fim
+        return asyncio.run(coro)
 
 
 def servico():
