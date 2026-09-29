@@ -126,6 +126,31 @@ def padrao(jaime=None) -> Fontes:
         return {"estado": "ok" if e["rodando"] else "atencao",
                 "texto": f"{e['modo']} · {'rodando' if e['rodando'] else 'parado'}{' · dry-run' if e['dry_run'] else ''}"
                          + (f" · {e['erro']}" if e.get("erro") else "")}
+    def casa_resumo(_p: dict) -> dict:
+        import httpx
+        casa = getattr(jaime, "casa", None)
+        if not casa or not casa.ativa:
+            return {"itens": [{"rotulo": "Home Assistant", "valor": "desligado", "estado": "atencao"}]}
+        est = httpx.get(f"{casa.url}/api/states", headers={"Authorization": f"Bearer {casa.token}"}, timeout=4).json()
+        luzes = sum(1 for e in est if e.get("entity_id", "").startswith("light.") and e.get("state") == "on")
+        abertas = [e for e in est if e.get("entity_id", "").startswith("binary_sensor.") and e.get("state") == "on"
+                   and (e.get("attributes") or {}).get("device_class") in ("door", "garage_door", "window")]
+        temps = [e for e in est if e.get("entity_id", "").startswith("sensor.") and (e.get("attributes") or {}).get("unit_of_measurement") == "°C"]
+        itens = [{"rotulo": "Luzes acesas", "valor": str(luzes)},
+                 {"rotulo": "Portas/janelas abertas", "valor": str(len(abertas)), "estado": "atencao" if abertas else "ok"}]
+        itens += [{"rotulo": (t.get("attributes") or {}).get("friendly_name", t["entity_id"])[:30], "valor": t.get("state"), "unidade": "°C"}
+                  for t in temps[:2]]
+        return {"itens": itens}
+    f.registrar("casa.resumo", "luzes acesas, portas abertas e temperatura (Home Assistant)", "metricas", casa_resumo,
+                privada=True, intervalo_padrao=30)
+
+    def presenca(_p: dict) -> dict:
+        pr = getattr(jaime, "presenca", None)
+        if pr is None:
+            return {"estado": "atencao", "texto": "presença por Bluetooth desligada (JAIME_BT)"}
+        return {"estado": "ok", "texto": ("em casa: " + ", ".join(pr.presentes)) if pr.presentes else "ninguém detectado"}
+    f.registrar("casa.presenca", "quem está em casa pelos aparelhos Bluetooth", "status", presenca, privada=True, intervalo_padrao=20)
+
     f.registrar("espacial.estado", "rastreamento de mãos: ligado, modo, erros", "status", espacial, intervalo_padrao=5)
     return f
 

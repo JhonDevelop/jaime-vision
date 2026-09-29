@@ -168,6 +168,10 @@ class Jaime:
         self.autonomo = Autonomo(self, settings.autonomo_horas, settings.autonomo_custo_usd, settings.autonomo_ferramentas)
         # fase 3: casa (Home Assistant), câmera e visão contínua (jogos/apps); o Vigia libera a tela só com sessão ativa
         self.casa = Casa(settings.ha_url, settings.ha_token)
+        # a Alexa como mãos/boca do Jaime em casa (via HA); presença por Bluetooth é ligada no servidor (JAIME_BT)
+        from ..casa.alexa import Alexa
+        self.alexa = Alexa(self.casa, os.environ.get("JAIME_ALEXA_PADRAO", ""))
+        self.presenca = None
         self.visao = Visao(self, settings.visao_max_passos, settings.visao_intervalo_s)
         self.vigia.sessao_livre = lambda: self.visao.ativa
         # fase 3: memória semântica (FTS5 no vault, recall proativo) e autoevolução por PR
@@ -212,7 +216,8 @@ class Jaime:
                          "tela": build_tela_server(),
                          "meta": build_meta_server(self.meta),
                          "autonomo": build_autonomo_server(self.autonomo),
-                         "casa": build_casa_server(self.casa, self.s.camera),
+                         "casa": build_casa_server(self.casa, self.s.camera, vigia=self.vigia, alexa=self.alexa,
+                                                   presenca=getattr(self, "presenca", None)),
                          "visao": build_visao_server(self.visao),
                          "evolucao": build_evolucao_server(self.evolucao, self.indice),
                          "equipe": build_equipe_server(self.equipe),

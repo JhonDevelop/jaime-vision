@@ -25,12 +25,15 @@ EMBUTIDOS: dict[str, dict] = {
     "estado": {"tipo": "texto", "titulo": "J.A.I.M.E agora", "fonte": "jaime.estado", "prioridade": 1},
     "placar": {"tipo": "tabela", "titulo": "Placar dos modelos", "fonte": "cortex.placar", "prioridade": 0},
     "espacial": {"tipo": "status", "titulo": "Mãos no ar", "fonte": "espacial.estado", "prioridade": 0},
+    "casa": {"tipo": "metricas", "titulo": "Casa", "fonte": "casa.resumo", "prioridade": 1},
+    "presenca": {"tipo": "status", "titulo": "Quem está em casa", "fonte": "casa.presenca", "prioridade": 0},
 }
 # sinônimos falados → nome do modelo
 APELIDOS = {"máquina": "maquina", "computador": "maquina", "sistema": "maquina", "hora": "relogio", "relógio": "relogio",
             "finanças": "financas", "dinheiro": "financas", "saldo": "financas", "gráfico das finanças": "financas-mensal",
             "tarefa": "tarefas", "afazeres": "tarefas", "inbox": "tarefas", "lembretes": "agenda", "compromissos": "agenda",
-            "estado": "estado", "status": "estado", "placar": "placar", "modelos": "placar", "mãos": "espacial", "gestos": "espacial"}
+            "estado": "estado", "status": "estado", "placar": "placar", "modelos": "placar", "mãos": "espacial", "gestos": "espacial",
+            "casa": "casa", "luzes": "casa", "presença": "presenca", "quem está em casa": "presenca"}
 
 
 def contrato(b: Bloco) -> list[str]:
