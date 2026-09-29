@@ -124,7 +124,10 @@ def montar(jaime, ouvido=None, state=None, settings=None, agora: datetime | None
                    "ocupado": bool(getattr(ouvido, "ocupado", False)), "erro": getattr(ouvido, "erro", None),
                    "barge_in": getattr(ouvido, "barge_in", None), "antecipador": getattr(ouvido, "antecipador", None) is not None,
                    "stt": getattr(getattr(ouvido, "fluxo", None), "nome", None),
-                   "latencia_mediana_ms": (round(v * 1000) if (v := _tenta(lambda: lat.mediana())) is not None else None)},
+                   "latencia_mediana_ms": (round(v * 1000) if (v := _tenta(lambda: lat.mediana())) is not None else None),
+                   "aberto": bool(getattr(ouvido, "aberto", getattr(ouvido, "_mic", None) is not None)),
+                   "ultimo_frame": float(getattr(ouvido, "ultimo_frame", getattr(ouvido, "_ultimo_frame", 0.0)) or 0.0),
+                   "frames_ultimo_min": int(_tenta(lambda: getattr(ouvido, "frames_ultimo_min", 0), 0) or 0)},
         # M-43 (Vigília): bloqueio ≠ falha — trancado, nada autônomo roda (rotinas, estudo, criação ficam adiados)
         "cerebro": {"trancado": not bool(_tenta(lambda: jaime.acesso.liberado, True)),
                     "bloqueio": _tenta(lambda: getattr(state, "motivo_bloqueio", lambda: "")(), "") or ""},

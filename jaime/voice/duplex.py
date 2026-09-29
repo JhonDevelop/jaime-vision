@@ -19,6 +19,7 @@ passa bem acima do nível de eco medido no começo de cada fala dele (JAIME_BARG
 guarda de eco, para quem usa fone de ouvido)."""
 from __future__ import annotations
 import asyncio, os, re, threading, time, unicodedata
+from pathlib import Path
 from difflib import SequenceMatcher
 from collections import Counter, deque
 from ..hud.events import bus
@@ -221,6 +222,11 @@ class OuvidoDuplex(Ouvido):
         self._mic = None; self._mic_gen = 0; self._ultimo_frame = 0.0; self._ultima_verificacao = 0.0; self._vigia_mic = None
         self._reaberturas: deque = deque(); self._frames_gen = 0; self._falhas_seguidas = 0
         self._sair = os._exit                              # injetável nos testes
+        self._inicio_captura = time.time()                 # M-48: instante de início da captura (watchdog cego no boot)
+        self._frames_buckets: deque = deque(maxlen=120)    # M-48b: contagem de frames por segundo
+        self._recuo_inicial: float = 1.0                   # M-48: recuo inicial entre retentativas
+        self._espera_reinicio: float = 3.0                 # M-49: espera 3 s antes do _sair(3)
+        self._arquivo_reinicios = Path(os.environ.get("JAIME_ARQUIVO_REINICIOS", str(Path.home() / "Jaime" / ".reinicios")))
         self._barge_stats: dict = {}                      # por fala do Jaime: voz ouvida, acima do eco, vetada, cortou
         self._janela_energia: deque = deque(maxlen=max(1, BARGE_IN_JANELA_MS // FRAME_MS))
         self._janela_sust: deque = deque(maxlen=max(1, BARGE_IN_JANELA_SUST_MS // FRAME_MS))
@@ -288,47 +294,121 @@ class OuvidoDuplex(Ouvido):
     MIC_FALHAS_PARA_REINICIAR = 2
 
     def _iniciar_captura(self) -> None:
+        self._inicio_captura = time.time()
         threading.Thread(target=self._capturar, args=(self._mic_gen,), name=f"ouvido-{self._mic_gen}", daemon=True).start()
+
+    @property
+    def aberto(self) -> bool:
+        return self._mic is not None
+
+    @property
+    def ultimo_frame(self) -> float:
+        return self._ultimo_frame
+
+    @property
+    def frames_ultimo_min(self) -> int:
+        agora = int(time.time())
+        limite = agora - 60
+        while self._frames_buckets and self._frames_buckets[0][0] < limite:
+            self._frames_buckets.popleft()
+        return sum(count for _, count in self._frames_buckets)
+
+    def _obter_device_entrada(self, sd) -> int | None:
+        try:
+            if hasattr(sd, "query_devices"):
+                dev = sd.query_devices(kind="input")
+                if isinstance(dev, dict):
+                    idx = dev.get("index")
+                    if idx is not None:
+                        return int(idx)
+            if hasattr(sd, "default") and hasattr(sd.default, "device"):
+                d = sd.default.device
+                if isinstance(d, (list, tuple)) and len(d) > 0 and d[0] is not None and d[0] >= 0:
+                    return int(d[0])
+                elif isinstance(d, int) and d >= 0:
+                    return d
+        except Exception:
+            pass
+        return None
 
     def _capturar(self, gen: int) -> None:
         if gen != self._mic_gen:
             return                                        # já foi substituída antes de abrir o aparelho
         import numpy as np, sounddevice as sd
-        ultimo_nivel = 0.0
-        try:
-            with sd.RawInputStream(samplerate=SR, blocksize=FRAME, dtype="int16", channels=1) as mic:
-                self._mic = mic
-                bus.emitir("voz", estado="ouvindo", falando=False, ativacao=self.s.ativacao, nome=self.s.nome, modo="duplex",
-                           stt=getattr(self.fluxo, "nome", "?"), barge_in=self.barge_in)
-                while not self._parar.is_set() and gen == self._mic_gen:
-                    frame, _ = mic.read(FRAME)
-                    self._ultimo_frame = time.time(); self._frames_gen += 1
-                    if self.erro.startswith("microfone parado"):
-                        self.erro = ""                    # voltou a ouvir
-                    frame = bytes(frame)
-                    pcm = np.frombuffer(frame, dtype=np.int16)
-                    if not self.ativo:
-                        self.det.cancelar(); self._vad._janela.clear(); continue
-                    prob = self._vad.prob(pcm)
-                    rms = float(np.sqrt(np.mean(pcm.astype(np.float32) ** 2)))
-                    agora = time.time()
-                    if agora - ultimo_nivel > 0.1:
-                        ultimo_nivel = agora
-                        bus.emitir("escuta", nivel=round(min(1.0, rms / 2500), 3), voz=round(prob, 2),
-                                   gravando=self.det.falando, janela_ativa=self.janela_ativa)
-                    if self.mudo:
-                        self._barge(prob, rms, frame); continue
-                    if self._barge_stats:
-                        self._fim_da_fala()               # o Jaime acabou de falar: resumo do barge-in dessa fala
-                    self._alimentar(prob, frame)
-        except Exception as e:
-            if gen != self._mic_gen:
-                return                                    # captura antiga abortada pelo watchdog: sai em silêncio
-            self.erro = f"{type(e).__name__}: {e}"
-            bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
-        finally:
-            if gen == self._mic_gen:
-                self._mic = None
+        tentativa = 0
+        recuo = getattr(self, "_recuo_inicial", 1.0)
+        while not self._parar.is_set() and gen == self._mic_gen:
+            tentativa += 1
+            ultimo_nivel = 0.0
+            try:
+                # M-48b: a partir da 2ª tentativa, reinicializa o PortAudio dentro do processo
+                if tentativa > 1:
+                    try:
+                        if hasattr(sd, "_terminate") and hasattr(sd, "_initialize"):
+                            sd._terminate()
+                            sd._initialize()
+                    except Exception:
+                        pass
+
+                # M-48b: device explícito de entrada
+                dev_idx = self._obter_device_entrada(sd)
+                kw: dict = {"samplerate": SR, "blocksize": FRAME, "dtype": "int16", "channels": 1}
+                if dev_idx is not None:
+                    kw["device"] = dev_idx
+
+                with sd.RawInputStream(**kw) as mic:
+                    self._mic = mic
+                    recuo = getattr(self, "_recuo_inicial", 1.0)
+                    bus.emitir("voz", estado="ouvindo", falando=False, ativacao=self.s.ativacao, nome=self.s.nome, modo="duplex",
+                               stt=getattr(self.fluxo, "nome", "?"), barge_in=self.barge_in)
+                    while not self._parar.is_set() and gen == self._mic_gen:
+                        frame, _ = mic.read(FRAME)
+                        self._ultimo_frame = time.time(); self._frames_gen += 1
+                        sec = int(self._ultimo_frame)
+                        if not self._frames_buckets or self._frames_buckets[-1][0] != sec:
+                            self._frames_buckets.append([sec, 1])
+                        else:
+                            self._frames_buckets[-1][1] += 1
+                        if self.erro:
+                            if self.erro.startswith("microfone parado") or "PortAudio" in self.erro or "AUHAL" in self.erro or "erro" in self.erro.lower():
+                                vault = getattr(self.jaime, "vault", None)
+                                if vault is not None:
+                                    try: vault.diario("Ouvido ativo: microfone voltou a ler frames", "Log")
+                                    except Exception: pass
+                            self.erro = ""                    # voltou a ouvir
+                        frame = bytes(frame)
+                        pcm = np.frombuffer(frame, dtype=np.int16)
+                        if not self.ativo:
+                            self.det.cancelar(); self._vad._janela.clear(); continue
+                        prob = self._vad.prob(pcm)
+                        rms = float(np.sqrt(np.mean(pcm.astype(np.float32) ** 2)))
+                        agora = time.time()
+                        if agora - ultimo_nivel > 0.1:
+                            ultimo_nivel = agora
+                            bus.emitir("escuta", nivel=round(min(1.0, rms / 2500), 3), voz=round(prob, 2),
+                                       gravando=self.det.falando, janela_ativa=self.janela_ativa)
+                        if self.mudo:
+                            self._barge(prob, rms, frame); continue
+                        if self._barge_stats:
+                            self._fim_da_fala()               # o Jaime acabou de falar: resumo do barge-in dessa fala
+                        self._alimentar(prob, frame)
+            except Exception as e:
+                if gen != self._mic_gen:
+                    return                                    # captura antiga abortada pelo watchdog: sai em silêncio
+                msg_erro = f"{type(e).__name__}: {e}"
+                if not self.erro:
+                    vault = getattr(self.jaime, "vault", None)
+                    if vault is not None:
+                        try: vault.diario(f"Ouvido falhou: {msg_erro}", "Log")
+                        except Exception: pass
+                self.erro = msg_erro
+                bus.emitir("voz", estado="erro", erro=self.erro[:200], falando=False)
+                if self._parar.wait(recuo):
+                    break
+                recuo = min(30.0, recuo * 2.0)
+            finally:
+                if gen == self._mic_gen:
+                    self._mic = None
 
     def verificar_microfone(self, agora: float | None = None) -> str:
         """Diz por que o microfone precisa ser reaberto ('' se está bem). Puro: quem age é `reabrir_microfone`."""
@@ -339,8 +419,9 @@ class OuvidoDuplex(Ouvido):
             return f"relógio saltou {(agora - anterior) / 60:.0f} min (o Mac dormiu)"
         recem_reaberto = bool(self._reaberturas) and agora - self._reaberturas[-1] < 120
         limite = self.MIC_REABERTURA_S if recem_reaberto else self.MIC_SEM_AUDIO_S
-        if self._ultimo_frame and agora - self._ultimo_frame >= limite:
-            return f"sem áudio há {agora - self._ultimo_frame:.0f} s com o Mac acordado"
+        ref = self._ultimo_frame or self._inicio_captura
+        if ref and agora - ref >= limite:
+            return f"sem áudio há {agora - ref:.0f} s com o Mac acordado"
         return ""
 
     def decidir_reabertura(self, motivo: str, agora: float | None = None) -> str:
@@ -358,8 +439,47 @@ class OuvidoDuplex(Ouvido):
             return "reiniciar"
         return "reabrir"
 
+    def reinicios_na_ultima_hora(self, agora: float | None = None) -> list[float]:
+        agora = time.time() if agora is None else agora
+        caminho = getattr(self, "_arquivo_reinicios", Path.home() / "Jaime" / ".reinicios")
+        try:
+            if not caminho.exists():
+                return []
+            linhas = caminho.read_text(encoding="utf-8").splitlines()
+            ts_list = [float(l.strip()) for l in linhas if l.strip()]
+            return [ts for ts in ts_list if agora - ts <= 3600]
+        except Exception:
+            return []
+
+    def registrar_reinicio(self, agora: float | None = None) -> None:
+        agora = time.time() if agora is None else agora
+        caminho = getattr(self, "_arquivo_reinicios", Path.home() / "Jaime" / ".reinicios")
+        try:
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+            recentes = self.reinicios_na_ultima_hora(agora)
+            recentes.append(agora)
+            caminho.write_text("\n".join(str(ts) for ts in recentes) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+
     def reiniciar_processo(self, motivo: str) -> None:
         """Último recurso: o estado está no vault e o launchd (KeepAlive) sobe outro processo em segundos."""
+        agora = time.time()
+        recentes = self.reinicios_na_ultima_hora(agora)
+        # M-49: Teto de reinícios por hora (a partir do 3º na hora, não reinicia mais para evitar laço destrutivo)
+        if len(recentes) >= 2:
+            linha = f"Estou surdo: o microfone não abre ({motivo}); limite de reinícios atingido, mantendo processo vivo"
+            self.erro = linha
+            vault = getattr(self.jaime, "vault", None)
+            if vault is not None:
+                try: vault.diario(linha, "Log")
+                except Exception: pass
+            print(f"⚠ {linha}", flush=True)
+            bus.emitir("voz", estado="erro", erro=linha[:200], falando=False)
+            self.reabrir_microfone(motivo)
+            return
+
+        self.registrar_reinicio(agora)
         linha = f"CoreAudio travado após o sono ({motivo}); reiniciando o processo para voltar a ouvir"
         vault = getattr(self.jaime, "vault", None)
         if vault is not None:
@@ -367,6 +487,8 @@ class OuvidoDuplex(Ouvido):
             except Exception: pass
         print(f"⚠ {linha}", flush=True)
         bus.emitir("voz", estado="erro", erro=linha[:200], falando=False)
+        if getattr(self, "_espera_reinicio", 0) > 0 and self._sair == os._exit:
+            time.sleep(self._espera_reinicio)
         self._sair(3)
 
     def reabrir_microfone(self, motivo: str) -> None:

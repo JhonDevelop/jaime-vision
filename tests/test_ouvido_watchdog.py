@@ -90,3 +90,89 @@ def test_frames_de_volta_zeram_as_falhas_e_o_limite_por_hora_tambem_reinicia():
     o._frames_gen = 0
     for i in range(6): o._reaberturas.append(t + 300 + i)
     assert o.decidir_reabertura("relógio saltou 3 min (o Mac dormiu)", t + 400) == "reiniciar"   # 7 na última hora
+
+
+# ── M-48: Watchdog detecta surdez desde o boot (_ultimo_frame == 0.0) ─────────
+def test_verificar_microfone_detecta_surdo_desde_o_boot():
+    o = _ouvido(); t = 2000.0
+    o._ultimo_frame = 0.0
+    o._inicio_captura = t
+    assert o.verificar_microfone(t + 15) == ""
+    m = o.verificar_microfone(t + 61)
+    assert m.startswith("sem áudio há 61 s com o Mac acordado")
+
+
+# ── M-48b: Retentativas com terminate/initialize do PortAudio e device explícito ──
+def test_retentativa_captura_reinicializa_portaudio(monkeypatch):
+    import sys, threading, types
+    from jaime.voice.duplex import FRAME
+    eventos_sd = []
+    class _StreamMock:
+        tentativas = 0
+        def __init__(self, **kw):
+            _StreamMock.tentativas += 1
+            self.kw = kw
+            if _StreamMock.tentativas == 1:
+                raise RuntimeError("AUHAL err='35'")
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self, n): return (b"\x00" * (FRAME * 2), False)
+    sd = types.ModuleType("sounddevice")
+    sd.RawInputStream = _StreamMock
+    sd._terminate = lambda: eventos_sd.append("term")
+    sd._initialize = lambda: eventos_sd.append("init")
+    sd.query_devices = lambda kind="input": {"name": "Mic", "index": 2}
+    monkeypatch.setitem(sys.modules, "sounddevice", sd)
+    o = _ouvido(); o.ativo = False
+    o._recuo_inicial = 0.01
+    o._vad = types.SimpleNamespace(_janela=[]); o.det = types.SimpleNamespace(cancelar=lambda: None, falando=False)
+    t = threading.Thread(target=o._capturar, args=(o._mic_gen,), daemon=True)
+    t.start()
+    time.sleep(0.08)
+    o._parar.set()
+    t.join(2)
+    assert _StreamMock.tentativas >= 2
+    assert "term" in eventos_sd and "init" in eventos_sd
+    assert any("Ouvido falhou: RuntimeError: AUHAL err='35'" in l for _, l in o.jaime.vault.linhas)
+    assert any("Ouvido ativo: microfone voltou a ler frames" in l for _, l in o.jaime.vault.linhas)
+
+
+# ── M-48b: Medição de frames_ultimo_min e exposição no /hud/sistemas ─────────
+def test_frames_ultimo_min_e_hud_sistemas():
+    from jaime.hud.sistemas import montar
+    o = _ouvido()
+    t = int(time.time())
+    o._frames_buckets.append([t - 70, 50])  # fora dos 60 s
+    o._frames_buckets.append([t - 30, 20])
+    o._frames_buckets.append([t - 10, 15])
+    assert o.frames_ultimo_min == 35
+    sist = montar(o.jaime, ouvido=o, settings=SimpleNamespace(voz_modo="duplex"))
+    assert sist["ouvido"]["frames_ultimo_min"] == 35
+    assert sist["ouvido"]["aberto"] is False
+    assert sist["ouvido"]["ultimo_frame"] == 0.0
+
+
+# ── M-49: Teto de reinícios por hora (a partir do 3º, mantém processo vivo) ──
+def test_limite_de_reinicios_mantem_processo_vivo(tmp_path):
+    o = _ouvido(); saidas = []
+    o._sair = lambda c: saidas.append(c)
+    o._arquivo_reinicios = tmp_path / ".reinicios"
+    reabertos = []
+    o.reabrir_microfone = lambda motivo: reabertos.append(motivo)
+    
+    t = 10000.0
+    # 1º reinício: sai com 3
+    o.reiniciar_processo("falha 1")
+    assert saidas == [3] and len(reabertos) == 0
+    
+    # 2º reinício: sai com 3
+    o.reiniciar_processo("falha 2")
+    assert saidas == [3, 3] and len(reabertos) == 0
+    
+    # 3º reinício na mesma hora: NÃO sai, mantém vivo e chama reabrir_microfone
+    o.reiniciar_processo("falha 3")
+    assert saidas == [3, 3]  # não aumentou
+    assert len(reabertos) == 1
+    assert "limite de reinícios atingido" in o.erro
+    assert any(l.startswith("Estou surdo: o microfone não abre") for _, l in o.jaime.vault.linhas)
+
