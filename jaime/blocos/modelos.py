@@ -111,6 +111,8 @@ class Modelos:
             return False, f"fonte desconhecida: {b.fonte}"
         if not b.fonte and b.privado:
             return False, "modelo estático não pode carregar conteúdo privado (use uma fonte privada)"
+        if not b.fonte and linhas_texto(b) == ["(sem dados ainda)"]:
+            return False, "modelo estático sem conteúdo (dê conteúdo ou uma fonte viva)"
         erros = contrato(b)
         if erros:
             return False, "não passou no contrato: " + "; ".join(erros[:4])
