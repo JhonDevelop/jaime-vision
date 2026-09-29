@@ -75,7 +75,7 @@ async def listar():
             "abertos": [{"id": b.id, "titulo": b.titulo, "tipo": b.tipo, "fonte": b.fonte, "privado": b.privado}
                         for b in g.listar() if dono or not b.privado],
             "superficies": [{"perfil": s.perfil, "nome": s.nome} for s in g.sessoes.values()],
-            "modelos": m.nomes(), "fontes": ESTADO["fontes"].listar(), "layouts": list(g.layouts())}
+            "modelos": m.nomes(), "titulos": {n: m.receita(n).get("titulo", n) for n in m.nomes()}, "fontes": ESTADO["fontes"].listar(), "layouts": list(g.layouts())}
 
 
 @router.post("/blocos")

@@ -146,6 +146,8 @@ def linhas_texto(b: Bloco, largura: int = 80, maximo: int = 40) -> list[str]:
         out.append(f"(imagem) {c.get('legenda') or ''}".strip())
     elif t == "html":
         out.append(c.get("alternativo") or "(conteúdo visual — abra no cockpit)")
+    if not out:
+        out = ["(sem dados ainda)"]
     if len(out) > maximo:
         resto = len(out) - (maximo - 1)
         out = out[:maximo - 1] + [f"… +{resto} linha(s)"]
