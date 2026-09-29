@@ -395,6 +395,51 @@
 
 #### M-07 · Telemetria sem amostras — **resolvido pelo tempo**: `vault/.jaime/telemetria.json` já acumula (1 hora, 5 títulos, 9 pedidos às 14:28); `Uso.md` só é reescrito no fecha-semana.
 
+#### M-48 · Surdo em silêncio: o watchdog é cego quando nenhum frame chegou desde o boot (29/09 08:30) — **ABERTO**
+- **Problema.** O serviço está no ar desde 07:06 (pid 22632, `/hud/sistemas` responde em 0,16 s) e **não escuta nada há
+  84 minutos**. Última linha do log: o banner do boot + `||PaMacCore (AUHAL)|| Error on line 2744: err='35'`. Nenhuma
+  linha de watchdog, nenhum "Ouvido reaberto", nenhum reinício. O João falou e não foi ouvido; nada avisou.
+- **Causa (provada).** Duas falhas somadas em `jaime/voice/duplex.py`:
+  1. `_capturar` **não tem retentativa**: se `sd.RawInputStream(...)` levanta na abertura (é o caso — PortAudioError
+     −9986 = `paInternalError`, com o AUHAL err=35 por baixo), o `except` grava `self.erro` e a thread **morre para
+     sempre**. Ninguém sobe outra.
+  2. `verificar_microfone` (linha 342) só olha o relógio `if self._ultimo_frame and …`. Como `_ultimo_frame` nasce
+     `0.0` (linha 221) e só é escrito quando um frame chega (linha 305) ou numa reabertura (382), um processo que
+     **nunca ouviu um frame** tem `_ultimo_frame` falsy — a condição é sempre falsa e o watchdog retorna `''` para
+     sempre. O M-47 supervisiona "parou de ouvir", nunca "nunca começou".
+- **Prova de que o CoreAudio está são**: o mesmo venv, agora, em outro processo, abre o microfone em 0,74 s e lê frames
+  com RMS 42→458 (`Microfone (MacBook Pro)`, 48 kHz). Não é o HAL, não é permissão, não é o aparelho: é o Jaime que
+  desistiu na primeira exceção e cegou o próprio vigia.
+- **Solução proposta.**
+  1. `_capturar` abre com retentativa e recuo (1 s, 2 s, 4 s … teto 30 s) enquanto `_parar` não estiver setado e a
+     geração for a corrente; a cada falha mantém `self.erro` e emite `voz/estado=erro` (o HUD mostra "sem ouvido").
+  2. Guardar `self._inicio_captura = time.time()` em `_iniciar_captura` e trocar a referência do watchdog por
+     `ref = self._ultimo_frame or self._inicio_captura` — assim "nunca ouvi desde o boot" vira o mesmo caso de
+     "sem áudio há N s" e cai no fluxo de reabrir/reiniciar que já existe.
+  3. O diário ganha uma linha quando o ouvido passa de morto a vivo e vice-versa: hoje ficar surdo é invisível.
+- **Como validar.** Subir o serviço com o microfone ocupado/negado (ou injetar uma exceção na abertura): em ≤ 60 s tem de
+  aparecer "sem áudio há … s" e a reabertura; liberando o microfone, "escuta" volta sem reiniciar o processo. Teste novo:
+  `verificar_microfone` com `_ultimo_frame == 0` e `_inicio_captura` velho tem de devolver motivo não vazio.
+
+#### M-49 · O laço de reinício é o que estraga o boot seguinte (29/09 08:30) — **ABERTO**
+- **Problema.** 68 "CoreAudio travado após o sono … reiniciando o processo" no log, quase todos seguidos, um a cada
+  30–120 s. Em **todo** boot dessa sequência aparece `||PaMacCore (AUHAL)|| Error on line 2744: err='35'` — o boot novo
+  já nasce sem conseguir abrir o microfone.
+- **Hipótese (forte, a confirmar).** O `os._exit(3)` do M-47 mata o processo **sem soltar o cliente do CoreAudio**; o
+  `KeepAlive` do launchd sobe outro em ~1 s, cedo demais, e a abertura falha (err=35). Esse processo fica surdo, o
+  watchdog dispara de novo, e o laço se alimenta sozinho. Ele só parou porque um dos boots caiu no ponto cego do M-48 —
+  trocou o laço barulhento por 84 minutos de surdez silenciosa.
+- **Solução proposta.**
+  1. Antes do `_sair(3)`, esperar ~3 s (o CoreAudio solta o cliente) — barato e provavelmente resolve o laço sozinho.
+  2. Teto com recuo: contar reinícios por causa de microfone na última hora num arquivo de estado (`~/Jaime/.reinicios`);
+     a partir do 3º **não reinicia mais** — o serviço continua vivo, tenta reabrir o stream de 60 em 60 s e escreve no
+     diário e no HUD "estou surdo: o microfone não abre (PortAudioError …)". Ficar surdo avisando é melhor que ficar
+     reiniciando ou ficar surdo calado.
+  3. Só então considerar o desenho que o M-47 sugeriu (reiniciar de propósito em todo despertar): com o teto, ele deixa
+     de poder virar laço.
+- **Como validar.** Provocar dois reinícios seguidos: o 3º tem de virar "estou surdo" no HUD + diário, com o processo
+  vivo; e o log não pode ter mais de 2 "reiniciando o processo" na mesma hora.
+
 ### Fila de melhorias (por impacto)
 | # | Item | Impacto hoje | Estado |
 |---|---|---|---|
@@ -426,6 +471,7 @@
 | 7t | M-33 tique recupera rotinas no sono com processo vivo | etapa 8 | pronto, aguardando merge |
 | 7u | M-34 fim de rotina, lock esperado, stats coerentes | observabilidade | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
+| 0 | M-48 surdo em silêncio · M-49 laço de reinício | **o João não é ouvido hoje** | diagnosticado, código com o Gemini |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
 ### Observações para o Cérebro Principal
@@ -463,3 +509,4 @@
 - 21/09 13:20 — M-45: watchdog sem close() de fora (segfault 12:51); 577 testes. Validados pela Vigília: M-42 e o loop das vontades adiando de 10 em 10 min.
 - 21/09 15:40 — M-46: deadlock fork × OpenBLAS → BLAS 1 thread + healthcheck externo (não instalado); 579 testes.
 - 21/09 18:45 — M-47: reabertura com prazo/limite + reinício do processo quando o CoreAudio não volta; 581 testes.
+- 29/09 08:30 — retomada: `git merge main` (já em dia). Ouvido morto há 84 min com o serviço vivo: M-48 (watchdog cego quando nenhum frame chegou) e M-49 (o `os._exit` alimenta o próprio laço) diagnosticados e provados; microfone testado são em outro processo. Código delegado ao Gemini.
