@@ -41,3 +41,26 @@ def test_arquivos_mudados_ve_commit_e_arquivo_solto(tmp_path):
     g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "m")
     (r / "solto.py").write_text("y")
     assert arquivos_mudados(r) == ["jaime/vigia/hooks.py", "solto.py"]
+
+
+def test_gate_de_ponta_a_ponta_com_baseline_limpo_e_regua_protegida(tmp_path):
+    """Repositório mínimo com o pacote jaime copiado: candidato que piora os gestos é reprovado; o que só muda um
+    comentário passa; e trocar a régua (qualidade.py) no candidato não adianta — a régua é a do repositório."""
+    import shutil
+    from jaime.qualidade import gate_padrao
+    repo = tmp_path / "repo"
+    shutil.copytree(RAIZ / "jaime", repo / "jaime", ignore=shutil.ignore_patterns("__pycache__", "hud"))
+    (repo / "tests").mkdir(); (repo / "tests" / "test_a.py").write_text("def test_a():\n    assert True\n")
+    g = lambda *a, cwd=repo: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True)
+    g("init", "-q", "-b", "main"); g("add", "-A"); g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "i")
+    wt = tmp_path / "wt"
+    g("worktree", "add", "-q", "-b", "jaime/x", str(wt), "main")
+    gate = gate_padrao(repo)
+    ok, rel = gate(wt, None)
+    assert ok, rel
+    exp = wt / "jaime" / "spatial" / "experimentos.py"
+    exp.write_text(exp.read_text().replace('"close_ratio": 0.28', '"close_ratio": 0.34'))       # regressão real
+    q = wt / "jaime" / "qualidade.py"
+    q.write_text(q.read_text().replace("def medir() -> dict:", "def medir() -> dict:\n    return {'gestos': {'acerto': 1.0, 'falsos_h': 0.0, 'p95_ms': 0.0, 'n': 1}}\n\ndef _medir_de_verdade() -> dict:"))
+    ok, rel = gate(wt, None)
+    assert not ok and "falsas ativações" in rel and "jaime/qualidade.py" in rel

@@ -55,7 +55,7 @@ class Gerenciador:
     def listar(self) -> list[Bloco]:
         return list(self.blocos.values())
 
-    def _preencher(self, b: Bloco) -> None:
+    def _preencher(self, b: Bloco, pode_lenta: bool = True) -> None:
         f = self.fontes.get(b.fonte) if b.fonte else None
         if b.fonte and not f:
             raise BlocoInvalido(f"fonte desconhecida: {b.fonte} (existem: {', '.join(x['nome'] for x in self.fontes.listar())})")
@@ -64,6 +64,11 @@ class Gerenciador:
         b.privado = b.privado or f.privada
         if not b.intervalo_s and f.intervalo_padrao:
             b.intervalo_s = f.intervalo_padrao
+        if f.lenta and not pode_lenta:
+            # fonte de rede (ex.: Home Assistant): abre na hora com "carregando" e o tique busca fora do event loop
+            b.tipo, b.conteudo = "status", {"estado": "ok", "texto": "carregando…"}
+            b.intervalo_s = b.intervalo_s or 30
+            return
         try:
             tipo, conteudo = self.fontes.ler(b.fonte, b.parametros)
             b.tipo = tipo
@@ -78,7 +83,7 @@ class Gerenciador:
     def abrir(self, d: dict | Bloco, origem: str = "jaime") -> Bloco:
         b = validar(d)
         b.criado_por = origem if origem else b.criado_por
-        self._preencher(b)
+        self._preencher(b, pode_lenta=False)
         antes = self.blocos.get(b.id)
         agora = self.relogio()
         if antes:
@@ -121,7 +126,7 @@ class Gerenciador:
         novo.criado, novo.versao, novo.atualizado = atual.criado, atual.versao + 1, self.relogio()
         novo.criado_por = atual.criado_por
         if novo.fonte != atual.fonte or novo.parametros != atual.parametros:
-            self._preencher(novo)
+            self._preencher(novo, pode_lenta=False)
         self.blocos[bid] = novo
         self._registrar("atualizar", atual, novo)
         self._difundir()
@@ -149,7 +154,7 @@ class Gerenciador:
 
     def ler(self, bid: str) -> str:
         b = self.blocos.get(bid)
-        if not b:
+        if not b or (b.privado and not self.dono_ok()):
             return ""
         texto = resumo_falado(b)
         if self.falar:
@@ -170,6 +175,8 @@ class Gerenciador:
         elif antes:                                           # desfazer atualizar/fechar = voltar como era
             b = validar(antes)
             b.criado, b.versao = antes.get("criado", b.criado), int(antes.get("versao", 1))
+            if op == "fechar" and b.ttl_s:
+                b.criado = self.relogio()                     # reaberto: o prazo recomeça (senão o próximo tique fecha de novo)
             b.atualizado = self.relogio()
             self.blocos[b.id] = b
         self._difundir()

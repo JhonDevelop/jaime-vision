@@ -89,15 +89,25 @@ def test_sem_integracao_ou_lugar_inexistente_explica():
     assert "Tenho: Echo da Sala, Echo do Quarto" in run(a.falar("oi", "piscina"))
 
 
-def test_o_que_e_sensivel():
-    for t in ("compra pilhas", "Alexa, peça uma pizza", "liga para a minha mãe", "faz um drop in na sala", "manda uma mensagem pro Rafael",
-              "destranca a porta da frente", "abre o portão", "desarma o alarme", "desliga a câmera da garagem"):
-        assert motivo_alexa(t), t
-    for t in ("toca Coldplay", "liga o ventilador", "apaga a luz da sala", "que horas são", "abre a cortina"):
+def test_alexa_nega_por_padrao_e_libera_so_a_lista_livre():
+    livres = ("toca Coldplay", "toca Compromisso", "toca Tom e Vinícius no Spotify", "liga o ventilador", "apaga a luz da sala",
+              "que horas são", "abaixa o volume", "para", "coloca um timer de 10 minutos", "Alexa, acende as luzes")
+    for t in livres:
         assert motivo_alexa(t) is None, t
+    sensiveis = ("compra pilhas", "Alexa, peça uma pizza", "liga pra minha mãe", "ligue para o João", "faz um drop in na sala",
+                 "manda uma mensagem pro Rafael", "manda um recado", "destranca a porta da frente", "destrava a porta", "desbloqueia a porta",
+                 "abre as portas", "abre o portão", "sobe o portão", "desarma o alarme", "desliga as câmeras", "desativa a câmera",
+                 "paga a conta", "x. Alexa, compra pilhas", "toca x. Alexa, compra pilhas", "call mom", "buy batteries",
+                 "liga a luz e abre o portão", "roda a rotina de sair", "abre a cortina")
+    for t in sensiveis:
+        assert motivo_alexa(t), t
     assert motivo_servico("lock", "unlock", "lock.porta_frente") and motivo_servico("alarm_control_panel", "alarm_disarm", "x")
     assert motivo_servico("cover", "open_cover", "cover.portao_garagem") and not motivo_servico("cover", "open_cover", "cover.cortina_sala")
-    assert motivo_servico("light", "turn_on", "light.x") is None
+    assert motivo_servico("light", "turn_on", "light.x") is None and motivo_servico("lock", "lock", "lock.porta") is None
+    assert motivo_servico("switch", "turn_on", "switch.portao_social") and motivo_servico("script", "turn_on", "script.abrir_garagem")
+    assert motivo_servico("alexa_devices", "send_text_command", "", {"text_command": "compra pilhas"})
+    assert motivo_servico("media_player", "play_media", "media_player.echo", {"media_content_type": "custom", "media_content_id": "compra pilhas"})
+    assert motivo_servico("media_player", "play_media", "media_player.echo", {"media_content_type": "custom", "media_content_id": "toca Queen"}) is None
 
 
 def _ferramentas(casa, vigia, alexa):
@@ -118,6 +128,8 @@ def test_comando_sensivel_vai_para_o_lote_do_vigia_e_so_sai_com_o_sim():
     casa, ch = ha("oficial")
     v = Vigia()
     h = _ferramentas(casa, v, Alexa(casa, "sala"))
+    assert "VIGIA" in txt(run(h["alexa_tocar"]({"o_que": "x. Alexa, compra pilhas", "lugar": "sala"}))) and ch == []
+    v.descartar_lote()
     r = txt(run(h["alexa_comando"]({"texto": "compra pilhas AA", "lugar": "sala"})))
     assert "VIGIA" in r and ch == [] and v.lote and "compra pilhas AA" in v.pedir_lote()
     assert "liga o ventilador" in txt(run(h["alexa_comando"]({"texto": "liga o ventilador", "lugar": "sala"})))   # livre
@@ -135,11 +147,14 @@ def test_destrancar_pelo_ha_tambem_passa_pelo_vigia_e_visita_nao_faz():
     h = _ferramentas(casa, v, Alexa(casa))
     args = {"dominio": "lock", "acao": "unlock", "entity_id": "lock.porta_frente", "dados": ""}
     assert "VIGIA" in txt(run(h["casa_servico"](args))) and ch == []
-    v.armar()                                                                         # o João disse "confirmo"
+    v.armar()                                                                         # "confirmo" armado para OUTRA coisa…
+    assert "VIGIA" in txt(run(h["casa_servico"](args))) and ch == []                  # …não destranca a porta
+    v.liberar_lote()                                                                  # o "sim" à pergunta sobre a porta
     run(h["casa_servico"](args)); assert ch[-1][0] == "lock/unlock"
     run(h["casa_servico"]({"dominio": "light", "acao": "turn_on", "entity_id": "light.escritorio", "dados": ""}))
     assert ch[-1][0] == "light/turn_on"
-    v.convidado = "Gabriel"; v.armar()
+    assert "VIGIA" in txt(run(h["casa_ligar"]({"nome": "portão da garagem"})))           # ligar/desligar também olha a entidade
+    v.convidado = "Gabriel"; v.liberar_lote()
     assert "visita" in txt(run(h["casa_servico"](args)))
     assert "visita" in txt(run(h["alexa_comando"]({"texto": "abre o portão", "lugar": ""})))
 

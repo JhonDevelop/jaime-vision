@@ -15,7 +15,8 @@ from __future__ import annotations
 import json, re, subprocess, sys, time
 from pathlib import Path
 
-PROTEGIDOS = re.compile(r"^(jaime/vigia/|\.env$|vault/00-Jaime/|CLAUDE\.md$)")
+# a régua não pode ser mexida por quem está sendo medido: qualidade.py e o teste dele também são protegidos
+PROTEGIDOS = re.compile(r"^(jaime/vigia/|\.env$|vault/00-Jaime/|CLAUDE\.md$|jaime/qualidade\.py$|tests/test_qualidade\.py$)")
 
 # frases reais (anonimizadas) → o que deve acontecer
 FRASES_REFERENCIA = [
@@ -81,12 +82,25 @@ def _python(repo: Path) -> str:
     return str(venv) if venv.exists() else sys.executable
 
 
-def medir_em(pasta: Path, python: str) -> dict:
-    r = subprocess.run([python, "-m", "jaime.qualidade", "medir"], cwd=pasta, capture_output=True, text=True, timeout=600)
+def medir_em(pasta: Path, python: str, regua: Path | None = None) -> dict:
+    """Mede o código de `pasta` com a RÉGUA (este arquivo) do baseline: o candidato não consegue trocar o medidor."""
+    regua = Path(regua or __file__).resolve()
+    codigo = ("import json, sys; sys.path.insert(0, '.'); import jaime; "
+              f"g = {{'__name__': 'jaime._regua', '__package__': 'jaime'}}; exec(compile(open({str(regua)!r}).read(), 'regua', 'exec'), g); "
+              "print(json.dumps(g['medir'](), ensure_ascii=False))")
+    r = subprocess.run([python, "-c", codigo], cwd=pasta, capture_output=True, text=True, timeout=600)
     try:
         return json.loads(r.stdout.strip().splitlines()[-1])
     except (json.JSONDecodeError, IndexError):
         return {"erro": (r.stderr or r.stdout)[-300:]}
+
+
+def exportar(repo: Path, ref: str, destino: Path) -> Path:
+    """Cópia limpa de `ref` (sem .git, sem arquivos soltos) — baseline de verdade, não a pasta de trabalho."""
+    destino.mkdir(parents=True, exist_ok=True)
+    arq = subprocess.run(["git", "archive", "--format=tar", ref], cwd=repo, capture_output=True, timeout=300, check=True).stdout
+    subprocess.run(["tar", "-x", "-C", str(destino)], input=arq, check=True, timeout=300)
+    return destino
 
 
 def testes_coletados(pasta: Path, python: str) -> int:
@@ -100,7 +114,8 @@ def arquivos_mudados(pasta: Path, base: str = "main") -> list[str]:
     r = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"], cwd=pasta, capture_output=True, text=True, timeout=60)
     r2 = subprocess.run(["git", "status", "--porcelain"], cwd=pasta, capture_output=True, text=True, timeout=60)
     nomes = set(r.stdout.split()) | {l[3:].strip() for l in r2.stdout.splitlines() if len(l) > 3}
-    return sorted(n for n in nomes if n)
+    lixo = re.compile(r"(__pycache__|\.pyc$|\.pytest_cache)")
+    return sorted(n for n in nomes if n and not lixo.search(n))
 
 
 def comparar(base: dict, cand: dict, testes_base: int, testes_cand: int, mudados: list[str]) -> tuple[bool, list[str]]:
@@ -130,20 +145,24 @@ def comparar(base: dict, cand: dict, testes_base: int, testes_cand: int, mudados
     return not problemas, problemas
 
 
-def gate_padrao(repo: Path):
-    """Gate para `Evolucao(gate=…)`: mede baseline (repo) e candidato (worktree) e compara. Baseline em cache por commit."""
+def gate_padrao(repo: Path, base: str = "main"):
+    """Gate para `Evolucao(gate=…)`. Baseline = cópia limpa do `main` (de onde o worktree da proposta nasce), em cache
+    por commit; candidato = o worktree. Os dois medidos pela régua do repositório atual."""
+    import tempfile
     repo = Path(repo)
     cache: dict = {}
 
     def gate(pasta, proposta) -> tuple[bool, str]:
         py = _python(repo)
-        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
-        if head not in cache:
-            cache[head] = (medir_em(repo, py), testes_coletados(repo, py))
-        base, tb = cache[head]
+        ref = subprocess.run(["git", "rev-parse", base], cwd=repo, capture_output=True, text=True).stdout.strip()
+        if ref not in cache:
+            with tempfile.TemporaryDirectory(prefix="jaime-baseline-") as tmp:
+                limpo = exportar(repo, ref, Path(tmp))
+                cache[ref] = (medir_em(limpo, py), testes_coletados(limpo, py))
+        b, tb = cache[ref]
         cand, tc = medir_em(Path(pasta), py), testes_coletados(Path(pasta), py)
-        ok, problemas = comparar(base, cand, tb, tc, arquivos_mudados(Path(pasta)))
-        linhas = [f"baseline ({head[:7]}): {json.dumps({k: v for k, v in base.items() if k != 'quando'}, ensure_ascii=False)}",
+        ok, problemas = comparar(b, cand, tb, tc, arquivos_mudados(Path(pasta), base))
+        linhas = [f"baseline ({base} {ref[:7]}): {json.dumps({k: v for k, v in b.items() if k != 'quando'}, ensure_ascii=False)}",
                   f"candidato: {json.dumps({k: v for k, v in cand.items() if k != 'quando'}, ensure_ascii=False)}",
                   f"testes coletados: {tb} → {tc}"]
         linhas += [f"REPROVADO: {p}" for p in problemas] or ["aprovado: nada piorou"]

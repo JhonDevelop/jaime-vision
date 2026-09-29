@@ -352,5 +352,9 @@ def test_rotas_que_mudam_estado_recusam_outra_maquina_e_outro_site(tmp_path):
         rotas._so_local(req("192.168.0.20"))
     with pytest.raises(HTTPException):
         rotas._so_local(req("127.0.0.1", "https://site-malicioso.com"))
+    with pytest.raises(HTTPException):
+        rotas._so_local(req("127.0.0.1", "null"))                  # iframe sandbox de qualquer site
+    with pytest.raises(HTTPException):
+        rotas._so_local(req("127.0.0.1", "http://evil.com:8787"))  # DNS rebinding
     rotas._so_local(req("127.0.0.1", "http://127.0.0.1:8787"))
     rotas._so_local(req("127.0.0.1"))

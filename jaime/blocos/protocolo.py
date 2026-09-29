@@ -18,7 +18,7 @@ O servidor adapta cada bloco às capacidades (superficies.adaptar) e faz o diff 
 que mudou, e nunca recebe bloco privado se não for superfície do dono com o cérebro aberto.
 """
 from __future__ import annotations
-import asyncio, json
+import asyncio, json, re
 from typing import Callable
 from uuid import uuid4
 from .modelo import Bloco
@@ -84,6 +84,8 @@ async def tratar_mensagem(g, sessao: Sessao, msg: dict, executar_intencao: Calla
     if op == "ping":
         return {"op": "pong"}
     bid = str(msg.get("id") or "")
+    if op in ("fechar", "mover", "ler", "acao") and bid not in sessao.versoes:
+        return {"op": "erro", "msg": "esse bloco não está nesta superfície"}      # nada de adivinhar id de bloco privado
     if op == "fechar":
         g.fechar(bid, motivo=f"fechado em {sessao.nome}")
         return None
@@ -99,14 +101,27 @@ async def tratar_mensagem(g, sessao: Sessao, msg: dict, executar_intencao: Calla
         b = g.blocos.get(bid)
         intencao = str(msg.get("intencao") or "")
         botoes = {x["intencao"] for x in (b.conteudo.get("botoes", []) if b and b.tipo == "acoes" else [])}
-        if not b or intencao not in botoes:
+        if not b or intencao not in botoes or not intencao_segura(intencao):
             return {"op": "erro", "msg": "essa ação não existe neste bloco"}   # cliente não inventa intenção
         if not (sessao.caps.confiavel and g.dono_ok()):
             return {"op": "erro", "msg": "ação só pela superfície do dono, com o cérebro aberto"}
         if executar_intencao:
-            asyncio.get_running_loop().create_task(executar_intencao(intencao))
+            # o texto que vira turno nunca é só "sim"/"confirmo": botão não aprova lote do Vigia nem arma confirmação
+            asyncio.get_running_loop().create_task(executar_intencao(f"[botão «{b.titulo}»] {intencao}"))
         return {"op": "falar", "texto": f"ok: {intencao[:80]}"}
     return {"op": "erro", "msg": f"op desconhecida: {op}"}
+
+
+def intencao_segura(intencao: str) -> bool:
+    """Botão de bloco é pedido, não aprovação: "sim", "confirmo", "pode", senha e "tranca/destranca o cérebro"
+    não podem ser intenção de botão (o modelo escreve a intenção; o João só vê o rótulo)."""
+    from ..vigia.hooks import eh_aprovacao_lote, eh_confirmacao
+    t = (intencao or "").strip()
+    if not t or eh_confirmacao(t) or eh_aprovacao_lote(t):
+        return False
+    if re.fullmatch(r"[\d\s]{4,}", t) or re.search(r"\b(senha|palavra.passe|tranca|destranca)\b", t, re.I):
+        return False
+    return True
 
 
 def codificar(msg: dict) -> str:

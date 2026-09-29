@@ -192,6 +192,7 @@ def test_acoes_de_bloco_so_com_intencao_do_proprio_bloco_e_superficie_do_dono(tm
     async def executar(i): feitas.append(i)
     dono = Sessao("cockpit", PERFIS["cockpit"], lambda m: None)
     visita = Sessao("cockpit", capacidades_de("cockpit", {"confiavel": False}), lambda m: None)
+    g.conectar(dono); g.conectar(visita)
     async def go():
         r1 = await tratar_mensagem(g, dono, {"op": "acao", "id": "d", "intencao": "apaga o repositório"}, executar)
         r2 = await tratar_mensagem(g, visita, {"op": "acao", "id": "d", "intencao": "publica o deploy da BUB"}, executar)
@@ -199,7 +200,47 @@ def test_acoes_de_bloco_so_com_intencao_do_proprio_bloco_e_superficie_do_dono(tm
         await asyncio.sleep(0)
         return r1, r2, r3
     r1, r2, r3 = asyncio.run(go())
-    assert r1["op"] == "erro" and r2["op"] == "erro" and r3["op"] == "falar" and feitas == ["publica o deploy da BUB"]
+    assert r1["op"] == "erro" and r2["op"] == "erro" and r3["op"] == "falar"
+    assert feitas == ["[botão «Deploy»] publica o deploy da BUB"]          # nunca só "sim"/"confirmo" para o orquestrador
+
+
+def test_botao_nao_pode_ser_aprovacao_do_vigia_nem_senha():
+    b = validar({"tipo": "acoes", "titulo": "Ver depois", "conteudo": {"botoes": [
+        {"rotulo": "Ver depois", "intencao": "sim"}, {"rotulo": "Ok", "intencao": "confirmo"}, {"rotulo": "x", "intencao": "pode fazer"},
+        {"rotulo": "y", "intencao": "1234 5678"}, {"rotulo": "z", "intencao": "destranca o cérebro"},
+        {"rotulo": "Resumo", "intencao": "resume o dia"}]}})
+    assert [x["intencao"] for x in b.conteudo["botoes"]] == ["resume o dia"]
+
+
+def test_ops_so_em_blocos_da_propria_superficie_e_ler_privado_sem_dono_nao_fala(tmp_path):
+    g, rel, _, falas = _g(tmp_path)
+    dono = {"ok": True}
+    g.dono_ok = lambda: dono["ok"]
+    g.abrir({"tipo": "texto", "titulo": "Saldo", "id": "s", "fonte": "segredo"})
+    visita = Sessao("cockpit", capacidades_de("cockpit", {"confiavel": False}), lambda m: None)
+    g.conectar(visita)
+    r = asyncio.run(tratar_mensagem(g, visita, {"op": "ler", "id": "s"}))
+    assert r["op"] == "erro" and falas == []                                   # não recebeu → não lê, não fecha
+    assert asyncio.run(tratar_mensagem(g, visita, {"op": "fechar", "id": "s"}))["op"] == "erro" and "s" in g.blocos
+    dono["ok"] = False
+    assert g.ler("s") == "" and falas == []
+
+
+def test_fonte_lenta_nao_bloqueia_ao_abrir(tmp_path):
+    g, rel, _, _ = _g(tmp_path)
+    chamadas = []
+    g.fontes.registrar("rede", "lenta", "texto", lambda p: chamadas.append(1) or {"texto": "chegou"}, lenta=True)
+    b = g.abrir({"tipo": "texto", "titulo": "Rede", "id": "r", "fonte": "rede"})
+    assert b.conteudo["texto"] == "carregando…" and chamadas == []
+    asyncio.run(g.tique())
+    assert chamadas == [1] and g.blocos["r"].conteudo["texto"] == "chegou"
+
+
+def test_desfazer_fechamento_por_ttl_reabre_com_prazo_novo(tmp_path):
+    g, rel, _, _ = _g(tmp_path)
+    g.abrir({"tipo": "texto", "titulo": "T", "id": "t", "ttl_s": 10, "conteudo": "x"})
+    rel.t += 11; asyncio.run(g.tique()); assert "t" not in g.blocos
+    g.desfazer(); asyncio.run(g.tique()); assert "t" in g.blocos
 
 
 # ── voz ──────────────────────────────────────────────────────────────────────
@@ -216,6 +257,11 @@ def test_comandos_de_voz_sem_modelo(tmp_path):
     assert comando("abre finanças", g, m) is None                       # sem "bloco": segue ao cérebro como antes
     assert comando("abre um bloco comparando a BUB com a Oldsen", g, m) is None   # novo: o cérebro compõe
     assert comando("que horas são?", g, m) is None
+    for conversa in ("quais blocos de concreto a BUB vende?", "abre o layout da landing page", "fecha tudo e depois ajusta o layout do app",
+                     "desfaz o pedido de blocos do cliente", "mostra o bloco da maquina de lavar"):
+        antes = [b.id for b in g.listar()]
+        assert comando(conversa, g, m) is None, conversa
+        assert [b.id for b in g.listar()] == antes, conversa
 
 
 # ── modelos e uso ────────────────────────────────────────────────────────────
@@ -325,10 +371,12 @@ def test_websocket_recusa_handshake_ruim_e_site_de_fora(tmp_path):
         with c.websocket_connect("/blocos/ws") as ws:
             ws.send_json({"op": "abrir"})
             assert ws.receive_json()["op"] == "erro"
-        with pytest.raises(WebSocketDisconnect):
-            with c.websocket_connect("/blocos/ws", headers={"origin": "https://site-malicioso.com"}) as ws:
-                ws.receive_json()
-        assert c.post("/blocos", json={"modelo": "relogio"}, headers={"origin": "https://site-malicioso.com"}).status_code == 403
+        for origem in ("https://site-malicioso.com", "null", "http://evil.com:8787"):     # site, iframe sandbox, DNS rebinding
+            with pytest.raises(WebSocketDisconnect):
+                with c.websocket_connect("/blocos/ws", headers={"origin": origem}) as ws:
+                    ws.receive_json()
+            assert c.post("/blocos", json={"modelo": "relogio"}, headers={"origin": origem}).status_code == 403
+        assert c.post("/blocos", json={"modelo": "relogio"}, headers={"origin": "http://127.0.0.1:8787"}).status_code == 200
 
 
 def test_dispositivo_de_fora_so_com_token_proprio():

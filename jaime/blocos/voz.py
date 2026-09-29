@@ -11,15 +11,15 @@ def _n(t: str) -> str:
     return re.sub(r"\s+", " ", "".join(c for c in t if unicodedata.category(c) != "Mn")).strip(" .!?")
 
 
-ABRIR = re.compile(r"\b(abre|abra|abrir|mostra|mostre|mostrar|coloca|coloque|poe|ponha)\b (?:o |um |uns |os )?blocos? (?:de |da |do |das |dos |com )?(?P<nome>.+)$")
-FECHAR_TODOS = re.compile(r"\b(fecha|feche|fechar|tira|tire|limpa|limpe)\b (?:todos )?(?:os )?blocos\b|\b(fecha|feche|limpa) tudo\b")
-FECHAR = re.compile(r"\b(fecha|feche|fechar|tira|tire)\b (?:o |esse |este |aquele )?bloco(?: de| da| do| das| dos)? ?(?P<nome>.*)$")
-LER = re.compile(r"\b(le|leia|ler|fala|diz)\b (?:o |pra mim o )?bloco (?:de |da |do )?(?P<nome>.+)$")
-LISTAR = re.compile(r"\b(quais|que) blocos\b|\blista (?:os )?blocos\b")
-SALVAR = re.compile(r"\b(salva|salve|guarda|guarde)\b (?:esse |este |o |os )?(?:layout|blocos) (?:como|de|com o nome) (?P<nome>[\w -]{2,30})$")
-ABRIR_LAYOUT = re.compile(r"\b(abre|abra|carrega|volta)\b (?:o |pro |para o )?layout (?:de |da |do )?(?P<nome>[\w -]{2,30})$")
-DESFAZER = re.compile(r"\bdesfa(z|ca|zer)\b.*\bbloco")
-
+# frases INTEIRAS (^…$): "quais blocos de concreto a BUB vende?" ou "fecha tudo e ajusta o layout do app" não são comando
+ABRIR = re.compile(r"^(abre|abra|abrir|mostra|mostre|mostrar|coloca|coloque|poe|ponha) (?:o |um |uns |os )?blocos? (?:de |da |do |das |dos |com )?(?P<nome>[\w -]{2,40})$")
+FECHAR_TODOS = re.compile(r"^(fecha|feche|fechar|tira|tire|limpa|limpe) (?:todos )?(?:os )?blocos$|^(fecha|feche|limpa) tudo$")
+FECHAR = re.compile(r"^(fecha|feche|fechar|tira|tire) (?:o |esse |este |aquele )?bloco(?: de| da| do| das| dos)? ?(?P<nome>[\w -]{0,40})$")
+LER = re.compile(r"^(le|leia|ler|fala|diz) (?:o |pra mim o )?bloco (?:de |da |do )?(?P<nome>[\w -]{2,40})$")
+LISTAR = re.compile(r"^(quais|que) blocos (?:estao |tem |tao )?(?:abertos?)?$|^lista (?:os )?blocos$")
+SALVAR = re.compile(r"^(salva|salve|guarda|guarde) (?:esse |este |o |os )?(?:layout|blocos) (?:como|de|com o nome) (?P<nome>[\w -]{2,30})$")
+ABRIR_LAYOUT = re.compile(r"^(abre|abra|carrega|volta) (?:o |pro |para o )?layout (?:de |da |do )?(?P<nome>[\w -]{2,30})$")
+DESFAZER = re.compile(r"^desfa(?:z|ca|zer) (?:o )?(?:ultimo )?bloco$")
 
 def _achar(g, nome: str):
     """Bloco aberto pelo nome falado: id, título ou modelo."""
@@ -27,7 +27,7 @@ def _achar(g, nome: str):
     if not n:
         return None
     for b in g.listar():
-        if n in (_n(b.id), _n(b.titulo), _n(b.modelo or "")) or n in _n(b.titulo) or (b.modelo and _n(b.modelo) in n):
+        if n in (_n(b.id), _n(b.titulo), _n(b.modelo or "")) or (len(n) >= 3 and n in _n(b.titulo)):
             return b
     return None
 
@@ -53,8 +53,8 @@ def comando(texto: str, g, modelos) -> str | None:
         try:
             ids = g.abrir_layout(m.group("nome"))
             return f"Layout {m.group('nome').strip()} aberto: {len(ids)} bloco{'s' if len(ids) != 1 else ''}."
-        except KeyError as e:
-            return str(e).strip("'\"")
+        except KeyError:
+            return None                                   # "abre o layout da landing page" é trabalho, não comando de bloco
     if (m := LER.search(t)):
         b = _achar(g, m.group("nome"))
         return g.ler(b.id) if b else None

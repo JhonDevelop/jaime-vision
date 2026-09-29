@@ -178,9 +178,9 @@
       case 'grafo': return grafo(c);
       case 'status': return `<div class="st" style="--c:${ESTADO[c.estado] || '#38e1ff'}"><i></i><span>${esc(c.texto || c.estado)}</span></div>`;
       case 'progresso': return `<div class="barra"><i style="width:${Math.round(c.valor * 100)}%"></i></div><p>${Math.round(c.valor * 100)}% ${esc(c.texto)}</p>`;
-      case 'acoes': return `${c.texto ? `<p>${esc(c.texto)}</p>` : ''}<div class="bts">${c.botoes.map(bt => `<button data-a="acao" data-i="${esc(bt.intencao)}">${esc(bt.rotulo)}</button>`).join('')}</div>`;
+      case 'acoes': return `${c.texto ? `<p>${esc(c.texto)}</p>` : ''}<div class="bts">${c.botoes.map(bt => `<button data-a="acao" data-i="${esc(bt.intencao)}" title="${esc(bt.intencao)}">${esc(bt.rotulo)}</button>`).join('')}</div>`;
       case 'imagem': return `<img src="${esc(c.src)}" alt="${esc(c.legenda)}"><p>${esc(c.legenda)}</p>`;
-      case 'html': return `<iframe sandbox="" referrerpolicy="no-referrer" srcdoc="${esc(`<style>body{margin:0;color:#dfe9f5;font:13px -apple-system,sans-serif;background:transparent}</style>${c.html}`)}"></iframe>`;
+      case 'html': return `<iframe sandbox="" referrerpolicy="no-referrer" srcdoc="${esc(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><style>body{margin:0;color:#dfe9f5;font:13px -apple-system,sans-serif;background:transparent}</style>${c.html}`)}"></iframe>`;
     }
     return (b.linhas || []).map(l => `<p>${esc(l)}</p>`).join('');
   }

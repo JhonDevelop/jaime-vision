@@ -21,16 +21,32 @@ def build_casa_server(casa: Casa, camera_padrao: str, vigia=None, alexa=None, pr
         try: return _txt(texto_estados(await casa.estados(args.get("filtro", ""))))
         except Exception as ex: return _txt(f"HA falhou: {type(ex).__name__}: {str(ex)[:120]}")
 
+    async def _protegida(nome: str, acao: str) -> str | None:
+        ent = await casa.achar(nome)
+        if not ent:
+            return None
+        if (motivo := motivo_servico(ent["id"].split(".")[0], acao, ent["id"])):
+            ok, msg = liberado(vigia, f"mcp__casa__casa_{'ligar' if acao == 'turn_on' else 'desligar'}", {"alvo": ent["id"]},
+                               f"{'ligar' if acao == 'turn_on' else 'desligar'} {ent['nome']} ({motivo})")
+            return None if ok else msg
+        return None
+
     @tool("casa_ligar", "Liga um dispositivo pelo nome ('luz do escritório', 'ventilador da sala').", {"nome": str})
     async def casa_ligar(args):
         if (e := _ok()): return _txt(e)
-        try: return _txt(await casa.ligar(args["nome"]))
+        try:
+            if (m := await _protegida(args["nome"], "turn_on")):
+                return _txt(m)
+            return _txt(await casa.ligar(args["nome"]))
         except Exception as ex: return _txt(f"HA falhou: {type(ex).__name__}: {str(ex)[:120]}")
 
     @tool("casa_desligar", "Desliga um dispositivo pelo nome.", {"nome": str})
     async def casa_desligar(args):
         if (e := _ok()): return _txt(e)
-        try: return _txt(await casa.desligar(args["nome"]))
+        try:
+            if (m := await _protegida(args["nome"], "turn_off")):
+                return _txt(m)
+            return _txt(await casa.desligar(args["nome"]))
         except Exception as ex: return _txt(f"HA falhou: {type(ex).__name__}: {str(ex)[:120]}")
 
     @tool("casa_servico", "Chama um serviço do HA (dominio, acao, entity_id, dados JSON opcional). Fechaduras/portões passam pelo Vigia.",
@@ -40,7 +56,7 @@ def build_casa_server(casa: Casa, camera_padrao: str, vigia=None, alexa=None, pr
         import json
         try:
             dados = json.loads(args.get("dados") or "{}")
-            if (motivo := motivo_servico(args["dominio"], args["acao"], args["entity_id"])):
+            if (motivo := motivo_servico(args["dominio"], args["acao"], args["entity_id"], dados)):
                 ok, msg = liberado(vigia, "mcp__casa__casa_servico", {"alvo": args["entity_id"], "acao": args["acao"]},
                                    f"{motivo} ({args['entity_id']})")
                 if not ok:
@@ -95,6 +111,12 @@ def build_casa_server(casa: Casa, camera_padrao: str, vigia=None, alexa=None, pr
         @tool("alexa_tocar", "Toca música/playlist/rádio/podcast num Echo. servico opcional: 'Spotify', 'Amazon Music', 'Deezer'.",
               {"o_que": str, "lugar": str, "servico": str})
         async def alexa_tocar(args):
+            texto = f"toca {args.get('o_que', '')}" + (f" no {args['servico']}" if args.get("servico") else "")
+            if (motivo := motivo_alexa(texto)):
+                ok, msg = liberado(vigia, "mcp__casa__alexa_comando", {"alvo": texto.strip().lower()[:120]},
+                                   f"pedir à Alexa «{texto.strip()[:60]}» ({motivo})")
+                if not ok:
+                    return _txt(msg)
             return await _alexa(alexa.tocar(args.get("o_que", ""), args.get("lugar", ""), args.get("servico", "")))
 
         @tool("alexa_parar", "Para o que o Echo está tocando.", {"lugar": str})

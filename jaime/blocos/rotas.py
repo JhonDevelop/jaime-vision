@@ -33,14 +33,25 @@ def _loopback(host: str) -> bool:
         return host in ("testclient", "localhost")
 
 
+ORIGENS_LOCAIS = ("127.0.0.1", "localhost", "::1", "[::1]")
+
+
+def origem_ok(origem: str) -> bool:
+    """Sem Origin (cliente nativo) ou Origin da própria máquina. "null" (iframe sandbox de qualquer site) e
+    DNS rebinding (evil.com apontando para 127.0.0.1 manda Origin evil.com) são recusados."""
+    if not origem:
+        return True
+    if origem == "null":
+        return False
+    from urllib.parse import urlsplit
+    return (urlsplit(origem).hostname or "") in ORIGENS_LOCAIS
+
+
 def _so_local(request: Request) -> None:
     if not _loopback(request.client.host if request.client else ""):
         raise HTTPException(403, "isso só se faz na própria máquina")
-    origem = request.headers.get("origin") or ""
-    if origem and origem != "null":
-        from urllib.parse import urlsplit
-        if (urlsplit(origem).hostname or "") not in ("127.0.0.1", "localhost", "::1", request.url.hostname or ""):
-            raise HTTPException(403, "pedido de outro site recusado")
+    if not origem_ok(request.headers.get("origin") or ""):
+        raise HTTPException(403, "pedido de outro site recusado")
 
 
 def _segredo() -> str:
@@ -134,10 +145,8 @@ async def ws(websocket: WebSocket):
     nome = websocket.query_params.get("dispositivo", "")
     token = websocket.query_params.get("t", "") or websocket.headers.get("x-jaime-token", "")
     origem = websocket.headers.get("origin") or ""
-    if origem and origem != "null":
-        from urllib.parse import urlsplit
-        if (urlsplit(origem).hostname or "") not in ("127.0.0.1", "localhost", "::1", websocket.url.hostname or ""):
-            await websocket.close(code=4403); return      # site de terceiros não vira superfície do Jaime
+    if origem == "null" or (local and not origem_ok(origem)):
+        await websocket.close(code=4403); return      # site de terceiros (ou iframe sandbox) não vira superfície do Jaime
     if g is None or not (local or dispositivo_autorizado(nome, token, _segredo())):
         await websocket.close(code=4401 if g is not None else 4409); return
     await websocket.accept()
@@ -155,15 +164,21 @@ async def ws(websocket: WebSocket):
 
     async def bombear():
         while True:
-            msg = await fila.q.get()
-            await websocket.send_text(codificar(msg))
+            try:
+                msg = await asyncio.wait_for(fila.q.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                msg = None
+            if fila.estourou:                       # cliente lento: fecha, para ele não ficar mostrando tela velha
+                await websocket.close(code=4408); return
+            if msg is not None:
+                await websocket.send_text(codificar(msg))
 
     envio = asyncio.create_task(bombear())
     jaime = ESTADO.get("jaime")
 
     async def executar(intencao: str):
         if jaime is not None:
-            await jaime.ask(intencao, canal="hud")                # caminho normal: Vigia, orçamento, diário
+            await jaime.ask(intencao, canal="hud")                # caminho normal: Vigia, orçamento, diário (já prefixada)
 
     try:
         while True:

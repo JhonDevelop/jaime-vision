@@ -20,6 +20,7 @@ class Fonte:
     privada: bool
     fn: Callable[[dict], dict]
     intervalo_padrao: float = 0.0
+    lenta: bool = False                     # rede/disco lento: nunca chamada no event loop
 
 
 class Fontes:
@@ -27,8 +28,8 @@ class Fontes:
         self._f: dict[str, Fonte] = {}
 
     def registrar(self, nome: str, descricao: str, tipo: str, fn: Callable[[dict], dict], privada: bool = False,
-                  intervalo_padrao: float = 0.0) -> None:
-        self._f[nome] = Fonte(nome, descricao, tipo, privada, fn, intervalo_padrao)
+                  intervalo_padrao: float = 0.0, lenta: bool = False) -> None:
+        self._f[nome] = Fonte(nome, descricao, tipo, privada, fn, intervalo_padrao, lenta)
 
     def __contains__(self, nome: str) -> bool:
         return nome in self._f
@@ -142,7 +143,7 @@ def padrao(jaime=None) -> Fontes:
                   for t in temps[:2]]
         return {"itens": itens}
     f.registrar("casa.resumo", "luzes acesas, portas abertas e temperatura (Home Assistant)", "metricas", casa_resumo,
-                privada=True, intervalo_padrao=30)
+                privada=True, intervalo_padrao=30, lenta=True)
 
     def presenca(_p: dict) -> dict:
         pr = getattr(jaime, "presenca", None)

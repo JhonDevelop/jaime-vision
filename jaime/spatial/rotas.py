@@ -28,12 +28,9 @@ def _so_local(request: Request) -> None:
         local = host in ("testclient", "localhost")
     if not local:
         raise HTTPException(403, "isso só se faz na própria máquina")
-    origem = request.headers.get("origin") or ""
-    if origem and origem != "null":
-        from urllib.parse import urlsplit
-        o = urlsplit(origem).hostname or ""
-        if o not in ("127.0.0.1", "localhost", "::1", (request.url.hostname or "")):
-            raise HTTPException(403, "pedido de outro site recusado")
+    from ..blocos.rotas import origem_ok
+    if not origem_ok(request.headers.get("origin") or ""):
+        raise HTTPException(403, "pedido de outro site recusado")
 
 
 @router.get("/hud/espacial.js")

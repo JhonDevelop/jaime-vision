@@ -141,8 +141,10 @@ def _conteudo(tipo: str, c: Any) -> dict:
         return {"valor": max(0.0, min(1.0, v if v <= 1 else v / 100)), "texto": _txt(c.get("texto") or "", 200)}
     if tipo == "acoes":
         # botões disparam INTENÇÕES com nome (não código): quem executa é o Jaime, pelo caminho normal (Vigia incluso)
+        from .protocolo import intencao_segura
         botoes = [{"rotulo": _txt(b.get("rotulo"), 40), "intencao": _txt(b.get("intencao"), 200)}
-                  for b in list(c.get("botoes") or [])[:8] if isinstance(b, dict) and b.get("rotulo") and b.get("intencao")]
+                  for b in list(c.get("botoes") or [])[:8] if isinstance(b, dict) and b.get("rotulo") and b.get("intencao")
+                  and intencao_segura(str(b.get("intencao")))]
         return {"texto": _txt(c.get("texto") or "", 300), "botoes": botoes}
     if tipo == "imagem":
         src = _txt(c.get("src") or "", 500)

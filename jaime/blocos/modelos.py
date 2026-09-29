@@ -59,6 +59,11 @@ def contrato(b: Bloco) -> list[str]:
     return erros
 
 
+def _sem_acento(t: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn")
+
+
 class Modelos:
     def __init__(self, pasta: Path | None = None, fontes=None):
         self.arquivo = Path(pasta).expanduser() / "modelos.json" if pasta else None
@@ -83,7 +88,9 @@ class Modelos:
         t = t.removeprefix("de ").removeprefix("da ").removeprefix("do ").removeprefix("das ").removeprefix("dos ").strip()
         if t in self.proprios or t in EMBUTIDOS:
             return t
-        return APELIDOS.get(t) or next((n for n in self.nomes() if n in t or t in n), None)
+        # só nome exato ou apelido: "máquina de lavar" não é o bloco "máquina"
+        apelidos = {_sem_acento(k): v for k, v in APELIDOS.items()}
+        return APELIDOS.get(t) or apelidos.get(_sem_acento(t)) or (_sem_acento(t) if _sem_acento(t) in self.nomes() else None)
 
     def receita(self, nome: str) -> dict:
         if nome in self.proprios:
