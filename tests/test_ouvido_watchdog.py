@@ -141,7 +141,42 @@ def test_retentativa_captura_reinicializa_portaudio(monkeypatch):
     assert _StreamMock.tentativas >= 2
     assert "term" in eventos_sd and "init" in eventos_sd
     assert any("Ouvido falhou: RuntimeError: AUHAL err='35'" in l for _, l in o.jaime.vault.linhas)
-    assert any("Ouvido ativo: microfone voltou a ler frames" in l for _, l in o.jaime.vault.linhas)
+    assert any("Ouvido ativo: voltou a ler frames" in l for _, l in o.jaime.vault.linhas)
+
+
+def test_terminate_nao_chamado_com_zumbi_capturas_vivas_maior_que_um(monkeypatch):
+    """M-45 / M-48b: se houver captura zumbi viva (_capturas_vivas >= 2), NÃO chama sd._terminate() para não dar SIGSEGV."""
+    import sys, threading, types
+    from jaime.voice.duplex import FRAME
+    eventos_sd = []
+    class _StreamMock:
+        tentativas = 0
+        def __init__(self, **kw):
+            _StreamMock.tentativas += 1
+            if _StreamMock.tentativas == 1:
+                raise RuntimeError("AUHAL err='35'")
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self, n): return (b"\x00" * (FRAME * 2), False)
+    sd = types.ModuleType("sounddevice")
+    sd.RawInputStream = _StreamMock
+    sd._terminate = lambda: eventos_sd.append("term")
+    sd._initialize = lambda: eventos_sd.append("init")
+    monkeypatch.setitem(sys.modules, "sounddevice", sd)
+    o = _ouvido(); o.ativo = False
+    o._recuo_inicial = 0.01
+    # Simula outra thread de captura viva (zumbi presa após o sono)
+    o._capturas_vivas = 1  # ao entrar em _capturar() somará +1, ficando 2
+    o._vad = types.SimpleNamespace(_janela=[]); o.det = types.SimpleNamespace(cancelar=lambda: None, falando=False)
+    t = threading.Thread(target=o._capturar, args=(o._mic_gen,), daemon=True)
+    t.start()
+    time.sleep(0.08)
+    o._parar.set()
+    t.join(2)
+    assert _StreamMock.tentativas >= 2
+    # Com _capturas_vivas == 2, _terminate NÃO pode ter sido chamado!
+    assert "term" not in eventos_sd and "init" not in eventos_sd
+    assert o._capturas_vivas == 1  # decrementou o seu ao sair
 
 
 # ── M-48b: Medição de frames_ultimo_min e exposição no /hud/sistemas ─────────
@@ -169,17 +204,44 @@ def test_limite_de_reinicios_mantem_processo_vivo(tmp_path):
     
     t = 10000.0
     # 1º reinício: sai com 3
-    o.reiniciar_processo("falha 1")
+    o.reiniciar_processo("falha 1", t)
     assert saidas == [3] and len(reabertos) == 0
     
     # 2º reinício: sai com 3
-    o.reiniciar_processo("falha 2")
+    o.reiniciar_processo("falha 2", t + 10)
     assert saidas == [3, 3] and len(reabertos) == 0
     
     # 3º reinício na mesma hora: NÃO sai, mantém vivo e chama reabrir_microfone
-    o.reiniciar_processo("falha 3")
+    o.reiniciar_processo("falha 3", t + 20)
     assert saidas == [3, 3]  # não aumentou
     assert len(reabertos) == 1
     assert "limite de reinícios atingido" in o.erro
     assert any(l.startswith("Estou surdo: o microfone não abre") for _, l in o.jaime.vault.linhas)
+
+
+def test_teto_reinicios_anti_spam_e_retentativa_minuto(tmp_path):
+    """M-49: 10 tiques seguidos do watchdog com o teto estourado => exatamente 1 linha de diário e no máx 1 reabertura por minuto."""
+    o = _ouvido(); saidas = []
+    o._sair = lambda c: saidas.append(c)
+    o._arquivo_reinicios = tmp_path / ".reinicios"
+    reabertos = []
+    o.reabrir_microfone = lambda motivo: reabertos.append(motivo)
+
+    t0 = 10000.0
+    # Consome os 2 reinícios permitidos por hora
+    o.reiniciar_processo("falha 1", t0)
+    o.reiniciar_processo("falha 2", t0 + 10)
+    assert len(saidas) == 2
+
+    # Agora simula 10 tiques de watchdog a cada 15 s (0, 15, 30, 45, 60, 75, 90, 105, 120, 135 s)
+    linhas_antes = len(o.jaime.vault.linhas)
+    for i in range(10):
+        t_tique = t0 + 20 + i * 15
+        o.reiniciar_processo("sem áudio", t_tique)
+
+    linhas_novas = [l for _, l in o.jaime.vault.linhas[linhas_antes:] if "Estou surdo" in l]
+    # 10 tiques => 1 linha de diário de "Estou surdo"
+    assert len(linhas_novas) == 1
+    # Em 135 s (0 a 135s), no máximo 1 reabertura por minuto (disparou em 0s, 60s, 120s => 3 reaberturas)
+    assert len(reabertos) == 3
 
