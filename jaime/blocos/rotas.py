@@ -64,6 +64,15 @@ async def blocos_js():
     return r
 
 
+@router.get("/blocos/leve")
+async def leve():
+    """Superfície leve (óculos, visor, celular, tablet): fundo preto — transparente em óculos see-through —
+    e blocos empilhados. `?perfil=oculos|visor|janela`; de fora da máquina: `&dispositivo=<nome>&t=<token>`."""
+    r = FileResponse(ESTATICO / "blocos_leve.html")
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
 @router.get("/blocos")
 async def listar():
     g = ESTADO.get("g")

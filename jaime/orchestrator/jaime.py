@@ -178,7 +178,11 @@ class Jaime:
         self.indice = Indice(settings.vault)
         self.indice.atualizar()
         self.vault.indice = self.indice
-        self.evolucao = Evolucao(self, settings.root)
+        # autoevolução MEDIDA (jaime/qualidade.py): além do pytest, o candidato não pode piorar métrica, apagar teste
+        # nem mexer em Vigia/.env/identidade. JAIME_EVOLUCAO_GATE=off volta ao fluxo antigo.
+        from ..qualidade import gate_padrao
+        self.evolucao = Evolucao(self, settings.root,
+                                 gate=None if os.environ.get("JAIME_EVOLUCAO_GATE", "on").strip().lower() == "off" else gate_padrao(settings.root))
         # gravador de processos ("grava esse processo" / "repete o processo X"); o observador entra pelo servidor
         self.gravador = Gravador(self)
         self._avisos_entregues_em: str = ""

@@ -7,6 +7,7 @@
 (function () {
   'use strict';
   const S = { ws: null, blocos: new Map(), tentativa: 0, z: 30 };
+  const PERFIL = window.JAIME_PERFIL || 'cockpit';           // /blocos/leve?perfil=oculos usa a mesma lâmina, empilhada
   const COR = { 0: '#3a5068', 1: '#38e1ff', 2: '#ffb347', 3: '#ff5c72' };
   const ESTADO = { ok: '#49e6a0', atencao: '#ffb347', ruim: '#ff5c72' };
   const reduz = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -62,11 +63,13 @@
   /* ── conexão JBP ── */
   function conectar() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/blocos/ws`);
+    const q = new URLSearchParams(location.search), auth = new URLSearchParams();
+    if (q.get('dispositivo')) { auth.set('dispositivo', q.get('dispositivo')); auth.set('t', q.get('t') || ''); }
+    const ws = new WebSocket(`${proto}://${location.host}/blocos/ws${auth.toString() ? '?' + auth : ''}`);
     S.ws = ws;
     ws.onopen = () => {
       S.tentativa = 0;
-      ws.send(JSON.stringify({ op: 'ola', perfil: 'cockpit', nome: 'cockpit', v: 1,
+      ws.send(JSON.stringify({ op: 'ola', perfil: PERFIL, nome: PERFIL, v: 1,
         capacidades: { largura: innerWidth, altura: innerHeight } }));
     };
     ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } receber(m); };
