@@ -395,7 +395,7 @@
 
 #### M-07 · Telemetria sem amostras — **resolvido pelo tempo**: `vault/.jaime/telemetria.json` já acumula (1 hora, 5 títulos, 9 pedidos às 14:28); `Uso.md` só é reescrito no fecha-semana.
 
-#### M-48 · Surdo em silêncio: o watchdog é cego quando nenhum frame chegou desde o boot (29/09 08:30) — **ABERTO**
+#### M-48 · Surdo em silêncio: o watchdog é cego quando nenhum frame chegou desde o boot (29/09 08:30) — **CORRIGIDO** (4bd9729, 491a172)
 - **Problema.** O serviço está no ar desde 07:06 (pid 22632, `/hud/sistemas` responde em 0,16 s) e **não escuta nada há
   84 minutos**. Última linha do log: o banner do boot + `||PaMacCore (AUHAL)|| Error on line 2744: err='35'`. Nenhuma
   linha de watchdog, nenhum "Ouvido reaberto", nenhum reinício. O João falou e não foi ouvido; nada avisou.
@@ -437,7 +437,7 @@
 - Nota da Vigília que não é minha para resolver: **a main não anda desde 21/09 (0948e37)**. A fila de melhorias inteira
   está represada, e é por isso que problemas já corrigidos voltam a aparecer ao vivo. Decisão do Cérebro Principal.
 
-#### M-49 · O laço de reinício é o que estraga o boot seguinte (29/09 08:30) — **ABERTO**
+#### M-49 · O laço de reinício é o que estraga o boot seguinte (29/09 08:30) — **CORRIGIDO** (4bd9729, 491a172)
 - **Problema.** 68 "CoreAudio travado após o sono … reiniciando o processo" no log, quase todos seguidos, um a cada
   30–120 s. Em **todo** boot dessa sequência aparece `||PaMacCore (AUHAL)|| Error on line 2744: err='35'` — o boot novo
   já nasce sem conseguir abrir o microfone.
@@ -487,7 +487,7 @@
 | 7t | M-33 tique recupera rotinas no sono com processo vivo | etapa 8 | pronto, aguardando merge |
 | 7u | M-34 fim de rotina, lock esperado, stats coerentes | observabilidade | pronto, aguardando merge |
 | 8 | M-08 frases fixas em cache | 1,4 s → 0,15 s nas respostas curtas | mergeado (Codex) |
-| 0 | M-48 surdo em silêncio · M-49 laço de reinício | **o João não é ouvido hoje** | diagnosticado, código com o Gemini |
+| 0 | M-48 surdo em silêncio · M-49 laço de reinício | **o João não era ouvido** | pronto, aguardando merge (4bd9729, 9aa27f3, 491a172) |
 | 9 | Fase 3 ao vivo: barge-in com fone, lote do Vigia, confiança progressiva, interjeição (`JAIME_INTERROMPER`) | validação | esperar João |
 
 ### Observações para o Cérebro Principal
@@ -527,3 +527,8 @@
 - 21/09 18:45 — M-47: reabertura com prazo/limite + reinício do processo quando o CoreAudio não volta; 581 testes.
 - 29/09 08:30 — retomada: `git merge main` (já em dia). Ouvido morto há 84 min com o serviço vivo: M-48 (watchdog cego quando nenhum frame chegou) e M-49 (o `os._exit` alimenta o próprio laço) diagnosticados e provados; microfone testado são em outro processo. Código delegado ao Gemini.
 - 29/09 08:50 — Vigília (ciclo 94) confirmou M-48/M-49 por medição independente e somou duas ideias: terminate/initialize do PortAudio com device explícito na retentativa, e `ouvido.*` no /hud/sistemas. Ambas entraram no brief do Gemini (M-48b). Cérebro reiniciou o serviço para devolver o ouvido hoje.
+- 29/09 09:15 — Gemini entregou o pacote do ouvido; revisei e devolvi com dois defeitos: (A) `sd._terminate()` sem guarda
+  repetiria o SIGSEGV do M-45 (zumbi preso em `read()` é justamente o cenário que dispara a retentativa) e (B) o caminho
+  do teto escrevia no diário a cada tique de 15 s — o ruído que o M-05 nos ensinou a evitar. Ambos corrigidos em 491a172:
+  terminate só com `_capturas_vivas == 1 and _mic is None`; aviso 1×/h e reabertura de 60 em 60 s. Cherry-pick para
+  feat/mente: 4bd9729, 9aa27f3, 491a172. **587 testes verdes** (6 novos). Cérebro avisado.
