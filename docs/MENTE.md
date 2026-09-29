@@ -421,6 +421,22 @@
   aparecer "sem áudio há … s" e a reabertura; liberando o microfone, "escuta" volta sem reiniciar o processo. Teste novo:
   `verificar_microfone` com `_ultimo_frame == 0` e `_inicio_captura` velho tem de devolver motivo não vazio.
 
+#### M-48b · Adições da Vigília ao pacote do ouvido (ciclo 94, 29/09 08:45) — **no brief do Gemini**
+- A Vigília chegou ao mesmo lugar por outro caminho: pid 22632 de pé desde 07:06, **zero eventos `escuta` em 60 s** de
+  `/hud/stream` (08:31–08:32), `AUHAL err='35'` 76× no log, e os reinícios do M-47 (01:05, 03:45, 07:06) **não**
+  recuperaram o áudio. No mesmo Mac, às 08:35, o benchmark sintético capturou o `say` (fala→texto 206 ms, 7/10
+  antecipados). Duas medições independentes dizendo o mesmo: o aparelho está livre, quem não readquire o HAL é o
+  processo — e reiniciar já não é remédio.
+- **Retentativa não é só repetir a abertura** (ideia da Vigília, melhor que a minha): a partir da 2ª tentativa, fazer
+  `sd._terminate()` / `sd._initialize()` do PortAudio **dentro do processo** e abrir com o device de entrada
+  **explícito** (`sd.query_devices(kind='input')`), não o default implícito. Restrição do M-45: o `terminate` só pode
+  acontecer com nenhuma thread de captura dentro de um `read()` — só a thread dona, e com as gerações vencidas já fora.
+- **`/hud/sistemas` precisa expor o ouvido**: `frames_ultimo_min`, `ultimo_frame`, `aberto`, `erro`. Hoje a Vigília só
+  descobre surdez lendo o log ou abrindo o `/hud/stream` por um minuto; com isso ela mede direto. Vale para o M-48
+  inteiro: a surdez tem de ser mensurável de fora, não só visível de dentro.
+- Nota da Vigília que não é minha para resolver: **a main não anda desde 21/09 (0948e37)**. A fila de melhorias inteira
+  está represada, e é por isso que problemas já corrigidos voltam a aparecer ao vivo. Decisão do Cérebro Principal.
+
 #### M-49 · O laço de reinício é o que estraga o boot seguinte (29/09 08:30) — **ABERTO**
 - **Problema.** 68 "CoreAudio travado após o sono … reiniciando o processo" no log, quase todos seguidos, um a cada
   30–120 s. Em **todo** boot dessa sequência aparece `||PaMacCore (AUHAL)|| Error on line 2744: err='35'` — o boot novo
@@ -510,3 +526,4 @@
 - 21/09 15:40 — M-46: deadlock fork × OpenBLAS → BLAS 1 thread + healthcheck externo (não instalado); 579 testes.
 - 21/09 18:45 — M-47: reabertura com prazo/limite + reinício do processo quando o CoreAudio não volta; 581 testes.
 - 29/09 08:30 — retomada: `git merge main` (já em dia). Ouvido morto há 84 min com o serviço vivo: M-48 (watchdog cego quando nenhum frame chegou) e M-49 (o `os._exit` alimenta o próprio laço) diagnosticados e provados; microfone testado são em outro processo. Código delegado ao Gemini.
+- 29/09 08:50 — Vigília (ciclo 94) confirmou M-48/M-49 por medição independente e somou duas ideias: terminate/initialize do PortAudio com device explícito na retentativa, e `ouvido.*` no /hud/sistemas. Ambas entraram no brief do Gemini (M-48b). Cérebro reiniciou o serviço para devolver o ouvido hoje.
