@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
     # JAIME_SPATIAL=off (padrão) devolve None e não cria nada — nem task, nem câmera, nem MCP.
     from .spatial.integracao import montar as montar_espacial
     espacial = montar_espacial(jaime)
+    # blocos de interface (docs/BLOCOS.md): cockpit, janela nativa, terminal, óculos, visor e falante são superfícies
+    # do MESMO gerenciador; montado antes do start para o MCP `blocos` entrar nas opções. JAIME_BLOCOS=off desliga.
+    from .blocos.integracao import montar as montar_blocos, ligar_espacial as blocos_no_espaco
+    blocos = montar_blocos(jaime, falar=lambda t: ouvido.falar(t) if ouvido else None)
     await jaime.start(apresentar=True)
     if settings.voz != "off" and settings.voz_modo == "conversa" and settings.openai_key:
         # fase 3: fala-para-fala pelo Realtime; o Ouvido (pipeline) fica de fora
@@ -126,7 +130,12 @@ async def lifespan(app: FastAPI):
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
     if espacial:
         await espacial.iniciar()
+    blocos_t = asyncio.create_task(blocos.rodar()) if blocos else None
+    if blocos and espacial:
+        blocos_no_espaco(blocos, espacial)              # blocos viram objetos da cena: apontar, arrastar, jogar fora
     yield
+    if blocos_t:
+        blocos_t.cancel()
     if espacial:
         await espacial.parar("servidor desligando")      # solta a câmera antes de derrubar o resto
     monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); despertador_t.cancel(); jaime.agenda.stop()
@@ -149,6 +158,8 @@ app = FastAPI(title="Jaime", lifespan=lifespan)
 app.include_router(telephony_router)
 from .spatial.rotas import router as espacial_router   # noqa: E402 — rotas inertes com JAIME_SPATIAL=off
 app.include_router(espacial_router)
+from .blocos.rotas import router as blocos_router       # noqa: E402 — REST + WebSocket JBP das superfícies
+app.include_router(blocos_router)
 
 # Rotas que podem ser abertas sem token: é por elas que o convidado PEDE o token.
 ABERTAS = ("/entrar", "/favicon.ico")

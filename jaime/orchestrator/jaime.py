@@ -230,7 +230,7 @@ class Jaime:
                          "relacoes": build_relacoes_server(self.relacoes),
                          "curiosidade": build_curiosidade(self.curiosidade),
                          "agente": build_agente_server(self.carteira, self.harness),
-                         **self._servidor_espacial()},
+                         **self._servidor_espacial(), **self._servidor_blocos()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -240,6 +240,14 @@ class Jaime:
         if self.s.thinking_tokens > 0:
             kw["max_thinking_tokens"] = self.s.thinking_tokens   # mostra parte do raciocínio no HUD
         return ClaudeAgentOptions(**kw)
+
+    def _servidor_blocos(self) -> dict:
+        """MCP `blocos` (interface em blocos para qualquer superfície) — existe quando JAIME_BLOCOS está ligado (padrão)."""
+        g = getattr(self, "blocos", None)
+        if g is None:
+            return {}
+        from ..blocos.tools import build_blocos_server
+        return {"blocos": build_blocos_server(g, self.blocos_modelos, self.blocos_fontes)}
 
     def _servidor_espacial(self) -> dict:
         """MCP `espacial` só existe com JAIME_SPATIAL ligado (docs/ESPACIAL.md); desligado, o dicionário fica vazio."""
@@ -532,6 +540,15 @@ class Jaime:
         curta = self._porta(texto, canal)
         if curta is None and self.acesso.liberado:
             curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo
+        if curta is None and self.acesso.liberado and getattr(self, "blocos", None) is not None \
+                and not (self.vigia.lote and eh_aprovacao_lote(texto)):
+            # blocos de interface: "abre o bloco de finanças", "fecha todos os blocos", "salva o layout como trabalho"
+            # resolvidos sem modelo; o resto que fala de bloco segue ao cérebro com a lista dos abertos no contexto
+            try:
+                from ..blocos.integracao import antes_do_turno as blocos_antes
+                curta, contexto = blocos_antes(self, texto, contexto)
+            except Exception as e:
+                bus.emitir("resultado", texto=f"blocos: {type(e).__name__}", erro=True)
         if curta is None and self.acesso.liberado and getattr(self, "espacial_voz", None) is not None \
                 and not (self.vigia.lote and eh_aprovacao_lote(texto)):
             # expansão espacial (fase 2): "isso"/"esses" = o que o João selecionou na cena; ambíguo → pergunta de uma frase.

@@ -113,6 +113,12 @@ class Evolucao:
         aprend = self.jaime.estado.secao("Aprendizados recentes") if getattr(self.jaime, "estado", None) else ""
         if aprend and "nenhum" not in aprend.lower():
             partes.append("Aprendizados recentes:\n" + aprend[:600])
+        for extra in getattr(self, "sinais_extras", []):       # ex.: uso da interface em blocos (jaime/blocos/modelos.py)
+            try:
+                if (t := extra()):
+                    partes.append(t)
+            except Exception:
+                pass
         return "\n\n".join(partes) or "(sem sinais ainda: placar vazio, nenhum problema, diário sem pendências)"
 
     async def propor(self) -> Proposta | None:
