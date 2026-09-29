@@ -2,8 +2,15 @@
 O watchdog reabre o microfone quando não chega frame com o Mac acordado, ou depois de um salto de relógio."""
 import asyncio, time
 from types import SimpleNamespace
+from pathlib import Path
+import pytest
 from jaime.voice.duplex import OuvidoDuplex
 from tests.test_duplex import _Fluxo, _Jaime, S
+
+@pytest.fixture(autouse=True)
+def isolar_reinicios(tmp_path, monkeypatch):
+    p = tmp_path / ".reinicios"
+    monkeypatch.setenv("JAIME_ARQUIVO_REINICIOS", str(p))
 
 def _ouvido():
     async def rodar():
