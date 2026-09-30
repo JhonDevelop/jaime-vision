@@ -204,6 +204,24 @@ def test_caixa_e_mensagens(tmp_path, monkeypatch):
     assert "só nós" in asyncio.run(_todas(j.gerador("abre minha caixa de entrada")))[0]
 
 
+def test_cena_de_noticias_mostra_card_por_tema_e_pendencias(tmp_path, monkeypatch):
+    from jaime.jarvis.briefing import Briefing
+    from jaime.jarvis.noticias import Noticia
+    j, ev = _jarvis(tmp_path, monkeypatch)
+    j.briefing = Briefing(noticias=lambda: [Noticia("política", "TSE decide hoje", "g1", "http://x"),
+                                            Noticia("tecnologia", "Chip novo", "g1", "http://y")],
+                          desvios=lambda: ["2 tarefas vencidas, a primeira: reiniciar o serviço"], emitir=j.emitir)
+    falas = asyncio.run(_todas(j.gerador("mostra as notícias de hoje")))
+    cards = [d["card"] for t, d in ev if t == "cartao"]
+    assert [c["tipo"] for c in cards] == ["noticia", "noticia", "status"]
+    assert [c["titulo"] for c in cards[:2]] == ["política", "tecnologia"] and cards[2]["alerta"]
+    assert falas[0].startswith("Na política, TSE decide hoje.") and falas[-1].startswith("Além disso, 2 tarefas vencidas")
+    assert any(t == "briefing" and d.get("fase") == "radar" for t, d in ev)   # a tela acende o radar
+
+    j.briefing = Briefing(noticias=lambda: [], emitir=j.emitir)               # radar vazio não derruba a cena
+    assert "vazio" in asyncio.run(_todas(j.gerador("quais são as notícias")))[0]
+
+
 def test_apps_premiere_e_abrir(tmp_path):
     import xml.etree.ElementTree as ET
     from jaime.maos import apps

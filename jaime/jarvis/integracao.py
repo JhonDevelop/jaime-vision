@@ -77,6 +77,9 @@ class Jarvis:
         if nome == "mensagens":
             self.garantir_tela()
             return self._falas(self._mensagens())
+        if nome == "noticias":
+            self.garantir_tela()
+            return self._falas(self._noticias())
         if nome == "desenho":
             self.garantir_tela()
             self.estudio.abrir("desenho")
@@ -119,9 +122,6 @@ class Jarvis:
             return self._uma(fala)
         if nome == "trocar_maos":
             return self._uma(self.controle.trocar_maos())
-        if nome == "noticias":
-            self.garantir_tela()
-            return self._falas(self.briefing.rodar_noticias())
         if nome == "camera_holo":
             if args["ligar"]:
                 self.garantir_tela()
@@ -310,6 +310,30 @@ class Jarvis:
                                      "agir": len(de), "itens": itens})
         nomes = de[0] if len(de) == 1 else ", ".join(de[:3][:-1]) + " e " + de[:3][-1]
         yield f"{len(lista)} mensage{'m' if len(lista) == 1 else 'ns'} de {nomes}. A última: {lista[-1]['texto'][:140] or 'uma mídia'}."
+
+    async def _noticias(self):
+        """"mostra as notícias": o radar do briefing sozinho — um card por tema, mais o que pede a atenção dele."""
+        self.emitir("briefing", fase="radar", texto="Atualizando o radar de notícias...")
+        _, lista = await self.briefing._uma("noticias")
+        if lista is None or (isinstance(lista, dict) and lista.get("erro")):
+            yield "Não consegui alcançar o radar de notícias agora."; return
+        segs = await self.briefing.seg_noticias(lista)
+        if not segs:
+            yield "O radar respondeu vazio agora; nenhum destaque nos temas que eu acompanho."; return
+        for s in segs:
+            self.emitir("cartao", card=s.card)
+            yield s.fala
+        pend = []
+        if self.briefing.desvios:
+            try:
+                r = self.briefing.desvios()
+                pend = list((await r) if asyncio.iscoroutine(r) else r or [])
+            except Exception:
+                pend = []
+        if pend:
+            self.emitir("cartao", card={"tipo": "status", "rotulo": "PEDE SUA ATENÇÃO", "titulo": f"{len(pend)} ponto{'s' if len(pend) > 1 else ''} aberto{'s' if len(pend) > 1 else ''}",
+                                         "texto": "; ".join(pend[:3]), "alerta": True})
+            yield f"Além disso, {pend[0]}."
 
     async def _editar(self, pedido: str):
         yield await self.estudio.editar(pedido, self.modelo_holo)

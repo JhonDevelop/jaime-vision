@@ -34,8 +34,8 @@
 
   /* ───────────── cards ───────────── */
   let principal = null; const doca = [];
-  const LARG = { status: 21, clima: 19, agenda: 20, emails: 25, noticia: 23, saude: 21, foco: 22, bm: 27 };
-  const ICO = { status: '◎', clima: '☀', agenda: '▦', emails: '✉', noticia: '◧', saude: '♥', foco: '◆', bm: '◉' };
+  const LARG = { status: 21, clima: 19, agenda: 20, emails: 25, noticia: 23, saude: 21, foco: 22, bm: 27, html: 34 };
+  const ICO = { status: '◎', clima: '☀', agenda: '▦', emails: '✉', noticia: '◧', saude: '♥', foco: '◆', bm: '◉', html: '▤' };
   function htmlCard(c) {
     const cab = (chips = '') => `<div class="cab"><div class="ico">${ICO[c.tipo] || '▣'}</div><div><div class="rot">${esc(c.rotulo)}</div><div class="tit">${esc(c.titulo)}</div></div>${chips}</div>`;
     switch (c.tipo) {
@@ -67,6 +67,8 @@
       case 'bm':
         return `<div class="rot">${esc(c.titulo)}</div><div class="grande" id="bmGrande"></div><div class="sub">${esc(c.texto)}</div>
           <div class="etapas">${c.etapas.map(e => `<span data-e="${esc(e)}">${esc(e)}</span>`).join('')}</div><div class="prog"><i id="bmProg"></i></div>`;
+      case 'html':                               /* painel que o Jaime compôs na hora (evento `mostrar`) */
+        return cab() + `<div class="corpo livre">${c.html || ''}</div>`;
     }
     return cab() + `<div class="corpo">${esc(c.texto || '')}</div>`;
   }
@@ -330,6 +332,11 @@
         break;
       case 'orbe': Orbe.estilo(e.estilo); break;
       case 'cartao': if (e.card) mostrarPrincipal(e.card); break;
+      case 'mostrar':                            /* painel composto na hora: aparece AQUI também, não só no cockpit */
+        if (e.html) mostrarPrincipal({ tipo: 'html', rotulo: 'PAINEL', titulo: e.titulo || 'J.A.I.M.E',
+                                        html: String(e.html).replace(/<\/?script[^>]*>/gi, '') });
+        break;
+      case 'fechar': limparPalco(); break;       /* quem abriu fecha */
       case 'sentidos':
         if (!window.Sentidos) break;
         if (e.computador === false) Sentidos.desligar({ computador: false, maos: !!(window.Holograma && Holograma.aberto()) });

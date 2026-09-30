@@ -232,7 +232,6 @@ def test_noticias_so_quando_pede():
         explicito = asyncio.run(falas(j.gerador("me dá o briefing", manha)))
         assert "OpenAI" in explicito
         so = asyncio.run(falas(j.gerador("quais as notícias?", manha)))
-        assert "OpenAI" in so and "Revisei" not in so
-        assert ("briefing", {"fase": "inicio_noticias"}) in ev
+        assert "OpenAI" in so and "Revisei" not in so and "Convertendo" not in so
     finally:
         br.asyncio.sleep = orig

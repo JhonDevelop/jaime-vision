@@ -71,8 +71,10 @@ COMPUTADOR_RX = re.compile(J + r"(?P<acao>liga|ligar|ativa|ativar|desliga|deslig
                            r"^\s*(jarvis|jaime)?[,\s]*(?P<acao2>liga|ativa|desliga|desativa)\s+(o\s+)?controle\s+(pela|por|pelas|com\s+a|com\s+as)\s+(m[aã]o|m[aã]os|gestos?)\s*[.!]*\s*$", re.I)
 RECALIBRA_RX = re.compile(J + r"(recalibra|recalibrar|calibra|calibrar)\s+(de\s+novo\s+)?(a\s+|as\s+|o\s+)?(m[aã]o|m[aã]os|controle|mouse|cursor)\s*[.!]*\s*$", re.I)
 TROCA_MAOS_RX = re.compile(J + r"(troca|trocar|inverte|inverter)\s+(as\s+|a\s+)?m[aã]os?\s*[.!]*\s*$|^\s*(sou|eu\s+sou)\s+canhoto\s*[.!]*\s*$", re.I)
-NOTICIAS_RX = re.compile(J + r"((quais|me\s+d[aá]|me\s+conta|me\s+fala|mostra|mostre|l[eê]|leia|traz|tem)\s+(as\s+|umas\s+|alguma\s+)?(principais\s+|[uú]ltimas\s+)?"
-                         r"not[ií]cias?(\s+(de\s+hoje|do\s+dia|de\s+agora|do\s+mundo))?|o\s+que\s+(t[aá]|est[aá])\s+acontecendo\s+no\s+mundo)\s*[?.!]*\s*$", re.I)
+NOTICIAS_RX = re.compile(J + r"((abre|abra|mostra|mostre|monta|monte|l[eê]|leia|carrega|carregue|me\s+d[aá]|me\s+conta|me\s+fala|traz|quero(\s+ver)?)\s+"
+                         r"(as\s+|essas\s+|minhas\s+|umas\s+|alguma\s+)?(principais\s+|[uú]ltimas\s+)?not[ií]cias?(\s+(de\s+hoje|do\s+dia|novas|de\s+agora|do\s+mundo))?|"
+                         r"(quais\s+(s[aã]o\s+)?(as\s+)?|que\s+|tem\s+)(principais\s+|[uú]ltimas\s+)?not[ií]cias(\s+(de\s+hoje|do\s+dia|novas))?|"
+                         r"not[ií]cias\s+(de\s+hoje|do\s+dia)|radar\s+de\s+not[ií]cias|o\s+que\s+(t[aá]|est[aá])\s+acontecendo\s+no\s+mundo)\s*[?.!]*\s*$", re.I)
 CAMERA_HOLO_RX = re.compile(J + r"(me\s+(coloca|p[õo]e|bota|mostra)\s+no\s+holograma|(mostra|coloca|p[õo]e|liga)\s+(a\s+)?c[aâ]mera\s+no\s+holograma|"
                             r"(mostra|coloca|p[õo]e)\s+(meu|o\s+meu)\s+(corpo|bra[cç]o|pulso|m[aã]o|rosto|cabe[cç]a|p[eé])\s+no\s+holograma|mostra\s+(os\s+)?meus\s+bra[cç]os)\s*[.!]*\s*$", re.I)
 CAMERA_FORA_RX = re.compile(J + r"(tira|desliga|esconde)\s+(a\s+)?c[aâ]mera\s+do\s+holograma|(me\s+)?tira\s+(me\s+)?do\s+holograma|esconde\s+(os\s+)?meus\s+bra[cç]os\s*[.!]*\s*$", re.I)
@@ -135,6 +137,8 @@ def cena(texto: str) -> tuple[str, dict] | None:
         return "caixa", {}
     if MENSAGENS_RX.match(t):
         return "mensagens", {}
+    if NOTICIAS_RX.match(t):
+        return "noticias", {}
     if (m := OLHAR_RX.match(t)):
         return "olhar", {"ligar": not _n(m.group("acao")).startswith("des")}
     if (m := COMPUTADOR_RX.match(t)) or (m := MAOS_RX.match(t)):
@@ -144,8 +148,6 @@ def cena(texto: str) -> tuple[str, dict] | None:
         return "recalibrar", {}
     if TROCA_MAOS_RX.match(t):
         return "trocar_maos", {}
-    if NOTICIAS_RX.match(t):
-        return "noticias", {}
     if CAMERA_FORA_RX.match(t):
         return "camera_holo", {"ligar": False}
     if (m := CAMERA_HOLO_RX.match(t)):
