@@ -18,7 +18,7 @@ from . import saude as sd
 router = APIRouter()
 ESTATICO = Path(__file__).resolve().parent.parent / "hud" / "static"
 ESTADO: dict = {"jarvis": None, "jaime": None}
-ARQUIVOS = {"jarvis.js", "jarvis.css", "holograma.js", "orbe.js"}
+ARQUIVOS = {"jarvis.js", "jarvis.css", "holograma.js", "orbe.js", "sentidos.js"}
 SEM_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
 
 
@@ -59,6 +59,35 @@ async def holograma_glb(slug: str, request: Request):
     if p is None:
         raise HTTPException(404)
     return FileResponse(p, media_type="model/gltf-binary")
+
+
+@router.post("/jarvis/holograma/cena")
+async def holograma_cena(body: dict, request: Request):
+    """A tela conta o que está aberto: título, peças (nome, centro, tamanho, visível) e a peça selecionada."""
+    _so_local(request)
+    _jarvis().estudio.receber_cena(body)
+    return {"ok": True}
+
+
+@router.post("/jarvis/holograma/tracos")
+async def holograma_tracos(body: dict, request: Request):
+    _so_local(request)
+    return {"tracos": _jarvis().estudio.receber_tracos(body.get("tracos"))}
+
+
+@router.post("/jarvis/holograma/malhas")
+async def holograma_malhas(body: dict, request: Request):
+    """Resposta da tela ao pedido de exportação: as malhas como o João deixou."""
+    _so_local(request)
+    _jarvis().estudio.receber_malhas(body)
+    return {"ok": True}
+
+
+@router.post("/jarvis/holograma/fechado")
+async def holograma_fechado(request: Request):
+    _so_local(request)
+    _jarvis().estudio.fechar()
+    return {"ok": True}
 
 
 @router.post("/jarvis/tela/viva")

@@ -234,9 +234,15 @@
   /* ───────────── holograma ───────────── */
   async function holograma(e) {
     if (e.acao === 'fechar') { window.Holograma && Holograma.fechar(); return; }
+    if (e.acao === 'exportado') { mostrarPrincipal({ tipo: 'status', rotulo: 'ARQUIVO 3D', titulo: Object.values(e.arquivos || {}).map(p => String(p).split('/').pop()).join(' · '), texto: 'Jaime/hologramas/exportados' }); return; }
+    if (['editar', 'desfazer', 'exportar'].includes(e.acao) && !(window.Holograma && Holograma.aberto())) return;
+    if (e.acao === 'editar') return Holograma.editar(e.ops);
+    if (e.acao === 'desfazer') return Holograma.desfazer();
+    if (e.acao === 'exportar') return Holograma.exportar();
     if (!window.THREE) await carregarScript('/hud/vendor/three.min.js');
     if (!window.Holograma) await carregarScript('/hud/jarvis/holograma.js');
-    Holograma.abrir(e);
+    if (e.acao === 'desenho') return Holograma.desenho(e);
+    if (e.acao === 'abrir') Holograma.abrir(e);
   }
 
   /* ───────────── sentinela (sistemas críticos) ───────────── */
@@ -312,6 +318,12 @@
         if (e.tipo === 'caiu' || e.tipo === 'voltou') mostrarPrincipal({ tipo: 'status', rotulo: 'SENTINELA · ALERTA', titulo: e.texto, alerta: e.tipo === 'caiu' });
         break;
       case 'orbe': Orbe.estilo(e.estilo); break;
+      case 'sentidos':
+        if (!window.Sentidos) break;
+        if (e.maos === false || e.olhar === false) Sentidos.desligar({ ...(e.maos === false ? { tela: false } : {}), ...(e.olhar === false ? { olhar: false } : {}) });
+        if (e.maos === true || e.olhar === true) Sentidos.ligar({ ...(e.maos === true ? { tela: true } : {}), ...(e.olhar === true ? { olhar: true } : {}) });
+        if (e.olhar === true) Sentidos.calibrar();
+        break;
     }
   }
   let historico = true;
@@ -327,8 +339,12 @@
 
   /* ───────────── controles ───────────── */
   const falar = texto => post('/hud/falar', { texto });
+  window.JarvisFalar = falar;
+  document.querySelectorAll('#baixo .mini, #mic').forEach(b => b.setAttribute('data-mao', ''));    // a mão pode clicar nos controles da tela
   $('btBriefing').onclick = () => falar('me dá o briefing');
   $('btMonitor').onclick = () => falar('ativar monitor');
+  $('btDesenho').onclick = () => falar('quero desenhar');
+  $('btMao').onclick = () => { const on = !(window.Sentidos && Sentidos.estado().tela); falar(on ? 'liga o controle por mão' : 'desliga o controle por mão'); };
   $('btOrbe').onclick = () => Orbe.estilo(Orbe.estiloAtual === 'fios' ? 'particulas' : 'fios');
   let mudo = false;
   $('mic').onclick = async () => { mudo = !mudo; $('mic').classList.toggle('mudo', mudo); await post('/hud/voz', { ativa: !mudo }); };

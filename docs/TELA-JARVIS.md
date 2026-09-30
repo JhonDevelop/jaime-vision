@@ -71,3 +71,42 @@ conferido pelo conteúdo). Sem isso a tela usa o CDN (jsdelivr/Google).
 
 ## Pendências físicas (não dá para validar daqui)
 Câmera real (rosto e mãos em luz real), voz real sincronizando no Mac/Windows, webhook do iPhone chegando.
+
+## Estúdio de holograma (criar → ver → mexer → estúdio 3D → impressora)
+
+Qualquer objeto: "cria um holograma de X" (catálogo, peças geradas pelo modelo ou `~/Jaime/hologramas/X.glb`),
+ou "quero desenhar" (prancheta 3D: o indicador esticado desenha no ar; gire com a mão aberta para desenhar em outro
+plano) e depois "dá volume ao desenho, é uma cadeira".
+
+| Mão (webcam) | Mouse | Efeito |
+|---|---|---|
+| indicador aponta | passar por cima | mira a peça (fica branca) |
+| pinça rápida em cima | clique | seleciona (âmbar) / solta |
+| pinça segurando + mover | Shift+arrastar | move a peça |
+| girar o punho durante a pinça | — | gira a peça no eixo da visão |
+| mão aberta movendo | arrastar | gira a peça selecionada (sem seleção: o objeto) |
+| duas mãos afastando | roda (com seleção) | escala a peça (sem seleção: abre em peças) |
+| punho fechado | Esc | solta a seleção (sem seleção: remonta) |
+| olhar parado ~0,9 s | — | seleciona a peça ("liga o controle pelo olhar") |
+| — | Delete · Ctrl/⌘+Z · E | esconde · desfaz · abre/fecha |
+
+Voz com holograma aberto: "abre as portas dianteiras", "aumenta essa peça", "coloca uma antena em cima", "esconde
+as rodas", "desfaz". O modelo recebe a lista de peças e devolve operações (`jaime/jarvis/estudio.py`), validadas no
+servidor e aplicadas pela tela — nunca código.
+
+Arquivos: "exporta em STL/OBJ/GLB" (as malhas saem da tela como o João deixou; sem tela, das peças descritas) →
+`~/Jaime/hologramas/exportados/`. "abre no Blender" importa o GLB e abre o .blend. "manda para impressão com 12 cm"
+gera STL de mesa (mm, Z para cima, apoiado em Z=0) em `exportados/impressao/` e abre no fatiador instalado (Bambu
+Studio, OrcaSlicer, PrusaSlicer, Cura; `JAIME_FATIADOR` força um). Imprimir de verdade é o João quem aperta.
+
+Controle por mão na tela toda ("liga o controle por mão"): o indicador é o cursor, pinça rápida clica em controles
+marcados com `data-mao`, mão aberta parada 1,2 s fecha o que estiver aberto. Nada do Vigia tem `data-mao`.
+
+Pendente de validação física: mãos e olhar com a webcam real e luz real (o olhar pela webcam é aproximado).
+
+## Pessoas (rosto de várias pessoas)
+
+"aprende o rosto da Ana, minha irmã" (com o consentimento dela) → rosto guardado com nome e relação, e a Ana entra
+no grafo de relações (`~/Jaime/relacoes.db`) ligada ao João. "quem é esse?" reconhece e diz o que o grafo sabe;
+"quais rostos você conhece?"; "esquece o rosto da Ana". Quem a câmera reconheceu vira contexto para o cérebro
+(`[na câmera agora: Ana (irmã do João); memórias: …]`) — nunca permissão.

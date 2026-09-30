@@ -71,7 +71,15 @@ async def falar_simulado(gen, cps: float = 15.0):
 
 
 async def _holo_demo(prompt: str, ctx: str) -> str:
-    """Faz o papel do modelo: uma estação espacial de peças (o serviço de verdade pergunta ao Claude/OpenAI)."""
+    """Faz o papel do modelo: uma estação espacial de peças (o serviço de verdade pergunta ao Claude/OpenAI);
+    na edição, abre as portas dianteiras como dobradiça; no desenho, dá volume com um vaso."""
+    if "Pedido do João" in prompt:
+        idx = [int(m.group(1)) for m in re.finditer(r"^(\d+): porta dianteira", prompt, re.M)]
+        return json.dumps({"ops": [{"op": "girar", "alvo": idx or [0], "valor": [0, 1.1, 0], "pivo": "frente"}], "fala": "Portas dianteiras abertas."})
+    if "DESENHOU" in prompt:
+        return json.dumps({"titulo": "vaso", "pecas": [
+            {"nome": "base", "forma": "cilindro", "pos": [0, -1, 0], "tam": [.8, .2, 0]}, {"nome": "corpo", "forma": "esfera", "pos": [0, 0, 0], "tam": [1.1, 0, 0]},
+            {"nome": "gargalo", "forma": "cilindro", "pos": [0, 1.3, 0], "tam": [.35, .9, 0]}, {"nome": "boca", "forma": "toro", "pos": [0, 1.8, 0], "tam": [.4, .08, 0], "rot": [1.5708, 0, 0]}]})
     pecas = [{"nome": "módulo central", "forma": "cilindro", "pos": [0, 0, 0], "tam": [0.5, 3, 0], "rot": [0, 0, 1.5708], "explode": [0, 0, 0]},
              {"nome": "anel habitável", "forma": "toro", "pos": [0, 0, 0], "tam": [1.8, 0.18, 0], "rot": [0, 1.5708, 0], "explode": [0, 1.6, 0]}]
     for i, x in enumerate((-2.2, 2.2)):
@@ -147,7 +155,9 @@ def app(porta: int = 8792):
         texto = {"briefing": "me dá o briefing", "monitor": "ativar monitor", "holograma": f"cria um holograma do {objeto}",
                  "estacao": "cria um holograma de uma estação espacial", "capacidades": "qual sua capacidade máxima?",
                  "sistemas": "como estão os sistemas?",
-                 "particulas": "modo partículas", "fios": "modo fios", "fecha": "fecha o holograma"}.get(qual, qual)
+                 "particulas": "modo partículas", "fios": "modo fios", "fecha": "fecha o holograma",
+                 "desenho": "quero desenhar", "volume": "dá volume ao desenho", "portas": "abre as portas dianteiras",
+                 "desfaz": "desfaz", "stl": "exporta em stl", "imprimir": "manda para impressão com 12 cm"}.get(qual, qual)
         j.briefing.ultimo_dia = ""
         asyncio.create_task(cena(texto))
         return {"ok": True, "texto": texto}

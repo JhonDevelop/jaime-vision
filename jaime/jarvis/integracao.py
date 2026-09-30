@@ -12,7 +12,8 @@ from . import tela
 from .briefing import Briefing, do_jaime, quer_briefing
 from .monitor import Monitor
 from .rosto import DONO, Rostos, ident
-from .voz import cena
+from .estudio import Estudio
+from .voz import cena, edicao
 
 
 def ligado(env=None) -> bool:
@@ -34,6 +35,9 @@ class Jarvis:
         self.presente: dict | None = None       # quem a câmera reconheceu por último {pessoa, nome, relacao, dono, quando}
         self.espera_rosto = espera_rosto
         self._espera_quem: asyncio.Future | None = None
+        self.estudio = Estudio(self.emitir)
+        self.abrir_blender = None               # injetável (teste); padrão: malha3d.abrir_no_blender
+        self.abrir_fatiador = None              # injetável (teste); padrão: malha3d.abrir_no_fatiador
 
     def gerador(self, texto: str, agora: datetime | None = None):
         """Um gerador assíncrono de frases se a fala abre uma cena; senão None (o turno segue normal)."""
@@ -43,6 +47,8 @@ class Jarvis:
             self.garantir_tela()
             return self._falas(self.briefing.rodar())
         c = cena(texto)
+        if c is None and self.estudio.aberto:
+            c = edicao(texto)                    # holograma aberto: "abre as portas", "aumenta essa peça", "desfaz"
         if c is None:
             return None
         nome, args = c
@@ -57,8 +63,36 @@ class Jarvis:
         if nome == "sistemas":
             return self._falas(self._sistemas())
         if nome == "fecha_holograma":
-            self.emitir("holograma", acao="fechar")
+            self.emitir("holograma", acao="fechar"); self.estudio.fechar()
             return self._uma("Holograma fechado.")
+        if nome == "desenho":
+            self.garantir_tela()
+            self.estudio.abrir("desenho")
+            self.emitir("holograma", acao="desenho", titulo="DESENHO")
+            return self._uma("Prancheta aberta. Desenhe com o dedo indicador ou com o mouse; gire com a mão aberta para "
+                             "desenhar em outro plano. Quando terminar, diga: dá volume ao desenho, ou exporta em STL.")
+        if nome == "volume":
+            return self._falas(self._volume(args.get("nome", "")))
+        if nome == "editar":
+            return self._falas(self._editar(args["pedido"]))
+        if nome == "desfazer":
+            return self._uma(self.estudio.desfazer())
+        if nome == "imprimir":
+            if not self.estudio.aberto and not self.estudio.spec:
+                return self._uma("Não tem holograma aberto para imprimir. Peça um holograma ou diga: quero desenhar.")
+            return self._falas(self._imprimir(args.get("maior_mm", 100.0)))
+        if nome in ("exportar", "blender"):
+            if not self.estudio.aberto and not self.estudio.spec:
+                return self._uma("Não tem holograma aberto. Peça um holograma ou diga: quero desenhar.")
+            return self._falas(self._exportar(args.get("formatos") or ["glb"], blender=nome == "blender"))
+        if nome in ("olhar", "maos"):
+            self.garantir_tela()
+            self.emitir("sentidos", **{nome: args["ligar"]})
+            if nome == "olhar":
+                return self._uma("Controle pelo olhar ligado. Olhe para o centro da tela por um segundo para eu calibrar."
+                                 if args["ligar"] else "Controle pelo olhar desligado.")
+            return self._uma("Controle por mão ligado: o indicador é o cursor, a pinça clica, a mão aberta parada fecha o que estiver aberto."
+                             if args["ligar"] else "Controle por mão desligado.")
         if nome == "aprende_rosto":
             return self._uma(self._aprender(args.get("nome", ""), args.get("relacao", "")))
         if nome == "esquece_rosto":
@@ -197,6 +231,51 @@ class Jarvis:
                "sem_cadastro": "Ainda não aprendi nenhum rosto.",
                "sem_camera": "Não consegui abrir a câmera."}.get(st, "Não vi ninguém na câmera.")
 
+    async def _editar(self, pedido: str):
+        yield await self.estudio.editar(pedido, self.modelo_holo)
+
+    async def _volume(self, nome: str):
+        if not self.estudio.tracos:
+            yield "Ainda não vi nenhum traço. Diga: quero desenhar."; return
+        yield "Dando volume ao desenho."
+        r = await self.estudio.volume(self.modelo_holo, nome)
+        if r is None:
+            yield "Não consegui transformar esse desenho em objeto. Tente traços mais fechados, ou diga o que é."; return
+        self.estudio.abrir(r["titulo"], r["pecas"])
+        self.emitir("holograma", acao="abrir", **r)
+        yield f"Pronto: {r['titulo']} em três dimensões. Pode pegar as peças com a mão ou pedir alterações."
+
+    async def _exportar(self, formatos: list[str], blender: bool = False):
+        from . import malha3d
+        fmts = sorted(set(formatos) | ({"glb"} if blender else set()))
+        malhas = await self.estudio.malhas()
+        if not malhas:
+            yield "A tela do holograma não respondeu e não tenho a descrição das peças para exportar."; return
+        arquivos = await asyncio.to_thread(malha3d.exportar, self.estudio.titulo or "holograma", malhas, fmts)
+        self.emitir("holograma", acao="exportado", arquivos=arquivos)
+        nomes = ", ".join(os.path.basename(p) for p in arquivos.values())
+        yield f"Salvei {nomes} na pasta Jaime, hologramas, exportados."
+        if blender:
+            abrir = self.abrir_blender or malha3d.abrir_no_blender
+            r = await asyncio.to_thread(abrir, arquivos["glb"])
+            yield "Abrindo no Blender." if r.get("ok") else f"Não consegui abrir no Blender: {r.get('erro', '')[:120]}"
+
+    async def _imprimir(self, maior_mm: float):
+        from . import malha3d
+        malhas = await self.estudio.malhas()
+        if not malhas:
+            yield "A tela do holograma não respondeu e não tenho a descrição das peças."; return
+        mesa = malha3d.para_impressao(malhas, maior_mm)
+        titulo = f"{self.estudio.titulo or 'holograma'} {int(round(maior_mm))}mm"
+        arq = (await asyncio.to_thread(malha3d.exportar, titulo, mesa, ["stl"], malha3d.EXPORTADOS / "impressao"))["stl"]
+        self.emitir("holograma", acao="exportado", arquivos={"stl": arq})
+        cm = maior_mm / 10
+        yield f"Arquivo de impressão pronto, com {cm:g} centímetros na maior medida, apoiado na mesa."
+        abrir = self.abrir_fatiador or malha3d.abrir_no_fatiador
+        r = await asyncio.to_thread(abrir, arq)
+        yield (f"Abri no {r['fatiador']}; confira suportes e material e aperte imprimir quando quiser." if r.get("ok")
+               else "Não achei fatiador instalado; o STL está na pasta Jaime, hologramas, exportados, impressão.")
+
     async def _holograma(self, objeto: str):
         """Catálogo ou arquivo .glb: na hora. Qualquer outro objeto: o modelo descreve as peças (uns segundos)."""
         r = holo.resolver(objeto)
@@ -207,6 +286,7 @@ class Jarvis:
                 r = await holo.gerar(objeto, self.modelo_holo)
             except Exception:
                 r = {**r, "falhou": True}
+        self.estudio.abrir(r.get("titulo") or objeto, r.get("pecas"))
         self.emitir("holograma", acao="abrir", **r)
         yield holo.fala(r)
 

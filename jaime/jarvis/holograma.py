@@ -59,7 +59,7 @@ def arquivo_glb(slug: str) -> Path | None:
 
 
 # ── holograma de QUALQUER objeto: o modelo descreve as peças, a tela monta ────────────────────────────
-FORMAS = {"caixa", "cilindro", "esfera", "toro", "cone"}
+FORMAS = {"caixa", "cilindro", "esfera", "toro", "cone", "tubo"}   # tubo = traço desenhado (pontos + raio)
 MAX_PECAS = 48
 PROMPT = """Você é o módulo de hologramas do J.A.I.M.E. Descreva o objeto "{obj}" como um modelo 3D feito de PEÇAS
 primitivas para um holograma em wireframe que pode "explodir" (cada peça se afasta do centro e volta).
@@ -90,9 +90,15 @@ def validar_pecas(dados) -> list[dict]:
         tam = [abs(x) for x in _num3(p.get("tam", [1, 1, 1]), 6)]
         if max(tam) < 0.02:
             continue
-        out.append({"nome": re.sub(r"[^\w\s\-çãõáéíóúâêô]", "", str(p.get("nome", "")))[:40], "forma": p["forma"],
-                    "pos": _num3(p.get("pos", [0, 0, 0]), 6), "tam": tam, "rot": _num3(p.get("rot", [0, 0, 0]), 6.3),
-                    "explode": _num3(p.get("explode", [0, 1, 0]), 4)})
+        item = {"nome": re.sub(r"[^\w\s\-çãõáéíóúâêô]", "", str(p.get("nome", "")))[:40], "forma": p["forma"],
+                "pos": _num3(p.get("pos", [0, 0, 0]), 6), "tam": tam, "rot": _num3(p.get("rot", [0, 0, 0]), 6.3),
+                "explode": _num3(p.get("explode", [0, 1, 0]), 4)}
+        if p["forma"] == "tubo":
+            pts = [_num3(q, 6) for q in (p.get("pontos") or [])[:400] if isinstance(q, (list, tuple))]
+            if len(pts) < 2:
+                continue
+            item["pontos"], item["tam"] = pts, [min(max(tam[0], .01), .3), 0.0, 0.0]
+        out.append(item)
     return out
 
 
