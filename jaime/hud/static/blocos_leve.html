@@ -1,0 +1,21 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>J.A.I.M.E · blocos</title>
+<style>
+/* Superfície leve para óculos, visores, celular e tablet. Fundo PRETO de propósito: em óculos de vidro
+   (see-through) preto é transparente — só os blocos aparecem flutuando na frente do João. */
+html,body{margin:0;background:#000;color:#dfe9f5;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
+.jb{position:relative!important;left:auto!important;top:auto!important;width:auto!important;max-width:none!important;
+  margin:0 0 12px;background:rgba(6,10,18,.9)!important;box-shadow:none!important}
+.jb header{cursor:default}
+#vazio{color:#7f93ab;margin-top:30vh;text-align:center}
+</style></head><body>
+<p id="vazio">Nenhum bloco aberto. Peça ao Jaime: "abre o bloco da máquina".</p>
+<script>
+  window.JAIME_PERFIL = new URLSearchParams(location.search).get('perfil') || 'oculos';
+  new MutationObserver(() => { document.getElementById('vazio').hidden = !!document.querySelector('.jb'); })
+    .observe(document.body, { childList: true });
+</script>
+<script src="/hud/blocos.js"></script>
+</body></html>

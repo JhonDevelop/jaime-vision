@@ -30,6 +30,24 @@ async def lifespan(app: FastAPI):
     global ouvido
     monitor = asyncio.create_task(loop_monitor())
     sonda = asyncio.create_task(conexoes.sondar())
+    # expansão espacial (docs/ESPACIAL.md) montada ANTES do start: o MCP `espacial` entra nas opções do cliente.
+    # JAIME_SPATIAL=off (padrão) devolve None e não cria nada — nem task, nem câmera, nem MCP.
+    from .spatial.integracao import montar as montar_espacial
+    espacial = montar_espacial(jaime)
+    # blocos de interface (docs/BLOCOS.md): cockpit, janela nativa, terminal, óculos, visor e falante são superfícies
+    # do MESMO gerenciador; montado antes do start para o MCP `blocos` entrar nas opções. JAIME_BLOCOS=off desliga.
+    from .blocos.integracao import montar as montar_blocos, ligar_espacial as blocos_no_espaco
+    blocos = montar_blocos(jaime, falar=lambda t: ouvido.falar(t) if ouvido else None)
+    # cenas do Jarvis (docs/TELA-JARVIS.md): briefing do bom dia, ativar monitor, holograma, rosto
+    from .jarvis.integracao import montar as montar_jarvis
+    from .jarvis.rotas import ESTADO as JARVIS
+    jaime.jarvis = montar_jarvis(jaime)
+    JARVIS.update(jarvis=jaime.jarvis, jaime=jaime, falar=lambda t: ouvido.falar(t) if ouvido else None)
+    # presença por Bluetooth (docs/CASA.md): JAIME_BT=on + aparelhos em JAIME_BT_CONHECIDOS; precisa do pacote bleak
+    bt_ligado = os.environ.get("JAIME_BT", "off").strip().lower() in ("on", "1", "true")
+    if bt_ligado:
+        from .casa.bluetooth import Presenca, conhecidos_do_ambiente
+        jaime.presenca = Presenca(conhecidos_do_ambiente())
     await jaime.start(apresentar=True)
     if settings.voz != "off" and settings.voz_modo == "conversa" and settings.openai_key:
         # fase 3: fala-para-fala pelo Realtime; o Ouvido (pipeline) fica de fora
@@ -120,7 +138,26 @@ async def lifespan(app: FastAPI):
     telegram_t = asyncio.create_task(telegram.rodar())
     if telegram.ativo:
         jaime.conexoes.registrar("Telegram", "mensagens do dono (canal telegram)", "token do @BotFather no .env", "@BotFather /revoke ou apagar TELEGRAM_BOT_TOKEN")
+    if espacial:
+        await espacial.iniciar()
+    blocos_t = asyncio.create_task(blocos.rodar()) if blocos else None
+    presenca_t = None
+    if bt_ligado and jaime.presenca and jaime.presenca.conhecidos:
+        from .casa.bluetooth import vigiar as vigiar_bt
+        def _chegou(ev):
+            # só cumprimenta (e só se pedido): presença nunca destranca nem libera nada
+            if os.environ.get("JAIME_BT_SAUDAR", "off").strip().lower() in ("on", "1") and ouvido and ev.get("quem") == "joao":
+                ouvido.falar("Bem-vindo de volta, João.")
+        presenca_t = asyncio.create_task(vigiar_bt(jaime.presenca, bus.emitir, _chegou))
+    if blocos and espacial:
+        blocos_no_espaco(blocos, espacial)              # blocos viram objetos da cena: apontar, arrastar, jogar fora
     yield
+    if blocos_t:
+        blocos_t.cancel()
+    if presenca_t:
+        presenca_t.cancel()
+    if espacial:
+        await espacial.parar("servidor desligando")      # solta a câmera antes de derrubar o resto
     monitor.cancel(); sonda.cancel(); vigilancia.cancel(); estudo_t.cancel(); equipe_t.cancel(); telegram_t.cancel(); notif_t.cancel(); despertador_t.cancel(); jaime.agenda.stop()
     if pensar_t: pensar_t.cancel()
     app.state.vontade.parar()   # fase 3 — E
@@ -139,6 +176,12 @@ def _falar_quando_pronto(texto: str):
 
 app = FastAPI(title="Jaime", lifespan=lifespan)
 app.include_router(telephony_router)
+from .spatial.rotas import router as espacial_router   # noqa: E402 — rotas inertes com JAIME_SPATIAL=off
+app.include_router(espacial_router)
+from .blocos.rotas import router as blocos_router       # noqa: E402 — REST + WebSocket JBP das superfícies
+app.include_router(blocos_router)
+from .jarvis.rotas import router as jarvis_router       # noqa: E402 — tela Jarvis, rosto, holograma, webhook de saúde
+app.include_router(jarvis_router)
 
 # Rotas que podem ser abertas sem token: é por elas que o convidado PEDE o token.
 ABERTAS = ("/entrar", "/favicon.ico")
@@ -210,6 +253,8 @@ def _auth(token: str | None):
 # ── HUD ────────────────────────────────────────────────
 @app.get("/")
 async def hud():
+    if os.environ.get("JAIME_HUD_PADRAO", "").strip().lower() == "jarvis":
+        return FileResponse(STATIC / "jarvis.html", headers={"Cache-Control": "no-store"})   # a tela do vídeo como principal
     return _cockpit()     # cockpit (principal)
 
 @app.get("/classico")

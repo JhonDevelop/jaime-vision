@@ -141,7 +141,7 @@ h1.sec{font-size:12px;letter-spacing:.24em;color:var(--am);margin:0 0 14px;text-
 </div>
 <div id="rac"><div class="cab">raciocínio</div><div id="racL"></div></div>
 <div id="fala"><div id="falaTx">Sistemas operacionais.</div><div id="voceTx"></div></div>
-<div id="hint"><b>T</b> teclado · <b>B</b> cérebros · <b>U</b> mundos · <b>N</b> nós · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>esc</b> fecha · clique num mundo para entrar · ou é só falar</div>
+<div id="hint"><b>T</b> teclado · <b>B</b> cérebros · <b>U</b> mundos · <b>N</b> nós · <b>F</b> finanças · <b>A</b> afazeres · <b>G</b> agenda · <b>M</b> música · <b>K</b> blocos · <b>esc</b> fecha · clique num mundo para entrar · ou é só falar</div>
 <div id="kb"><input id="kbIn" placeholder="Escreva para o J.A.I.M.E e tecle Enter (ou a palavra-passe)…" autocomplete="off"></div>
 
 <div id="pop" onclick="if(event.target===this)fecharPop()"><div id="popBox">
@@ -780,6 +780,7 @@ function sse(){const es=new EventSource('/hud/stream');
      acende(3); eventos++; break;
    case 'cerebro': cerebroEvento(e); eventos++; break;      /* qual hemisfério está pensando */
    case 'teclado': if(e.aberto)toggleKb(true); break;
+   case 'espacial': if(window.JaimeEspacial)JaimeEspacial.evento(e); break;   /* mãos e objetos virtuais (docs/ESPACIAL.md) */
   }};
  es.onerror=()=>{};}
 function setAcesso(on){$('dot').className='dot'+(on?' on':'');$('acesso').textContent=on?'liberado':'trancado'}
@@ -787,4 +788,4 @@ function setAcesso(on){$('dot').className='dot'+(on?' on':'');$('acesso').textCo
 carregarGrafo(); carregarUniverso(); carregarCerebros();                                   /* os nós ficam atrás dele desde o boot */
 (async()=>{try{const s=await(await fetch('/hud/estado')).json();setAcesso(!!s.liberado);
   if(s.modelo)$('modelo').textContent=(s.modelo||'').replace('claude-','')}catch{}sse()})();
-</script></body></html>
+</script><script src="/hud/espacial.js" defer></script><script src="/hud/blocos.js" defer></script></body></html>

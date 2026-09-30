@@ -133,4 +133,6 @@ def montar(jaime, ouvido=None, state=None, settings=None, agora: datetime | None
                     "bloqueio": _tenta(lambda: getattr(state, "motivo_bloqueio", lambda: "")(), "") or ""},
         "pendentes": _pendentes(jaime, ouvido, fila, vigia),
         "proximos": _tenta(lambda: jaime.estado.secao("Próximos passos"), "") or "",
+        "hermes": _tenta(lambda: ("desligado" if not jaime.hermes.disponivel else
+                                  f"{len(jaime.hermes.pendentes)} aprovação(ões)" if jaime.hermes.pendentes else "ligado"), "—"),
     }

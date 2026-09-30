@@ -27,6 +27,29 @@ class Casa:
             if cliente is not self.http:
                 await cliente.aclose()
 
+    async def template(self, t: str) -> str:
+        """Renderiza um template do HA (/api/template devolve TEXTO, não JSON) — é por aqui que se descobre a que
+        integração uma entidade pertence e o device_id de um Echo."""
+        cliente = self.http or httpx.AsyncClient(timeout=15)
+        try:
+            r = await cliente.request("POST", f"{self.url}/api/template", json={"template": t},
+                                      headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"})
+            r.raise_for_status()
+            return r.text if hasattr(r, "text") else ""
+        finally:
+            if cliente is not self.http:
+                await cliente.aclose()
+
+    async def dominios_de_servico(self) -> set[str]:
+        """Quais domínios de serviço existem (ex.: 'alexa_devices', 'notify', 'scene')."""
+        return {d.get("domain", "") for d in (await self._req("GET", "services") or [])}
+
+    async def servicos_do_dominio(self, dominio: str) -> set[str]:
+        for d in (await self._req("GET", "services") or []):
+            if d.get("domain") == dominio:
+                return set((d.get("services") or {}).keys())
+        return set()
+
     async def estados(self, filtro: str = "") -> list[dict]:
         est = await self._req("GET", "states")
         rx = re.compile(re.escape(filtro), re.I) if filtro else None

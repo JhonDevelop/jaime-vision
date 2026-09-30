@@ -3,7 +3,7 @@
 Fluxo de cada fala: acesso (palavra-passe) → Claude (com maesters e Vigia) → eventos p/ HUD →
 registro da conversa no vault → reflexão a cada N turnos → espelho no Notion."""
 from __future__ import annotations
-import asyncio, re
+import asyncio, os, re
 from datetime import datetime
 from claude_agent_sdk import (
     ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, UserMessage, ResultMessage, StreamEvent,
@@ -117,10 +117,18 @@ class Jaime:
         # OpenAI: texto, pesquisa e decisões; nunca as mãos. Sem chave → o roteador nem a lista.
         self.openai = ProvedorOpenAI(settings.openai_key, settings.openai_model)
         # uso mínimo da OpenAI (pedido do João): o roteador nem lista os modelos dela; o juiz só com "pensa bem"
+        # IA local (docs/ESPACIAL.md): desligada por padrão; só texto; rota explícita; estrito = sem nuvem escondida
+        from ..cortex.provedores.local import ProvedorLocal
+        self.local = ProvedorLocal.do_ambiente()
+        from ..hermes.cliente import HermesCliente
+        self.jarvis = None                              # cenas do Jarvis (server.py liga; docs/TELA-JARVIS.md)
+        self.hermes = HermesCliente.do_ambiente()      # Hermes Agent (docs/HERMES.md): mãos extras por delegação explícita
         self.roteador = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
                                  self.placar, settings.cortex_exploracao,
-                                 openai=settings.openai_model if (self.openai.disponivel and settings.openai_uso == "normal") else "")
+                                 openai=settings.openai_model if (self.openai.disponivel and settings.openai_uso == "normal") else "",
+                                 local=self.local.modelo if self.local.disponivel else "",
+                                 local_tipos=tuple(t.strip() for t in os.environ.get("JAIME_LOCAL_AI_TIPOS", "").split(",") if t.strip()))
         self.juiz = Juiz(ProvedorAnthropic(settings.model_padrao, str(settings.root)), self.openai,
                          ProvedorAnthropic(settings.model_decisao, str(settings.root)))
         self.modelo_atual = settings.model
@@ -163,13 +171,21 @@ class Jaime:
         self.autonomo = Autonomo(self, settings.autonomo_horas, settings.autonomo_custo_usd, settings.autonomo_ferramentas)
         # fase 3: casa (Home Assistant), câmera e visão contínua (jogos/apps); o Vigia libera a tela só com sessão ativa
         self.casa = Casa(settings.ha_url, settings.ha_token)
+        # a Alexa como mãos/boca do Jaime em casa (via HA); presença por Bluetooth é ligada no servidor (JAIME_BT)
+        from ..casa.alexa import Alexa
+        self.alexa = Alexa(self.casa, os.environ.get("JAIME_ALEXA_PADRAO", ""))
+        self.presenca = None
         self.visao = Visao(self, settings.visao_max_passos, settings.visao_intervalo_s)
         self.vigia.sessao_livre = lambda: self.visao.ativa
         # fase 3: memória semântica (FTS5 no vault, recall proativo) e autoevolução por PR
         self.indice = Indice(settings.vault)
         self.indice.atualizar()
         self.vault.indice = self.indice
-        self.evolucao = Evolucao(self, settings.root)
+        # autoevolução MEDIDA (jaime/qualidade.py): além do pytest, o candidato não pode piorar métrica, apagar teste
+        # nem mexer em Vigia/.env/identidade. JAIME_EVOLUCAO_GATE=off volta ao fluxo antigo.
+        from ..qualidade import gate_padrao
+        self.evolucao = Evolucao(self, settings.root,
+                                 gate=None if os.environ.get("JAIME_EVOLUCAO_GATE", "on").strip().lower() == "off" else gate_padrao(settings.root))
         # gravador de processos ("grava esse processo" / "repete o processo X"); o observador entra pelo servidor
         self.gravador = Gravador(self)
         self._avisos_entregues_em: str = ""
@@ -207,7 +223,8 @@ class Jaime:
                          "tela": build_tela_server(),
                          "meta": build_meta_server(self.meta),
                          "autonomo": build_autonomo_server(self.autonomo),
-                         "casa": build_casa_server(self.casa, self.s.camera),
+                         "casa": build_casa_server(self.casa, self.s.camera, vigia=self.vigia, alexa=self.alexa,
+                                                   presenca=getattr(self, "presenca", None)),
                          "visao": build_visao_server(self.visao),
                          "evolucao": build_evolucao_server(self.evolucao, self.indice),
                          "equipe": build_equipe_server(self.equipe),
@@ -224,7 +241,8 @@ class Jaime:
                          "acervo": build_acervo_server(self.acervo),
                          "relacoes": build_relacoes_server(self.relacoes),
                          "curiosidade": build_curiosidade(self.curiosidade),
-                         "agente": build_agente_server(self.carteira, self.harness)},
+                         "agente": build_agente_server(self.carteira, self.harness),
+                         **self._servidor_espacial(), **self._servidor_blocos(), **self._servidor_hermes()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -234,6 +252,30 @@ class Jaime:
         if self.s.thinking_tokens > 0:
             kw["max_thinking_tokens"] = self.s.thinking_tokens   # mostra parte do raciocínio no HUD
         return ClaudeAgentOptions(**kw)
+
+    def _servidor_blocos(self) -> dict:
+        """MCP `blocos` (interface em blocos para qualquer superfície) — existe quando JAIME_BLOCOS está ligado (padrão)."""
+        g = getattr(self, "blocos", None)
+        if g is None:
+            return {}
+        from ..blocos.tools import build_blocos_server
+        return {"blocos": build_blocos_server(g, self.blocos_modelos, self.blocos_fontes)}
+
+    def _servidor_hermes(self) -> dict:
+        """MCP `hermes` só existe com JAIME_HERMES=on e HERMES_API_KEY configurada (docs/HERMES.md)."""
+        h = getattr(self, "hermes", None)
+        if h is None or not h.disponivel:
+            return {}
+        from ..hermes.tools import build_hermes_server
+        return {"hermes": build_hermes_server(h, self.vigia)}
+
+    def _servidor_espacial(self) -> dict:
+        """MCP `espacial` só existe com JAIME_SPATIAL ligado (docs/ESPACIAL.md); desligado, o dicionário fica vazio."""
+        s = getattr(self, "espacial", None)
+        if s is None:
+            return {}
+        from ..spatial.tools import build_espacial_server
+        return {"espacial": build_espacial_server(s, getattr(self, "espacial_acoes", None), getattr(self, "espacial_voz", None))}
 
     async def start(self, apresentar: bool = True) -> str:
         nova = self.estado.registrar_maquina()
@@ -515,9 +557,37 @@ class Jaime:
         assert self._client, "Chame start() antes."
         self.acesso.tocar()      # QUALQUER interação renova a sessão — respostas rápidas não deixam mais o cérebro trancar sozinho no meio do uso
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")
+        if self.acesso.liberado and getattr(self, "jarvis", None) is not None and not (self.vigia.lote and eh_aprovacao_lote(texto)):
+            # cenas do Jarvis (briefing do bom dia, ativar monitor, holograma, rosto): falas + tela, sem modelo
+            try:
+                cena = self.jarvis.gerador(texto)
+            except Exception as e:
+                cena = None
+                bus.emitir("resultado", texto=f"jarvis: {type(e).__name__}", erro=True)
+            if cena is not None:
+                async for frase in cena:
+                    yield frase
+                return
         curta = self._porta(texto, canal)
         if curta is None and self.acesso.liberado:
             curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo
+        if curta is None and self.acesso.liberado and getattr(self, "blocos", None) is not None \
+                and not (self.vigia.lote and eh_aprovacao_lote(texto)):
+            # blocos de interface: "abre o bloco de finanças", "fecha todos os blocos", "salva o layout como trabalho"
+            # resolvidos sem modelo; o resto que fala de bloco segue ao cérebro com a lista dos abertos no contexto
+            try:
+                from ..blocos.integracao import antes_do_turno as blocos_antes
+                curta, contexto = blocos_antes(self, texto, contexto)
+            except Exception as e:
+                bus.emitir("resultado", texto=f"blocos: {type(e).__name__}", erro=True)
+        if curta is None and self.acesso.liberado and getattr(self, "espacial_voz", None) is not None \
+                and not (self.vigia.lote and eh_aprovacao_lote(texto)):
+            # expansão espacial (fase 2): "isso"/"esses" = o que o João selecionou na cena; ambíguo → pergunta de uma frase.
+            # Com lote do Vigia aguardando, "isso"/"faz isso" é aprovação e não passa por aqui.
+            try:
+                curta, contexto = self.espacial_voz.antes_do_turno(texto, contexto)
+            except Exception as e:
+                bus.emitir("resultado", texto=f"espacial: {type(e).__name__}", erro=True)
         if curta is not None:
             bus.emitir("fala", texto=curta); bus.emitir("fala_fim"); yield curta; return
         t_lock = asyncio.get_event_loop().time()
@@ -530,13 +600,16 @@ class Jaime:
                 # resposta à proposta "posso passar a fazer X sem perguntar?"
                 self.vault.diario(f"Confiança: {r}", "Decisões")
                 bus.emitir("fala", texto=r); bus.emitir("fala_fim"); yield r; return
+            turno_de_acao = False             # confirmação do Vigia: o turno precisa das mãos (nunca vai à IA local)
             if self.vigia.lote and eh_aprovacao_lote(texto):
+                turno_de_acao = True
                 # confirmação em lote (fase 3): "sim" libera exatamente as ações anotadas neste turno
                 acoes = self.vigia.liberar_lote()
                 self.vault.diario("Lote liberado pelo João: " + "; ".join(a.descricao for a in acoes), "Decisões")
                 texto = ("sim — execute agora, na ordem e sem perguntar de novo, exatamente as ações que o Vigia anotou: "
                          + "; ".join(a.descricao for a in acoes) + ". Se alguma falhar, pare e relate o que aconteceu.")
             elif eh_confirmacao(texto):
+                turno_de_acao = True
                 self.vigia.armar(); texto = "confirmo — pode executar a ação que o Vigia bloqueou."
                 if self.autonomo.confirmar():
                     # a missão autônoma pausada retoma sozinha; não precisa de um turno do modelo
@@ -556,6 +629,9 @@ class Jaime:
             self.humor.registrar_tom(detectar_tom(texto)); self.humor.registrar_hora(datetime.now().hour)
             bus.emitir("humor", **self.humor.dados())
             escolha = self.roteador.decidir(texto, contexto, canal)
+            if turno_de_acao and escolha.modelo.startswith("local:"):
+                escolha.modelo, escolha.motivo, _ = self.roteador.escolher(escolha.tipo)
+                escolha.motivo = "confirmação do Vigia precisa das mãos: " + escolha.motivo
             partes, inicio = [], asyncio.get_event_loop().time()
             self._custo_turno = 0.0; self._erros_turno = 0
             if self.openai.disponivel and (pede_juiz(texto, "") if self.s.openai_uso == "minimo" else pede_juiz(texto, escolha.tipo)):
@@ -569,6 +645,25 @@ class Jaime:
                 bus.emitir("fala", texto=v.texto); bus.emitir("fala_fim")
                 partes.append(v.texto); yield v.texto
                 self.placar.registrar(f"juiz:{v.escolha}", escolha.tipo, "acerto", v.latencia, v.custo, texto[:80])
+            elif escolha.modelo.startswith("local:"):
+                bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,
+                           motivo=escolha.motivo, exploracao=False)
+                r = await self.local.responder(texto, self._contexto_texto(contexto))
+                if r.ok:
+                    bus.emitir("fala", texto=r.texto); bus.emitir("fala_fim")
+                    partes.append(r.texto); yield r.texto
+                    self.placar.registrar(escolha.modelo, escolha.tipo, "acerto", r.latencia, 0.0, texto[:80])
+                else:
+                    self.placar.registrar(escolha.modelo, escolha.tipo, "erro", 0, 0, r.erro[:80])
+                    if self.local.estrito:
+                        # modo estrito: a nuvem NÃO entra escondida — o João fica sabendo e decide
+                        aviso = f"A IA local não respondeu ({r.erro[:80]}). Em modo estrito eu não uso a nuvem no lugar dela."
+                        bus.emitir("fala", texto=aviso); bus.emitir("fala_fim"); partes.append(aviso); yield aviso
+                    else:
+                        bus.emitir("placar", msg=f"{escolha.modelo} falhou ({r.erro[:60]}); indo pela Anthropic (JAIME_LOCAL_AI_STRICT=off)")
+                        escolha.modelo = self.s.model_padrao
+                        async for t in self._turno_anthropic(escolha, texto, canal, contexto, inicio):
+                            partes.append(t); yield t
             elif escolha.modelo.startswith("openai:"):
                 # texto pela OpenAI; se falhar (sem crédito, rede), cai na Anthropic no mesmo turno
                 bus.emitir("cortex", tarefa=escolha.tipo, confianca=escolha.confianca, modelo=escolha.modelo,

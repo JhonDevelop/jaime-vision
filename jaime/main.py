@@ -77,8 +77,11 @@ def _cortex(acao: str, texto: str) -> int:
     """`jaime cortex explicar "<tarefa>"`: tipo, modelo escolhido e porquê, com o placar atual."""
     from .cortex.placar import Placar
     from .cortex.roteador import Roteador
+    if acao == "bench-local":
+        from .cortex.bench_local import main as bench_local      # IA local: benchmark ANTES de qualquer rota
+        return bench_local()
     if acao != "explicar" or not texto:
-        print('uso: python -m jaime cortex explicar "<tarefa>"'); return 2
+        print('uso: python -m jaime cortex explicar "<tarefa>" | bench-local'); return 2
     r = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
                  Placar(settings.vault), exploracao=0.0)
@@ -170,7 +173,7 @@ def _voz(acao: str) -> int:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz", "permissoes"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz", "permissoes", "espacial", "blocos", "jarvis"])
     ap.add_argument("acao", nargs="?", default="check")
     ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
@@ -179,6 +182,18 @@ def main(argv=None):
     if m == "skills": return _skills(args.acao)
     if m == "conectar": return _conectar(args.acao)
     if m == "voz": return _voz(args.acao)
+    if m == "jarvis":
+        from .jarvis.demo import main as demo_jarvis           # docs/TELA-JARVIS.md — `jarvis demo [porta]`
+        if args.acao == "baixar":
+            from .jarvis.vendor import baixar
+            baixar(); return 0
+        return demo_jarvis([t for t in (args.texto or []) if t.isdigit()])
+    if m == "blocos":
+        from .blocos.cli import rodar as rodar_blocos         # docs/BLOCOS.md — terminal, janela nativa, demo, pareamento
+        return rodar_blocos(args.acao, args.texto)
+    if m == "espacial":
+        from .spatial.cli import rodar as rodar_espacial      # docs/ESPACIAL.md — demo/bench/inventário sem câmera
+        return rodar_espacial(args.acao, args.texto)
     if m == "permissoes":
         from .ops.permissoes import rodar
         return rodar()

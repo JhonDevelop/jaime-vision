@@ -209,6 +209,18 @@ e abre num pop-up isolado (iframe com sandbox). Nunca responde "não tenho tela 
 **Duas agendas.** A sua (compromissos, lembretes, prazos) e a dele (rotinas, estudo, criação, melhorias),
 em trilhos separados, porque o que ele decide fazer sozinho não é obrigação sua.
 
+**Blocos, em qualquer tela (ou em nenhuma).** O que ele mostra são blocos independentes (métricas, listas, gráficos,
+diagramas, botões), abertos por voz ("abre o bloco da máquina"), pela tecla K ou por ele mesmo. O mesmo bloco aparece
+no cockpit, em janelas nativas do sistema, no terminal, em óculos e visores, e vira fala num alto-falante. Veja
+[`docs/BLOCOS.md`](docs/BLOCOS.md). A casa (Home Assistant, a Alexa como braço dele, Bluetooth) está em
+[`docs/CASA.md`](docs/CASA.md).
+
+**Mãos no ar (opcional).** Com `JAIME_SPATIAL=sim|camera` o cockpit ganha uma camada espacial: objetos virtuais,
+pinça para selecionar e arrastar, "abre isso" pela voz, ações no computador sempre com prévia, recibo e Undo, várias
+telas e câmeras, Air Canvas, gestos que você ensina, IA local e ajustes que se provam em replay antes de valer.
+Desligada por padrão. Tudo em [`docs/ESPACIAL.md`](docs/ESPACIAL.md); `python -m jaime espacial hud` mostra a demo
+sem câmera.
+
 ---
 
 ## 7. Autonomia: do "tive uma ideia" ao "entreguei"
