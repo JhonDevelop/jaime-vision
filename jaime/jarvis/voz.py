@@ -4,7 +4,9 @@
 - "ativar monitor" / "ativa o monitor"                    → rosto + relatório do treino (vídeo do monitor)
 - "cria/abre/mostra um holograma do/da <objeto>"          → holograma 3D controlado pela mão (vídeo do carro)
 - "fecha o holograma"                                     → fecha
-- "aprende meu rosto" / "esquece meu rosto"               → cadastro do rosto (cortesia, nunca chave)
+- "aprende meu rosto" / "esquece meu rosto"               → cadastro do rosto do João (cortesia, nunca chave)
+- "aprende o rosto da Ana, minha irmã" / "esquece o rosto da Ana" → outras pessoas, ligadas ao grafo de relações
+- "quem é esse?" / "você me reconhece?" / "quais rostos você conhece?" → reconhece e conta quem é
 - "modo partículas" / "modo fios" / "orbe de partículas"  → estilo do orbe (vídeo da esfera de partículas)
 - "qual sua capacidade máxima?" / "o que você consegue fazer?" → inventário REAL do que está ligado agora
 - "como estão os sistemas?"                               → sentinela (sites, servidores e APIs vigiados)
@@ -19,6 +21,13 @@ HOLO_RX = re.compile(r"^\s*(jarvis|jaime)?[,\s]*(cria|crie|criar|faz|faca|faça|
 FECHA_HOLO_RX = re.compile(r"^\s*(fecha|fechar|some com|tira)\s+(o\s+)?holograma\s*[.!]*\s*$", re.I)
 APRENDE_ROSTO_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(aprende|aprenda|cadastra|cadastre|grava|memoriza)\s+(o\s+)?meu\s+rosto\s*[.!]*\s*$", re.I)
 ESQUECE_ROSTO_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(esquece|esqueça|apaga|apague)\s+(o\s+)?meu\s+rosto\s*[.!]*\s*$", re.I)
+APRENDE_OUTRO_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(aprende|aprenda|cadastra|cadastre|grava|memoriza)\s+(o\s+)?rosto\s+(do|da|de)\s+"
+                              r"(?P<nome>[\wçãõáéíóúâêô]+(?:\s+[\wçãõáéíóúâêô]+)?)"
+                              r"(?:\s*,?\s*(?:que\s+é\s+|ele\s+é\s+|ela\s+é\s+)?(?:o\s+|a\s+)?(?:meu|minha)\s+(?P<rel>[\wçãõáéíóúâêô ]+?))?\s*[.!]*\s*$", re.I)
+ESQUECE_OUTRO_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(esquece|esqueça|apaga|apague)\s+(o\s+)?rosto\s+(do|da|de)\s+(?P<nome>[\wçãõáéíóúâêô ]+?)\s*[.!]*\s*$", re.I)
+QUEM_E_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(quem\s+(é|e|ta|tá|está|esta)\s+(esse|essa|ele|ela|aqui|a[ií]|na\s+c[aâ]mera|na\s+frente)(\s+(aqui|a[ií]|comigo))?|"
+                       r"quem\s+sou\s+eu|voc[eê]\s+me\s+reconhece|sabe\s+quem\s+(eu\s+sou|sou\s+eu|[eé]\s+(esse|essa)))\s*[?.!]*\s*$", re.I)
+ROSTOS_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(quais|que)\s+rostos\s+(voc[eê]\s+)?(conhece|tem|sabe|guardou)\s*[?.!]*\s*$", re.I)
 CAPACIDADES_RX = re.compile(r"^\s*(jarvis|jaime)?[,\s]*(me )?(fala|diga|diz|conta)?\s*(pra|para)?\s*(mim)?[,\s]*(qual|quais)\s+(é|e|são|sao)?\s*(a |as )?(sua|suas)\s+"
                             r"(capacidade|capacidades)( m[aá]xima)?\s*[?.!]*\s*$|^\s*(o que|oque) (voc[eê]|tu) (consegue|sabe|pode) fazer\s*[?.!]*\s*$", re.I)
 SISTEMAS_RX = re.compile(r"^\s*(jarvis|jaime)?[,\s]*(como (est[aã]o|t[aã]o)|status d[oa]s?|situa[cç][aã]o d[oa]s?)\s+(os |as )?"
@@ -42,8 +51,16 @@ def cena(texto: str) -> tuple[str, dict] | None:
         return "fecha_holograma", {}
     if APRENDE_ROSTO_RX.match(t):
         return "aprende_rosto", {}
+    if (m := APRENDE_OUTRO_RX.match(t)):
+        return "aprende_rosto", {"nome": m.group("nome").strip(), "relacao": (m.group("rel") or "").strip()}
     if ESQUECE_ROSTO_RX.match(t):
         return "esquece_rosto", {}
+    if (m := ESQUECE_OUTRO_RX.match(t)):
+        return "esquece_rosto", {"nome": m.group("nome").strip()}
+    if QUEM_E_RX.match(t):
+        return "quem_e", {}
+    if ROSTOS_RX.match(t):
+        return "rostos", {}
     if CAPACIDADES_RX.match(t):
         return "capacidades", {}
     if SISTEMAS_RX.match(t):

@@ -86,9 +86,10 @@ async def rosto_verificar(body: dict, request: Request):
     else:
         st = str(body.get("status", ""))
         res = {"status": st if st in ("sem_camera", "sem_rosto") else "invalido", "distancia": None}
-    j.monitor.receber_rosto(res)
-    bus.emitir("rosto", acao="resultado", status=res["status"])
-    return {"status": res["status"]}
+    j.receber_rosto(res)
+    # a página só fica sabendo do status e do nome de quem já é conhecido (nunca do descritor guardado)
+    bus.emitir("rosto", acao="resultado", status=res["status"], nome=res.get("nome") or "")
+    return {"status": res["status"], "nome": res.get("nome") or ""}
 
 
 @router.post("/jarvis/rosto/cadastrar")
@@ -98,15 +99,15 @@ async def rosto_cadastrar(body: dict, request: Request):
     jaime = ESTADO.get("jaime")
     if jaime is not None and not getattr(getattr(jaime, "acesso", None), "liberado", False):
         raise HTTPException(403, "cérebro trancado")
-    if not j.cadastrando:
-        raise HTTPException(409, "peça 'aprende meu rosto' antes")
+    c = j.cadastrando
+    if not c:
+        raise HTTPException(409, "peça 'aprende meu rosto' (ou 'aprende o rosto da Ana') antes")
     try:
-        n = j.rostos.cadastrar(body.get("descritores") or [])
+        n = j.rostos.cadastrar(body.get("descritores") or [], pessoa=c["pessoa"], nome=c["nome"], dono=c["dono"], relacao=c["relacao"])
     except ValueError as e:
         raise HTTPException(400, str(e))
-    j.cadastrando = False
-    bus.emitir("rosto", acao="cadastrado", amostras=n)
-    frase = "Aprendi o seu rosto."
+    frase = j.cadastrado(n)
+    bus.emitir("rosto", acao="cadastrado", amostras=n, nome=c["nome"] if not c["dono"] else "")
     bus.emitir("fala", texto=frase); bus.emitir("fala_fim")
     falar = ESTADO.get("falar")
     if callable(falar):

@@ -34,9 +34,12 @@ class Monitor:
             res = {"status": "sem_rosto"}
         st = res.get("status")
         self.emitir("monitor", fase="identidade", status=st)
-        pode_saude = st == "confirmado" or (st in ("sem_cadastro", "sem_camera", "sem_rosto") and not self.rostos.cadastrado)
+        pode_saude = st == "confirmado" or (st in ("sem_cadastro", "sem_camera", "sem_rosto", "desconhecido") and not self.rostos.dono_cadastrado
+                                             and st != "desconhecido")
         if st == "confirmado":
             yield "Identidade confirmada, bem-vindo, senhor."
+        elif st == "conhecido":
+            yield f"Olá, {res.get('nome') or 'visita'}. O monitor é do João; os dados de saúde ficam só com ele."
         elif st == "sem_cadastro":
             yield "Rosto detectado. Ainda não aprendi o seu; quando quiser, diga: aprende meu rosto."
         elif st == "desconhecido":

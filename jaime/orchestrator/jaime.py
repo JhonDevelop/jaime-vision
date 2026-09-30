@@ -727,7 +727,11 @@ class Jaime:
             pensei = ""
         if pensei:
             bus.emitir("raciocinio", ferramenta="pensamentos", alvo=pensei[:80])
-        prefixo = (f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "")
+        try:   # quem a câmera do Jarvis reconheceu (visita): nome, relação e o que o grafo sabe — contexto, nunca permissão
+            presenca = self.jarvis.contexto_presente() if getattr(self, "jarvis", None) is not None else ""
+        except Exception:
+            presenca = ""
+        prefixo = (f"[canal={canal}]" + (f" [contexto: {contexto}]" if contexto else "") + (f" [{presenca}]" if presenca else "")
                    + (f" [memória do vault: {memoria}]" if memoria else "")
                    + (f" [você já pensou sobre isso: {pensei}]" if pensei else ""))
         try:

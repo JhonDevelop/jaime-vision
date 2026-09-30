@@ -195,8 +195,11 @@
     if (!d.length) return post('/jarvis/rosto/verificar', { status: 'sem_rosto' });
     return post('/jarvis/rosto/verificar', { descritor: d[0] });
   }
-  async function cadastrar(n) {
-    $('rostoBox').classList.add('on'); $('rostoRot').textContent = 'APRENDENDO O SEU ROSTO'; $('rostoRot').classList.add('on');
+  async function identificar() {
+    limparPalco(); await reconhecer(); setTimeout(fecharCamera, 5000);
+  }
+  async function cadastrar(n, nome) {
+    $('rostoBox').classList.add('on'); $('rostoRot').textContent = nome ? 'APRENDENDO O ROSTO DE ' + String(nome).toUpperCase() : 'APRENDENDO O SEU ROSTO'; $('rostoRot').classList.add('on');
     try { await abrirCamera(); const d = await descritores(n || 5, 12000); if (d.length) await post('/jarvis/rosto/cadastrar', { descritores: d }); }
     catch (e) { $('rostoRot').textContent = 'CÂMERA INDISPONÍVEL'; }
     setTimeout(fecharCamera, 2500);
@@ -293,7 +296,13 @@
       case 'acesso': case 'estado': if (e.liberado != null) $('acesso').textContent = e.liberado ? 'LIBERADO' : 'TRANCADO'; break;
       case 'briefing': briefing(e); break;
       case 'monitor': monitor(e); break;
-      case 'rosto': if (e.acao === 'cadastrar') cadastrar(e.amostras); if (e.acao === 'cadastrado') $('rostoRot').textContent = 'ROSTO APRENDIDO'; break;
+      case 'rosto':
+        if (e.acao === 'cadastrar') cadastrar(e.amostras, e.nome);
+        else if (e.acao === 'identificar') identificar();
+        else if (e.acao === 'cadastrado') $('rostoRot').textContent = e.nome ? 'ROSTO DE ' + String(e.nome).toUpperCase() + ' APRENDIDO' : 'ROSTO APRENDIDO';
+        else if (e.acao === 'resultado' && e.nome && e.status === 'conhecido') { $('rostoRot').textContent = 'IDENTIFICADO · ' + String(e.nome).toUpperCase(); $('rostoBox').classList.add('ok'); }
+        else if (e.acao === 'resultado' && e.status === 'confirmado') { $('rostoRot').textContent = 'IDENTIDADE CONFIRMADA'; $('rostoBox').classList.add('ok'); }
+        break;
       case 'holograma':
         if (e.acao === 'montando') { mostrarPrincipal({ tipo: 'status', rotulo: 'HOLOGRAMA · GERANDO', titulo: `Montando ${e.titulo || ''}`, texto: 'Descrevendo as peças e as proporções…' }); break; }
         if (e.acao === 'abrir' && principal && principal._c.rotulo === 'HOLOGRAMA · GERANDO') { principal.remove(); principal = null; }

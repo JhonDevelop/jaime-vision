@@ -260,12 +260,12 @@ def test_rotas(tmp_path, monkeypatch):
     assert c.get("/hud/jarvis").status_code == 200 and c.get("/hud/jarvis/orbe.js").status_code == 200
     assert c.get("/hud/jarvis/../server.py").status_code == 404 and c.get("/hud/jarvis/vendor/../../x").status_code == 404
     assert c.post("/jarvis/rosto/cadastrar", json={"descritores": [[0.1] * 128]}).status_code == 409   # sem "aprende meu rosto"
-    j.cadastrando = True
+    j._aprender("", "")
     assert c.post("/jarvis/rosto/cadastrar", json={"descritores": [[0.1] * 128]}).json() == {"amostras": 1}
-    assert c.post("/jarvis/rosto/verificar", json={"descritor": [0.1] * 128}).json() == {"status": "confirmado"}
-    assert c.post("/jarvis/rosto/verificar", json={"status": "qualquer"}).json() == {"status": "invalido"}
+    assert c.post("/jarvis/rosto/verificar", json={"descritor": [0.1] * 128}).json() == {"status": "confirmado", "nome": "João"}
+    assert c.post("/jarvis/rosto/verificar", json={"status": "qualquer"}).json() == {"status": "invalido", "nome": ""}
     assert c.post("/jarvis/rosto/verificar", json={"descritor": [0.1] * 128}, headers={"Origin": "https://mal.com"}).status_code == 403
-    J.acesso.liberado = False; j.cadastrando = True
+    J.acesso.liberado = False; j._aprender("", "")
     assert c.post("/jarvis/rosto/cadastrar", json={"descritores": [[0.1] * 128]}).status_code == 403
     from jaime.config import settings
     monkeypatch.setattr(sd, "PASTA", tmp_path / "saude")
