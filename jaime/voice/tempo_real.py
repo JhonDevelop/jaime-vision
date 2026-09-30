@@ -271,6 +271,9 @@ class Conversa:
             return None
         try:
             from ..vigia.hooks import eh_aprovacao_lote
+        except Exception:                       # sem o Vigia importável, a cena ainda anda (a aprovação vai pelo cérebro)
+            eh_aprovacao_lote = lambda t: False
+        try:
             vigia = getattr(self.jaime, "vigia", None)
             if vigia is not None and vigia.lote and eh_aprovacao_lote(texto):
                 return None
