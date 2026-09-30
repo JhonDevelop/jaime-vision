@@ -71,3 +71,39 @@ def test_gate_esta_ai_liga_ate_dispensar():
     assert g.avaliar("qualquer coisa sem nome", True)[0]
     assert g.avaliar("por enquanto é só isso", True) == (True, "__descansar__")
     assert g.avaliar("qualquer coisa sem nome", True) == (False, "")
+
+def test_cena_do_jarvis_fala_frase_por_frase_com_a_tela():
+    from jaime.hud.events import bus
+
+    class _Jarvis:
+        def gerador(self, texto):
+            if "holograma" not in texto:
+                return None
+            async def g():
+                yield "Montando o holograma de um vaso. "
+                yield "Holograma de vaso pronto."
+            return g()
+    j = _Jaime(); j.jarvis = _Jarvis(); j.vigia = SimpleNamespace(lote=[])
+    c = _conversa(j)
+    q = bus.assinar()
+
+    async def rodar():
+        await c.tratar({"type": "conversation.item.input_audio_transcription.completed", "transcript": "Jaime, cria um holograma de um vaso"})
+        assert c._tarefa_cena is not None
+        await asyncio.sleep(.1)
+        assert [e["response"]["instructions"][-32:] for e in c.ws.enviados] == ["Montando o holograma de um vaso."]   # 2ª espera a 1ª acabar
+        await c.tratar({"type": "response.created"}); await c.tratar({"type": "response.done"})
+        await asyncio.sleep(.15)
+        falas = [e for e in c.ws.enviados if e["type"] == "response.create"]
+        assert len(falas) == 2 and falas[1]["response"]["instructions"].endswith("Holograma de vaso pronto.")
+        await c.tratar({"type": "response.done"})
+        await asyncio.wait_for(c._tarefa_cena, 1)
+    asyncio.run(rodar())
+    textos = []
+    while not q.empty():
+        e = q.get_nowait()
+        if e.get("tipo") == "voz" and e.get("texto"):
+            textos.append(e["texto"])
+    bus.cancelar(q)
+    assert textos == ["Montando o holograma de um vaso.", "Holograma de vaso pronto."]
+    assert j.pedidos == []                                    # nada foi ao modelo

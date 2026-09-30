@@ -28,7 +28,9 @@ def instrucoes(nome: str, prosodia: str = "") -> str:
     return (f"Você é {nome}, assistente pessoal e operacional do João (Franca/SP). Fale português do Brasil, frases curtas, "
             f"seco e leal, sem 'como posso ajudar', sem se apresentar. Chame-o de João ou de senhor. Nunca invente o que não sabe: "
             f"para agir, lembrar ou consultar qualquer coisa use a ferramenta `jaime`; para hora/clima/lembrete use as ferramentas próprias. "
-            f"Quando a ferramenta devolver texto, diga-o com naturalidade em até 3 frases. {prosodia}").strip()
+            f"Quando a ferramenta devolver texto, diga-o com naturalidade em até 3 frases. "
+            f"Jeito do JARVIS: calmo, preciso, elegante, uma pitada de ironia seca; responde já com a conclusão; "
+            f"fala rápido, no ritmo de conversa, com sotaque brasileiro nativo (nomes estrangeiros na pronúncia original). {prosodia}").strip()
 
 class Gate:
     """Decide se uma transcrição é com ele (mesma regra da fase 2) e mantém a janela ativa."""
@@ -65,6 +67,8 @@ class Conversa:
         self._parar = threading.Event()
         self.erro = ""
         self._fala_atual = ""
+        self._respondendo = False           # o Realtime está no meio de uma resposta (created → done)
+        self._tarefa_cena = None
 
     # ── ciclo de vida ────────────────────────────────
     def start(self):
@@ -197,11 +201,13 @@ class Conversa:
     async def tratar(self, ev: dict):
         t = ev.get("type", "")
         if t == "response.created":
+            self._respondendo = True
             # mudo já na criação da resposta (antes do 1º áudio): o eco do começo não vira "fala do João"
             self.mudo = True; self._ultimo_audio = time.time() + 2.0
             await self._enviar({"type": "input_audio_buffer.clear"})
         elif t == "response.done":
             self._ultimo_audio = time.time()          # a cauda conta a partir do fim da resposta
+            self._respondendo = False
         elif t == "input_audio_buffer.speech_started":
             bus.emitir("escuta", nivel=0.5, voz=0.9, gravando=True, janela_ativa=time.time() < self.gate.ativo_ate)
         elif t == "conversation.item.input_audio_transcription.completed":
@@ -246,11 +252,49 @@ class Conversa:
             bus.emitir("voz", estado="ouvindo", falando=False, ativo=False)
             await self._dizer("Certo, João. Estou aqui se precisar."); return
         bus.emitir("voz", estado="ouvindo", falando=False, ativo=self.gate.ativo_ate == float("inf"))
+        if liberado and (gen := self._cena_jarvis(limpo or texto)) is not None:
+            # cenas do Jarvis (briefing, monitor, holograma, estúdio, rosto…): a tela anda junto com a voz,
+            # frase por frase, sem passar pelo modelo de conversa
+            if self._tarefa_cena is not None and not self._tarefa_cena.done():
+                self._tarefa_cena.cancel()
+            self._tarefa_cena = asyncio.create_task(self._cena(gen))
+            return
         if not liberado or quer_teclado(limpo):
             # palavra-passe, tranca, teclado, renomear: o Jaime decide sem modelo e o Realtime só repete
             r = await self.jaime.ask(limpo or texto, canal="voice")
             await self._dizer(r); return
         await self._enviar({"type": "response.create"})
+
+    def _cena_jarvis(self, texto: str):
+        j = getattr(self.jaime, "jarvis", None)
+        if j is None:
+            return None
+        try:
+            from ..vigia.hooks import eh_aprovacao_lote
+            vigia = getattr(self.jaime, "vigia", None)
+            if vigia is not None and vigia.lote and eh_aprovacao_lote(texto):
+                return None
+            return j.gerador(texto)
+        except Exception as e:
+            bus.emitir("resultado", texto=f"jarvis: {type(e).__name__}", erro=True)
+            return None
+
+    async def _cena(self, gen, espera_max: float = 30.0):
+        """Uma frase por vez: espera a resposta anterior terminar (o Realtime só fala uma de cada vez), avisa a tela
+        com o texto (os cartões sincronizam nele) e manda dizer."""
+        async for trecho in gen:
+            frase = (trecho or "").strip()
+            if not frase:
+                continue
+            limite = time.time() + espera_max
+            while self._respondendo and time.time() < limite:
+                await asyncio.sleep(0.05)
+            self._respondendo = True
+            bus.emitir("voz", falando=True, estado="falando", texto=frase)
+            await self._dizer(frase)
+        limite = time.time() + espera_max
+        while self._respondendo and time.time() < limite:
+            await asyncio.sleep(0.05)
 
     async def _dizer(self, texto: str):
         await self._enviar({"type": "response.create", "response": {"instructions": f"Diga exatamente, sem acrescentar nada: {texto}"}})
