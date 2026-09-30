@@ -38,6 +38,11 @@ async def lifespan(app: FastAPI):
     # do MESMO gerenciador; montado antes do start para o MCP `blocos` entrar nas opções. JAIME_BLOCOS=off desliga.
     from .blocos.integracao import montar as montar_blocos, ligar_espacial as blocos_no_espaco
     blocos = montar_blocos(jaime, falar=lambda t: ouvido.falar(t) if ouvido else None)
+    # cenas do Jarvis (docs/TELA-JARVIS.md): briefing do bom dia, ativar monitor, holograma, rosto
+    from .jarvis.integracao import montar as montar_jarvis
+    from .jarvis.rotas import ESTADO as JARVIS
+    jaime.jarvis = montar_jarvis(jaime)
+    JARVIS.update(jarvis=jaime.jarvis, jaime=jaime, falar=lambda t: ouvido.falar(t) if ouvido else None)
     # presença por Bluetooth (docs/CASA.md): JAIME_BT=on + aparelhos em JAIME_BT_CONHECIDOS; precisa do pacote bleak
     bt_ligado = os.environ.get("JAIME_BT", "off").strip().lower() in ("on", "1", "true")
     if bt_ligado:
@@ -175,6 +180,8 @@ from .spatial.rotas import router as espacial_router   # noqa: E402 — rotas in
 app.include_router(espacial_router)
 from .blocos.rotas import router as blocos_router       # noqa: E402 — REST + WebSocket JBP das superfícies
 app.include_router(blocos_router)
+from .jarvis.rotas import router as jarvis_router       # noqa: E402 — tela Jarvis, rosto, holograma, webhook de saúde
+app.include_router(jarvis_router)
 
 # Rotas que podem ser abertas sem token: é por elas que o convidado PEDE o token.
 ABERTAS = ("/entrar", "/favicon.ico")
@@ -246,6 +253,8 @@ def _auth(token: str | None):
 # ── HUD ────────────────────────────────────────────────
 @app.get("/")
 async def hud():
+    if os.environ.get("JAIME_HUD_PADRAO", "").strip().lower() == "jarvis":
+        return FileResponse(STATIC / "jarvis.html", headers={"Cache-Control": "no-store"})   # a tela do vídeo como principal
     return _cockpit()     # cockpit (principal)
 
 @app.get("/classico")

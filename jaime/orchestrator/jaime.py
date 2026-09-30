@@ -120,6 +120,9 @@ class Jaime:
         # IA local (docs/ESPACIAL.md): desligada por padrão; só texto; rota explícita; estrito = sem nuvem escondida
         from ..cortex.provedores.local import ProvedorLocal
         self.local = ProvedorLocal.do_ambiente()
+        from ..hermes.cliente import HermesCliente
+        self.jarvis = None                              # cenas do Jarvis (server.py liga; docs/TELA-JARVIS.md)
+        self.hermes = HermesCliente.do_ambiente()      # Hermes Agent (docs/HERMES.md): mãos extras por delegação explícita
         self.roteador = Roteador({"decisao": settings.model_decisao, "codigo": settings.model_codigo,
                                   "padrao": settings.model_padrao, "rotina": settings.model_rotina},
                                  self.placar, settings.cortex_exploracao,
@@ -239,7 +242,7 @@ class Jaime:
                          "relacoes": build_relacoes_server(self.relacoes),
                          "curiosidade": build_curiosidade(self.curiosidade),
                          "agente": build_agente_server(self.carteira, self.harness),
-                         **self._servidor_espacial(), **self._servidor_blocos()},
+                         **self._servidor_espacial(), **self._servidor_blocos(), **self._servidor_hermes()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -257,6 +260,14 @@ class Jaime:
             return {}
         from ..blocos.tools import build_blocos_server
         return {"blocos": build_blocos_server(g, self.blocos_modelos, self.blocos_fontes)}
+
+    def _servidor_hermes(self) -> dict:
+        """MCP `hermes` só existe com JAIME_HERMES=on e HERMES_API_KEY configurada (docs/HERMES.md)."""
+        h = getattr(self, "hermes", None)
+        if h is None or not h.disponivel:
+            return {}
+        from ..hermes.tools import build_hermes_server
+        return {"hermes": build_hermes_server(h, self.vigia)}
 
     def _servidor_espacial(self) -> dict:
         """MCP `espacial` só existe com JAIME_SPATIAL ligado (docs/ESPACIAL.md); desligado, o dicionário fica vazio."""
@@ -546,6 +557,17 @@ class Jaime:
         assert self._client, "Chame start() antes."
         self.acesso.tocar()      # QUALQUER interação renova a sessão — respostas rápidas não deixam mais o cérebro trancar sozinho no meio do uso
         bus.emitir("conversa", canal=canal, texto=texto if self.acesso.liberado else "•••")
+        if self.acesso.liberado and getattr(self, "jarvis", None) is not None and not (self.vigia.lote and eh_aprovacao_lote(texto)):
+            # cenas do Jarvis (briefing do bom dia, ativar monitor, holograma, rosto): falas + tela, sem modelo
+            try:
+                cena = self.jarvis.gerador(texto)
+            except Exception as e:
+                cena = None
+                bus.emitir("resultado", texto=f"jarvis: {type(e).__name__}", erro=True)
+            if cena is not None:
+                async for frase in cena:
+                    yield frase
+                return
         curta = self._porta(texto, canal)
         if curta is None and self.acesso.liberado:
             curta = await self._mundo(texto)     # hora, clima, lembrete: sem modelo

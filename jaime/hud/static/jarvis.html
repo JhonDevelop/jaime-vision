@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>J.A.I.M.E</title>
+<link rel="stylesheet" href="/hud/jarvis/jarvis.css">
+</head><body>
+<div id="grade"></div><div id="vinheta"></div>
+<canvas id="orbe"></canvas>
+<div id="cantoE">J.A.I.M.E · <span id="relogio">--:--</span></div>
+<div id="cantoD"><span id="acesso">—</span> · <span id="modelo">—</span></div>
+<div id="topo"><div class="pill"><i></i>PERSONALIDADE · <b>J.A.I.M.E</b></div><div class="pill"><i></i>GERÊNCIA <b id="gerencia">···</b></div></div>
+<div id="estado"><div class="rot" id="rotEstado">EM ESPERA</div><div class="pontos"></div></div>
+
+<div class="coluna" id="colE">
+  <div class="painel"><h4>SINAL DE VOZ <b id="vozEst">—</b></h4><canvas class="onda" id="onda"></canvas>
+    <div class="linha"><span>latência fala→voz</span><b id="lat">—</b></div></div>
+  <div class="painel"><h4>ORÇAMENTO DO DIA <b id="orcRot">—</b></h4><div class="barra"><i id="orcBar" style="width:0"></i></div>
+    <div class="linha"><span>gasto hoje</span><b id="orcGasto">—</b></div><div class="linha"><span>humor</span><b id="humor">—</b></div></div>
+  <div class="painel"><h4>VONTADES <b id="vontEsc">—</b></h4><div id="vontades"></div></div>
+  <div class="painel"><h4>SISTEMAS</h4><div class="aneis">
+    <div><div class="anel" id="anelFila"></div><small>FILA</small></div>
+    <div><div class="anel" id="anelEquipe"></div><small>FILHOS</small></div>
+    <div><div class="anel" id="anelEstudo"></div><small>ESTUDO</small></div></div></div>
+</div>
+<div class="coluna" id="colD">
+  <div class="painel"><h4>VIGIA <b id="vigiaEst">—</b></h4><div class="linha"><span>ações aguardando</span><b id="vigiaLote">0</b></div>
+    <div class="linha"><span>hermes</span><b id="hermesEst">—</b></div></div>
+  <div class="painel"><h4>EQUIPE <b id="equipeN">—</b></h4><div id="equipe"></div></div>
+  <div class="painel"><h4>PRÓXIMOS PASSOS</h4><div id="proximos" class="linha" style="display:block;font-size:10px;line-height:1.55"></div></div>
+  <div class="painel"><h4>ÚLTIMA FALA</h4><div id="ultimaFala" style="font:500 10.5px/1.5 var(--sans);color:var(--texto-2)">—</div></div>
+</div>
+
+<div id="rostoBox"><video id="rostoVideo" autoplay muted playsinline></video><div class="scan"></div></div>
+<div id="rostoRot">RECONHECIMENTO FACIAL</div>
+<div id="holo-icone"></div>
+<div id="palco"></div>
+<div id="legenda"></div>
+<div id="entrada"><input id="entradaTx" placeholder="Fale com o J.A.I.M.E… (Enter envia, Esc fecha)" autocomplete="off"></div>
+<div id="baixo">
+  <span class="mini" id="btOrbe" title="fios / partículas">ORBE</span>
+  <span class="mini" id="btTeclado" title="tecla /">TECLADO</span>
+  <div id="mic" title="microfone">●</div>
+  <span class="mini" id="btBriefing" title="me dá o briefing">BRIEFING</span>
+  <span class="mini" id="btMonitor" title="ativar monitor">MONITOR</span>
+</div>
+<div id="holo"></div>
+<script src="/hud/jarvis/orbe.js"></script>
+<script src="/hud/jarvis/jarvis.js"></script>
+</body></html>

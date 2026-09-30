@@ -173,7 +173,7 @@ def _voz(acao: str) -> int:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="jaime")
-    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz", "permissoes", "espacial", "blocos"])
+    ap.add_argument("modo", choices=["chat", "voice", "hud", "serve", "senha", "cerebro", "cortex", "skills", "conectar", "voz", "permissoes", "espacial", "blocos", "jarvis"])
     ap.add_argument("acao", nargs="?", default="check")
     ap.add_argument("texto", nargs="*")
     args = ap.parse_args(argv); m = args.modo
@@ -182,6 +182,12 @@ def main(argv=None):
     if m == "skills": return _skills(args.acao)
     if m == "conectar": return _conectar(args.acao)
     if m == "voz": return _voz(args.acao)
+    if m == "jarvis":
+        from .jarvis.demo import main as demo_jarvis           # docs/TELA-JARVIS.md — `jarvis demo [porta]`
+        if args.acao == "baixar":
+            from .jarvis.vendor import baixar
+            baixar(); return 0
+        return demo_jarvis([t for t in (args.texto or []) if t.isdigit()])
     if m == "blocos":
         from .blocos.cli import rodar as rodar_blocos         # docs/BLOCOS.md — terminal, janela nativa, demo, pareamento
         return rodar_blocos(args.acao, args.texto)
