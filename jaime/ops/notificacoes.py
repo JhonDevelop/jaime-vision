@@ -8,7 +8,11 @@ e o Jaime avisa uma vez e para de tentar por 10 min. Só leitura, nunca escreve 
 O que ele FALA (15/09/2026, a pedido do João): só mensagem de PESSOA SALVA — nem grupo, nem número sem nome,
 nem e-mail automático, nem curtida/seguidor do Instagram. O resto vai só para o HUD e o diário.
 Mensagens seguidas da mesma pessoa viram um aviso só ("Maria mandou 3 mensagens no WhatsApp: …").
-`JAIME_AVISAR=off` silencia; `JAIME_AVISAR_TUDO=on` volta a falar tudo dos apps importantes."""
+30/09/2026, a pedido do João: por padrão NÃO fala nada sozinho — ele reclamou que o Jaime só ficava lendo o WhatsApp
+sem ele pedir e que isso atropelava a conversa. As mensagens vão para a tela (HUD/Jarvis) e o diário; ele ouve quando
+pergunta ("tenho mensagem?", "mostra as mensagens do WhatsApp"). `JAIME_AVISAR=on` volta a avisar em voz alta (com o
+filtro acima); `JAIME_AVISAR_TUDO=on` fala tudo dos apps importantes.
+O bundle id do WhatsApp no Mac é `net.whatsapp.whatsapp` (minúsculo) em algumas versões: a comparação ignora maiúsculas."""
 from __future__ import annotations
 import asyncio, os, plistlib, re, sqlite3, time
 from dataclasses import dataclass, field
@@ -93,7 +97,16 @@ def frase_falada(nome_app: str, remetente: str, textos: list[str]) -> str:
     return f"Senhor, {remetente} mandou {len(textos)} mensagens no {nome_app}: {corpo}"
 
 # --- leitura do banco -----------------------------------------------------------------------------------------
+_CANON = {a.lower(): a for a in (*IMPORTANTES, *IGNORAR, *MENSAGEIROS, *SEMPRE)}
+
+
+def canonico(app_id: str) -> str:
+    """'net.whatsapp.whatsapp' e 'net.whatsapp.WhatsApp' são o mesmo app."""
+    return _CANON.get((app_id or "").lower(), app_id or "")
+
+
 def _parse(rec_id: int, app_id: str, delivered: float, data: bytes) -> Notificacao:
+    app_id = canonico(app_id)
     try:
         d = plistlib.loads(data); req = d.get("req", {}) or {}
     except Exception:
@@ -109,7 +122,7 @@ def ler_novas(db: Path, desde_id: int, limite: int = 50) -> list[Notificacao]:
                            "WHERE r.rec_id > ? ORDER BY r.rec_id ASC LIMIT ?", (desde_id, limite)).fetchall()
     finally:
         con.close()
-    return [_parse(*r) for r in rows if r[1] not in IGNORAR]
+    return [_parse(*r) for r in rows if canonico(r[1]) not in IGNORAR]
 
 def ultimo_id(db: Path) -> int:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
@@ -121,7 +134,7 @@ def ultimo_id(db: Path) -> int:
 class Notificacoes:
     def __init__(self, jaime, ouvido=None, db: Path = DB, falar_importantes: bool | None = None):
         self.jaime, self.ouvido, self.db = jaime, ouvido, Path(db)
-        self.falar = (os.environ.get("JAIME_AVISAR", "on").lower() != "off") if falar_importantes is None else falar_importantes
+        self.falar = (os.environ.get("JAIME_AVISAR", "off").lower() in ("1", "on", "true")) if falar_importantes is None else falar_importantes
         self.falar_tudo = os.environ.get("JAIME_AVISAR_TUDO", "").lower() in ("1", "on", "true")
         self.desde = -1
         self.erro = ""

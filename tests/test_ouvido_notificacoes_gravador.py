@@ -117,3 +117,13 @@ def test_notificacoes_agrupa_e_fala_so_o_que_passa_no_filtro(vault):
     asyncio.run(ns.falar_pendentes(agora=t0 + nt.AGRUPAR_S + 1))
     assert falas == ["Senhor, Maria Clara mandou 2 mensagens no WhatsApp: oi. tá aí?"] and ns.pendentes == {}
     assert "Notificação WhatsApp: Diego — bora" in vault.read(f"40-Diario/{date.today():%Y-%m-%d}.md")
+
+
+def test_whatsapp_minusculo_e_silencio_por_padrao(vault, monkeypatch):
+    assert nt.canonico("net.whatsapp.whatsapp") == "net.whatsapp.WhatsApp" and nt.canonico("com.x.y") == "com.x.y"
+    n = nt._parse(1, "net.whatsapp.whatsapp", time.time() - nt.EPOCH_2001, plistlib.dumps({"req": {"titl": "‎Maria Clara", "body": "oi"}}))
+    assert n.nome_app == "WhatsApp" and nt.classificar(n) == (True, "pessoa salva")
+    monkeypatch.delenv("JAIME_AVISAR", raising=False)
+    assert nt.Notificacoes(_Jaime(vault), object(), db=Path("/nao/existe")).falar is False       # 30/09: não lê sem pedir
+    monkeypatch.setenv("JAIME_AVISAR", "on")
+    assert nt.Notificacoes(_Jaime(vault), object(), db=Path("/nao/existe")).falar is True
