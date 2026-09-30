@@ -200,3 +200,39 @@ def test_wake_word_jarvis():
     assert interpretar_chamada("Jarvis, ativar monitor") == ("pediu", "ativar monitor")
     from jaime.identidade import VARIANTES_CONHECIDAS
     assert "jarvis" in VARIANTES_CONHECIDAS["jaime"]
+
+
+def test_noticias_so_quando_pede():
+    import asyncio
+    from datetime import datetime
+    from jaime.jarvis.demo import briefing_demo
+    from jaime.jarvis.integracao import Jarvis
+    from jaime.jarvis.monitor import Monitor
+    from jaime.jarvis.rosto import Rostos
+    ev = []
+    b = briefing_demo(); b.emitir = lambda t, **d: ev.append((t, d))
+    r = Rostos("/tmp/_r_noticias.json")
+    j = Jarvis(b, Monitor(r), r, emitir=lambda t, **d: ev.append((t, d)), env={})
+    manha = datetime(2026, 9, 30, 8, 0)
+
+    async def falas(g):
+        out = []
+        async for f in g:
+            out.append(f)
+        return " ".join(out)
+    import jaime.jarvis.briefing as br
+    orig = asyncio.sleep
+    br.asyncio.sleep = lambda *_a, **_k: orig(0)
+    try:
+        bom_dia = asyncio.run(falas(j.gerador("bom dia", manha)))
+        assert "notícias" not in bom_dia.lower() and "OpenAI" not in bom_dia
+        inicio = [d for t, d in ev if t == "briefing" and d.get("fase") == "inicio"][-1]
+        assert "NOTÍCIAS" not in inicio["etapas"]
+        b.ultimo_dia = ""
+        explicito = asyncio.run(falas(j.gerador("me dá o briefing", manha)))
+        assert "OpenAI" in explicito
+        so = asyncio.run(falas(j.gerador("quais as notícias?", manha)))
+        assert "OpenAI" in so and "Revisei" not in so
+        assert ("briefing", {"fase": "inicio_noticias"}) in ev
+    finally:
+        br.asyncio.sleep = orig

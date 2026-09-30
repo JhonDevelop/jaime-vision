@@ -45,6 +45,11 @@ class Segmento:
         return asdict(self)
 
 
+def pediu_briefing(texto: str) -> bool:
+    """Pedido explícito ("me dá o briefing") — esse traz as notícias; o "bom dia" sozinho não (30/09, João)."""
+    return bool(PEDIDO_EXPLICITO_RX.search(texto or ""))
+
+
 def quer_briefing(texto: str, agora: datetime | None = None, ja_deu_hoje: bool = False) -> bool:
     """'bom dia' puro, de manhã, na primeira vez do dia → briefing; pedido explícito → sempre."""
     if PEDIDO_EXPLICITO_RX.search(texto or ""):
@@ -78,11 +83,11 @@ class Briefing:
         except Exception as e:
             return nome, {"erro": f"{type(e).__name__}"}
 
-    async def coletar(self) -> dict:
+    async def coletar(self, pular=()) -> dict:
         """Coleta tudo em paralelo; a ordem em que as etapas ficaram prontas vai em dados['_ordem'] (a tela acende assim)."""
         etapa_de = {"agenda": "AGENDA", "emails": "E-MAILS", "noticias": "NOTÍCIAS", "clima": "CLIMA", "saude": "PRIORIDADES"}
         dados: dict = {"_ordem": []}
-        for fut in asyncio.as_completed([self._uma(n) for n in self.fontes]):
+        for fut in asyncio.as_completed([self._uma(n) for n in self.fontes if n not in pular]):
             nome, r = await fut
             dados[nome] = r
             dados["_ordem"].append((etapa_de[nome], bool(r) and not (isinstance(r, dict) and r.get("erro"))))
@@ -213,15 +218,28 @@ class Briefing:
         fala = f"Hoje, mantenha o foco em {foco}." if foco else "Hoje, mantenha o foco no essencial."
         return Segmento("foco", fala, {"tipo": "foco", "rotulo": "PRIORIDADES · HOJE", "titulo": fala})
 
-    async def montar(self, dados: dict, foco: str | None = None) -> list[Segmento]:
+    async def montar(self, dados: dict, foco: str | None = None, noticias: bool = True) -> list[Segmento]:
         segs: list[Segmento | None] = [self.seg_clima(dados.get("clima")), self.seg_agenda(dados.get("agenda")),
                                        await self.seg_emails(dados.get("emails"))]
-        segs += await self.seg_noticias(dados.get("noticias"))
+        if noticias:
+            segs += await self.seg_noticias(dados.get("noticias"))
         segs += [self.seg_saude(dados.get("saude")), self.seg_foco(foco)]
         return [s for s in segs if s is not None]
 
     # ── execução ─────────────────────────────────────────
-    async def rodar(self, cps: float = 14.5, pausa_etapa: float = 0.6):
+    async def rodar_noticias(self):
+        """Só as notícias, quando o João pede ("quais as notícias?") — os cartões aparecem com a voz e depois somem."""
+        _, itens = await self._uma("noticias")
+        if not itens or isinstance(itens, dict):
+            yield "Não consegui buscar as notícias agora."; return
+        self.emitir("briefing", fase="inicio_noticias")
+        segs = await self.seg_noticias(itens)
+        for s in segs:
+            self.emitir("briefing", fase="segmento", **s.dados())
+            yield s.fala
+        self.emitir("briefing", fase="fim")
+
+    async def rodar(self, cps: float = 14.5, pausa_etapa: float = 0.6, noticias: bool = True):
         """Gerador assíncrono das frases (o canal de voz fala cada uma; a tela casa com o card).
 
         Ordem do vídeo: 1) "sem desvios" enquanto a coleta já corre; 2) terminada essa fala, o card BRIEFING MATINAL
@@ -229,7 +247,7 @@ class Briefing:
         o áudio acabar, por isso a pausa do passo 2 é calculada pelo tempo estimado da 1ª fala (`cps` letras/s)."""
         loop = asyncio.get_event_loop()
         self.ultimo_dia = datetime.now().strftime("%Y-%m-%d")
-        coleta = asyncio.ensure_future(self.coletar())
+        coleta = asyncio.ensure_future(self.coletar(pular=() if noticias else ("noticias",)))
         desvios = []
         if self.desvios:
             try:
@@ -245,7 +263,7 @@ class Briefing:
         falta = len(s0.fala) / cps - (loop.time() - t0)
         if falta > 0:
             await asyncio.sleep(falta)
-        self.emitir("briefing", fase="inicio", etapas=ETAPAS, titulo="BRIEFING MATINAL",
+        self.emitir("briefing", fase="inicio", etapas=[e for e in ETAPAS if noticias or e != "NOTÍCIAS"], titulo="BRIEFING MATINAL",
                     texto="Convertendo os sinais do dia em um resumo falado e objetivo.")
         for etapa, ok in dados.pop("_ordem", []):
             await asyncio.sleep(pausa_etapa)
@@ -259,7 +277,7 @@ class Briefing:
                 foco = self.foco()
             except Exception:
                 foco = None
-        segs = await self.montar(dados, foco)
+        segs = await self.montar(dados, foco, noticias=noticias)
         self.ultimo = [s0.dados()] + [s.dados() for s in segs]
         self.emitir("briefing", fase="roteiro", segmentos=self.ultimo)
         for s in segs:

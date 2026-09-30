@@ -14,7 +14,12 @@
 - "dá volume ao desenho" / "transforma o desenho em 3D"   → o desenho vira objeto sólido
 - "exporta em STL" / "gera o arquivo 3D" / "abre no Blender" → arquivos do holograma como está
 - "manda para impressão com 12 cm" / "imprime isso"       → STL de mesa (mm, Z para cima) aberto no fatiador
-- "liga o controle pelo olhar" / "liga o controle por mão" → mira pelos olhos / cursor pela mão na tela toda
+- "liga o controle pelo olhar"                            → mira pelos olhos
+- "liga o controle do computador" / "liga o controle por mão" / "desliga…" → as mãos viram o mouse do Mac inteiro
+- "recalibra a mão" / "troca as mãos"                     → calibração dos cantos / canhoto
+- "quais as notícias?"                                   → só as notícias (o "bom dia" não traz notícias)
+- "me coloca no holograma" / "mostra meus braços" / "tira a câmera do holograma" → câmera e braços dentro da cena
+- "captura esse objeto"                                   → congela a câmera como peça de referência
 Com holograma aberto (`edicao`): "abre as portas", "aumenta essa peça", "desfaz"… viram edição do holograma.
 """
 from __future__ import annotations
@@ -58,8 +63,21 @@ CAIXA_RX = re.compile(J + r"((abre|abra|mostra|mostre|l[eê]|leia|carrega|como\s
 MENSAGENS_RX = re.compile(J + r"((abre|mostra|l[eê]|leia|carrega|quais\s+s[aã]o)\s+(as\s+|minhas\s+)?mensagens(\s+(do|no)\s+(whats\s*app|zap|whats))?|"
                           r"(tenho|chegou)\s+(alguma\s+)?mensage(m|ns)(\s+(no|do)\s+(whats\s*app|zap|whats))?|quem\s+(me\s+)?mandou\s+mensagem)\s*[?.!]*\s*$", re.I)
 EDITA_RX = re.compile(J + r"(abre|abra|fecha|feche|adiciona|acrescenta|coloca|coloque|p[õo]e|bota|tira|remove|aumenta|aumente|diminui|diminua|deixa|muda|mude|troca|"
-                      r"estica|encolhe|alonga|gira|gire|vira|vire|roda|duplica|move|mova|empurra|levanta|abaixa|separa|junta|esconde|mostra|explode|remonta|"
-                      r"reseta|centraliza|inclina|faz|fa[cç]a|transforma)\b(?P<resto>.+)$", re.I)
+                      r"estica|encolhe|alonga|gira|gire|vira|vire|roda|duplica|move|mova|empurra|levanta|abaixa|separa|separe|junta|esconde|mostra|mostre|explode|remonta|"
+                      r"reseta|centraliza|inclina|faz|fa[cç]a|transforma|destaca|solta|puxa|isola|isole|foca|foque|enquadra|aproxima|pinta|pinte|colore|sobe|suba|"
+                      r"desce|volta|desmonta|oculta|amplia|reduz|dobra|copia|clona|leva|quero\s+ver)\b(?P<resto>.*)$", re.I)
+COMPUTADOR_RX = re.compile(J + r"(?P<acao>liga|ligar|ativa|ativar|desliga|desligar|desativa|desativar|para|pare)\s+(o\s+)?(controle|mouse)\s+(do|no|pelo|pela)?\s*"
+                           r"(computador|mac|pc|sistema|mouse|m[aã]o|m[aã]os|gestos?)(\s+(pela|pelas|com\s+a|com\s+as)\s+m[aã]os?)?\s*[.!]*\s*$|"
+                           r"^\s*(jarvis|jaime)?[,\s]*(?P<acao2>liga|ativa|desliga|desativa)\s+(o\s+)?controle\s+(pela|por|pelas|com\s+a|com\s+as)\s+(m[aã]o|m[aã]os|gestos?)\s*[.!]*\s*$", re.I)
+RECALIBRA_RX = re.compile(J + r"(recalibra|recalibrar|calibra|calibrar)\s+(de\s+novo\s+)?(a\s+|as\s+|o\s+)?(m[aã]o|m[aã]os|controle|mouse|cursor)\s*[.!]*\s*$", re.I)
+TROCA_MAOS_RX = re.compile(J + r"(troca|trocar|inverte|inverter)\s+(as\s+|a\s+)?m[aã]os?\s*[.!]*\s*$|^\s*(sou|eu\s+sou)\s+canhoto\s*[.!]*\s*$", re.I)
+NOTICIAS_RX = re.compile(J + r"((quais|me\s+d[aá]|me\s+conta|me\s+fala|mostra|mostre|l[eê]|leia|traz|tem)\s+(as\s+|umas\s+|alguma\s+)?(principais\s+|[uú]ltimas\s+)?"
+                         r"not[ií]cias?(\s+(de\s+hoje|do\s+dia|de\s+agora|do\s+mundo))?|o\s+que\s+(t[aá]|est[aá])\s+acontecendo\s+no\s+mundo)\s*[?.!]*\s*$", re.I)
+CAMERA_HOLO_RX = re.compile(J + r"(me\s+(coloca|p[õo]e|bota|mostra)\s+no\s+holograma|(mostra|coloca|p[õo]e|liga)\s+(a\s+)?c[aâ]mera\s+no\s+holograma|"
+                            r"(mostra|coloca|p[õo]e)\s+(meu|o\s+meu)\s+(corpo|bra[cç]o|pulso|m[aã]o|rosto|cabe[cç]a|p[eé])\s+no\s+holograma|mostra\s+(os\s+)?meus\s+bra[cç]os)\s*[.!]*\s*$", re.I)
+CAMERA_FORA_RX = re.compile(J + r"(tira|desliga|esconde)\s+(a\s+)?c[aâ]mera\s+do\s+holograma|(me\s+)?tira\s+(me\s+)?do\s+holograma|esconde\s+(os\s+)?meus\s+bra[cç]os\s*[.!]*\s*$", re.I)
+CAPTURA_RX = re.compile(J + r"(captura|capture|escaneia|escaneie|congela|fotografa|pega)\s+(esse|este|o|a|essa|esta)?\s*(objeto|coisa|c[aâ]mera|imagem|isso|pe[cç]a)?"
+                        r"(\s+(para|pro|no)\s+(o\s+)?holograma)?\s*[.!]*\s*$", re.I)
 ORBE_RX = re.compile(r"^\s*(modo|orbe( de| em)?|esfera( de)?)\s+(?P<estilo>part[ií]culas|fios|energia)\s*[.!]*\s*$", re.I)
 
 
@@ -119,8 +137,21 @@ def cena(texto: str) -> tuple[str, dict] | None:
         return "mensagens", {}
     if (m := OLHAR_RX.match(t)):
         return "olhar", {"ligar": not _n(m.group("acao")).startswith("des")}
-    if (m := MAOS_RX.match(t)):
-        return "maos", {"ligar": not _n(m.group("acao")).startswith("des")}
+    if (m := COMPUTADOR_RX.match(t)) or (m := MAOS_RX.match(t)):
+        acao = _n(m.groupdict().get("acao") or m.groupdict().get("acao2") or "")
+        return "computador", {"ligar": not (acao.startswith("des") or acao.startswith("par"))}
+    if RECALIBRA_RX.match(t):
+        return "recalibrar", {}
+    if TROCA_MAOS_RX.match(t):
+        return "trocar_maos", {}
+    if NOTICIAS_RX.match(t):
+        return "noticias", {}
+    if CAMERA_FORA_RX.match(t):
+        return "camera_holo", {"ligar": False}
+    if (m := CAMERA_HOLO_RX.match(t)):
+        return "camera_holo", {"ligar": True, "bracos": bool(re.search(r"bra[cç]o", t, re.I))}
+    if CAPTURA_RX.match(t) and re.search(r"objeto|holograma|c[aâ]mera|escane|captura|congela|fotografa", t, re.I):
+        return "capturar", {}
     return None
 
 

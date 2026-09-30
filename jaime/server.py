@@ -146,6 +146,9 @@ async def lifespan(app: FastAPI):
         await espacial.iniciar()
     blocos_t = asyncio.create_task(blocos.rodar()) if blocos else None
     sentinela_t = asyncio.create_task(jaime.sentinela.rodar()) if jaime.sentinela.alvos else None   # sistemas críticos
+    from .jarvis import maos_nativo
+    maos_t = (asyncio.create_task(maos_nativo.rodar(jaime.jarvis.controle, bus.emitir))
+              if jaime.jarvis is not None and maos_nativo.ligado() else None)       # mãos → mouse sem o navegador
     presenca_t = None
     if bt_ligado and jaime.presenca and jaime.presenca.conhecidos:
         from .casa.bluetooth import vigiar as vigiar_bt
@@ -159,6 +162,8 @@ async def lifespan(app: FastAPI):
     yield
     if sentinela_t:
         sentinela_t.cancel()
+    if maos_t:
+        maos_t.cancel()
     if blocos_t:
         blocos_t.cancel()
     if presenca_t:

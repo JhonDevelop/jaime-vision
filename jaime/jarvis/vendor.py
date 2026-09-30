@@ -29,7 +29,8 @@ MAOS = ("@mediapipe/tasks-vision", "0.10.14", {
 MODELO_MAO = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 MODELO_MAO_NPM = ("expo-vision-camera-v4-mediapipe", "package/hand_landmarker.task")
 MODELO_ROSTO = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-PERMITIDOS = {v for _, _, m in (FACE, MAOS) for v in m.values()} | {"hand_landmarker.task", "face_landmarker.task", "ok.json"}
+MODELO_POSE = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+PERMITIDOS = {v for _, _, m in (FACE, MAOS) for v in m.values()} | {"hand_landmarker.task", "face_landmarker.task", "pose_landmarker_lite.task", "ok.json"}
 
 
 def _tarball(c: httpx.Client, pacote: str, versao: str | None) -> bytes:
@@ -79,6 +80,12 @@ def baixar(destino: Path | None = None, http: httpx.Client | None = None, log=pr
         raise ValueError("hand_landmarker.task inválido (não tem os dois modelos esperados)")
     (destino / "hand_landmarker.task").write_bytes(modelo)
     feito["hand_landmarker.task"] = origem
+    try:                                   # braços (pose): opcional — sem ele a tela usa o do Google na hora
+        r = c.get(MODELO_POSE); r.raise_for_status()
+        if zipfile.is_zipfile(io.BytesIO(r.content)):
+            (destino / "pose_landmarker_lite.task").write_bytes(r.content); feito["pose_landmarker_lite.task"] = "google"
+    except Exception as e:
+        log(f"→ modelo dos braços não baixou ({type(e).__name__}); a tela usa o do Google quando ligar")
     try:                                   # olhar (íris): opcional — sem ele a tela usa o do Google na hora
         r = c.get(MODELO_ROSTO); r.raise_for_status()
         if {"face_detector.tflite", "face_landmarks_detector.tflite"} <= set(zipfile.ZipFile(io.BytesIO(r.content)).namelist()):

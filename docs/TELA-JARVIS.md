@@ -110,3 +110,38 @@ Pendente de validação física: mãos e olhar com a webcam real e luz real (o o
 no grafo de relações (`~/Jaime/relacoes.db`) ligada ao João. "quem é esse?" reconhece e diz o que o grafo sabe;
 "quais rostos você conhece?"; "esquece o rosto da Ana". Quem a câmera reconheceu vira contexto para o cérebro
 (`[na câmera agora: Ana (irmã do João); memórias: …]`) — nunca permissão.
+
+## Mãos individuais, profundidade e controle do computador (30/09)
+
+**No holograma** cada mão é uma: a direita (ciano) e a esquerda (âmbar) aparecem como holograma na cena, espelhadas,
+com um anel no chão e um fio mostrando a que profundidade estão. Profundidade = tamanho aparente da mão (a tela mede
+o tamanho "neutro" nos primeiros 15 quadros em que a mão aparece): chegar a mão perto da câmera = entrar na cena.
+- a mão ACENDE quando encosta numa peça (o raio da câmera até a pinça cruza a superfície real da peça na mesma
+  profundidade — peça pequena ganha da grande atrás dela);
+- pinça encostada = pega a peça (segue a mão em 3D; girar o punho gira); as duas mãos na mesma peça escalam e giram;
+- pinça no vazio = mexe na cena: direita gira, esquerda aproxima/afasta; punho solta tudo;
+- "mostra meus braços" liga o rastreador de pose (braços até o ombro); "me coloca no holograma" projeta a câmera
+  atrás da peça, alinhada com a mão; "captura esse objeto" congela a imagem como peça de referência.
+
+**Voz no holograma** (sem modelo, em milissegundos — `estudio.rapido`): "separa a roda da frente", "mostra só o
+motor", "mostra a bateria inteira", "mostra tudo", "esconde as portas", "aumenta essa peça", "pinta a lataria de
+vermelho", "gira o volante", "sobe a cabine", "volta a porta", "abre as portas", "explode", "junta tudo". O que
+não se encaixa vai ao modelo, que devolve operações (inclui separar, isolar, focar, cor, mostrar_tudo).
+
+**Controle do computador** ("liga o controle do computador" / botão MÃO): as mãos viram o mouse do Mac inteiro
+(`jaime/jarvis/controle_maos.py` + `mouse_so.py`, Quartz no Mac, Win32 no Windows).
+- direita = mouse (base do indicador guia; pinça clica, pinça dupla = clique duplo, segurar arrasta, médio+polegar =
+  botão direito, punho = levanta o mouse); esquerda = rolagem (pinça + subir/descer, como joystick);
+- 1ª vez: calibração de dois toques (cantos da área confortável), guardada em `~/Jaime/identidade/maos.json`;
+- ENSAIO (mostra, não clica) até calibrar, sem a permissão de Acessibilidade do Python do Jaime, ou com
+  `JAIME_MAOS_SO_ENSAIO=on`; `JAIME_MAOS_SO=off` desliga de vez;
+- só com o cérebro destrancado e sem visita; trancou → desliga e solta o botão; mão sumiu 0,4 s → solta;
+  as duas mãos abertas paradas 2 s → desliga; "troca as mãos" para canhoto; "recalibra a mão".
+- pela aba do Jarvis a janela precisa estar visível em algum monitor. Com o Safari escondido: rastreador nativo
+  (`bash scripts/maos/instalar-nativo.sh`, depois `JAIME_MAOS_NATIVO=on` e permissão de Câmera para o Python).
+
+**Notícias**: o "bom dia" não traz mais notícias; elas vêm quando pedidas ("quais as notícias?", "me dá o
+briefing"). Os cartões somem 75 s depois do último, e a tela não reencena mais o briefing quando reconecta.
+
+Pendente de validação física: profundidade e pinça com a mão real, o lado certo de cada mão na câmera do Mac,
+o mouse real (permissão de Acessibilidade) e o rastreador nativo.

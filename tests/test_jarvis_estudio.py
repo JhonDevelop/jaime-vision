@@ -104,7 +104,9 @@ def test_edicao_por_voz_com_holograma_aberto(tmp_path, monkeypatch):
     j, ev = _jarvis(tmp_path, monkeypatch, modelo)
     assert j.gerador("abre as portas") is None                      # sem holograma aberto, segue para o cérebro
     j.estudio.receber_cena({"titulo": "carro", "pecas": [{"nome": "lataria"}, {"nome": "porta dianteira esquerda"}, {"nome": "porta dianteira direita"}]})
-    assert asyncio.run(_todas(j.gerador("abre as portas"))) == ["Abri as portas."]
+    assert asyncio.run(_todas(j.gerador("abre as portas"))) == ["Portas abertas."]          # comum: sem modelo
+    assert not pedidos and ev[-1][1]["ops"] == [{"op": "girar", "alvo": [1, 2], "valor": [0.0, 1.1, 0.0], "pivo": "frente"}]
+    assert asyncio.run(_todas(j.gerador("deixa as portas como asas de gaivota"))) == ["Abri as portas."]   # incomum: modelo
     assert "porta dianteira esquerda" in pedidos[0] and ev[-1][1]["ops"][0]["alvo"] == [1, 2]
     assert asyncio.run(_todas(j.gerador("desfaz"))) == ["Desfeito."] and ev[-1][1]["acao"] == "desfazer"
 
@@ -152,7 +154,7 @@ def test_desenho_vira_volume(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("frase,esperado", [
-    ("liga o controle pelo olhar", ("olhar", {"ligar": True})), ("desliga o controle por mão", ("maos", {"ligar": False})),
+    ("liga o controle pelo olhar", ("olhar", {"ligar": True})), ("desliga o controle por mão", ("computador", {"ligar": False})),
     ("imprime isso com 80 mm", ("imprimir", {"maior_mm": 80.0})), ("exporta em obj", ("exportar", {"formatos": ["obj"]})),
 ])
 def test_frases_estudio(frase, esperado):
@@ -163,7 +165,8 @@ def test_frases_estudio(frase, esperado):
 def test_sentidos_por_voz(tmp_path, monkeypatch):
     j, ev = _jarvis(tmp_path, monkeypatch)
     assert "calibrar" in asyncio.run(_todas(j.gerador("liga o controle pelo olhar")))[0] and ev[-1] == ("sentidos", {"olhar": True})
-    assert "desligado" in asyncio.run(_todas(j.gerador("desliga o controle por mão")))[0] and ev[-1] == ("sentidos", {"maos": False})
+    assert "desligado" in asyncio.run(_todas(j.gerador("desliga o controle por mão")))[0]
+    assert ("sentidos", {"computador": False}) in ev
 
 
 def test_rotas_do_estudio(tmp_path, monkeypatch):
@@ -219,3 +222,35 @@ def test_apps_premiere_e_abrir(tmp_path):
     assert r == {"ok": True, "app": "canva", "como": "web"} and cmds[-1] == ["open", "https://www.canva.com/"]
     assert not apps.abrir("premiere", rodar=cmds.append, sistema="Darwin", localizar_fn=lambda n, s: None)["ok"]
     assert apps.PERIGOSO_JSX.search("app.activeDocument.saveAs(f)") and not apps.PERIGOSO_JSX.search("app.documents.add(800, 600)")
+
+
+def test_pedidos_comuns_sem_modelo():
+    from jaime.jarvis.estudio import rapido
+    nomes = ["lataria", "porta dianteira esquerda", "porta dianteira direita", "motor dianteiro", "motor traseiro",
+             "roda dianteira esquerda", "roda dianteira direita", "roda traseira esquerda", "volante"]
+    pecas = [{"i": i, "nome": n} for i, n in enumerate(nomes)]
+    casos = {
+        "separa a roda da frente": [{"op": "separar", "alvo": [5], "valor": 1.6}],
+        "mostra só os motores": [{"op": "isolar", "alvo": [3, 4]}],
+        "mostra o volante inteiro": [{"op": "isolar", "alvo": [8]}],
+        "mostra tudo": [{"op": "mostrar_tudo"}],
+        "esconde as portas": [{"op": "esconder", "alvo": [1, 2]}],
+        "aumenta essa peça": [{"op": "escalar", "alvo": "selecionada", "valor": [1.3, 1.3, 1.3]}],
+        "pinta a lataria de vermelho": [{"op": "cor", "alvo": [0], "valor": "#ff3b3b"}],
+        "deixa o volante azul": [{"op": "cor", "alvo": [8], "valor": "#3b8bff"}],
+        "foca no motor traseiro": [{"op": "focar", "alvo": [4]}],
+        "volta a roda dianteira esquerda": [{"op": "resetar", "alvo": [5]}],
+        "sobe o volante": [{"op": "mover", "alvo": [8], "valor": [0.0, 0.6, 0.0]}],
+    }
+    for frase, ops in casos.items():
+        r = rapido(frase, pecas, 2)
+        assert r is not None and r[0] == ops, frase
+    assert rapido("separa o escapamento", pecas, None) is None           # peça que não existe: vai ao modelo
+    assert rapido("faz ele parecer mais esportivo", pecas, None) is None
+
+
+def test_ops_novas_validadas():
+    ops = validar_ops({"ops": [{"op": "separar", "alvo": [0], "valor": 99}, {"op": "cor", "alvo": [0], "valor": "vermelho"},
+                               {"op": "cor", "alvo": [0], "valor": "#AABBCC"}, {"op": "mostrar_tudo"}, {"op": "isolar", "alvo": [7]},
+                               {"op": "resetar"}]}, n_pecas=3)
+    assert ops == [{"op": "separar", "alvo": [0], "valor": 5.0}, {"op": "cor", "alvo": [0], "valor": "#aabbcc"}, {"op": "mostrar_tudo"}, {"op": "resetar"}]

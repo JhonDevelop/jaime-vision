@@ -95,11 +95,18 @@
       if (['status', 'bm', 'foco'].includes(p.tipo)) { const v = principal; v.classList.add('saindo'); setTimeout(() => v.remove(), 700); }
       else { principal.className = principal.className.replace('principal', 'doca'); doca.push(principal); }
     }
-    principal = criar(c, 'principal'); posicionar();
+    principal = criar(c, 'principal'); posicionar(); ultimoCard = agora();
     requestAnimationFrame(() => requestAnimationFrame(() => principal && principal.classList.remove('entrando')));
     return principal;
   }
   function limparPalco() { palco.innerHTML = ''; principal = null; doca.length = 0; }
+  // cartões não ficam para sempre: 75 s depois do último, sem fala e sem fila, a tela volta ao orbe limpo
+  let ultimoCard = 0;
+  setInterval(() => {
+    if (!palco.children.length || agora() - ultimoCard < 75000 || (typeof fila !== 'undefined' && fila.length) || falando) return;
+    [...palco.children].forEach(el => el.classList.add('saindo'));
+    setTimeout(limparPalco, 700); ultimoCard = agora();
+  }, 5000);
   function arrumarFinal() {                    // no fim: tudo enfileirado sob o orbe, sem card no centro
     if (principal && !['status', 'bm', 'foco'].includes(principal._c.tipo)) { principal.className = principal.className.replace('principal', 'doca'); doca.push(principal); }
     else if (principal) principal.remove();
@@ -153,6 +160,8 @@
       }
       fila.push({ id: e.id, fala: e.fala, card: e.card });
       if (agora() - ultimaVoz < 1500 && ultimaTextoVoz) tentarMostrar(ultimaTextoVoz);
+    } else if (e.fase === 'inicio_noticias') {
+      limparPalco(); fila = []; fimPendente = false; ultimoMostrado = agora();
     } else if (e.fase === 'fim') {
       fimPendente = true; if (!fila.length) setTimeout(arrumarFinal, 4000);
     }
@@ -235,13 +244,15 @@
   async function holograma(e) {
     if (e.acao === 'fechar') { window.Holograma && Holograma.fechar(); return; }
     if (e.acao === 'exportado') { mostrarPrincipal({ tipo: 'status', rotulo: 'ARQUIVO 3D', titulo: Object.values(e.arquivos || {}).map(p => String(p).split('/').pop()).join(' · '), texto: 'Jaime/hologramas/exportados' }); return; }
-    if (['editar', 'desfazer', 'exportar'].includes(e.acao) && !(window.Holograma && Holograma.aberto())) return;
+    if (['editar', 'desfazer', 'exportar', 'capturar'].includes(e.acao) && !(window.Holograma && Holograma.aberto())) return;
     if (e.acao === 'editar') return Holograma.editar(e.ops);
     if (e.acao === 'desfazer') return Holograma.desfazer();
     if (e.acao === 'exportar') return Holograma.exportar();
+    if (e.acao === 'capturar') return Holograma.capturar();
     if (!window.THREE) await carregarScript('/hud/vendor/three.min.js');
     if (!window.Holograma) await carregarScript('/hud/jarvis/holograma.js');
     if (e.acao === 'desenho') return Holograma.desenho(e);
+    if (e.acao === 'camera') return Holograma.camera(!!e.ligar, !!e.bracos);
     if (e.acao === 'abrir') Holograma.abrir(e);
   }
 
@@ -321,19 +332,27 @@
       case 'cartao': if (e.card) mostrarPrincipal(e.card); break;
       case 'sentidos':
         if (!window.Sentidos) break;
-        if (e.maos === false || e.olhar === false) Sentidos.desligar({ ...(e.maos === false ? { tela: false } : {}), ...(e.olhar === false ? { olhar: false } : {}) });
-        if (e.maos === true || e.olhar === true) Sentidos.ligar({ ...(e.maos === true ? { tela: true } : {}), ...(e.olhar === true ? { olhar: true } : {}) });
-        if (e.olhar === true) Sentidos.calibrar();
+        if (e.computador === false) Sentidos.desligar({ computador: false, maos: !!(window.Holograma && Holograma.aberto()) });
+        if (e.olhar === false) Sentidos.desligar({ olhar: false });
+        if (e.computador === true) Sentidos.ligar({ computador: true, maos: true });
+        if (e.olhar === true) { Sentidos.ligar({ olhar: true }); Sentidos.calibrar(); }
+        $('btMao').classList.toggle('ativo', !!Sentidos.estado().computador);
         break;
+      case 'maos_so': if (window.Sentidos) Sentidos.estadoSO(e); break;
     }
   }
-  let historico = true;
+  // O servidor reenvia os últimos 60 eventos a CADA conexão; o EventSource reconecta sozinho (sono do Mac, rede,
+  // reinício). Sem este corte, cada reconexão reencenava o briefing inteiro — as notícias "em sequência para sempre".
+  let visto = 0;
   function sse() {
     const es = new EventSource('/hud/stream');
+    let corte = visto || (Date.now() / 1000 - 5);
     es.onmessage = ev => { let e; try { e = JSON.parse(ev.data); } catch (x) { return; }
-      if (historico && Date.now() / 1000 - (e.t || 0) > 5) { if (['voz', 'modelo', 'acesso', 'estado'].includes(e.tipo)) evento(e); return; }   // não reencena o que já passou
-      historico = false; evento(e); };
-    es.onerror = () => {};
+      const t = e.t || 0;
+      if (t <= corte) { if (!visto && ['voz', 'modelo', 'acesso', 'estado'].includes(e.tipo)) evento(e); return; }   // já passou: não reencena
+      if (t > visto) visto = t;
+      evento(e); };
+    es.onerror = () => { corte = visto || corte; };
   }
   sse(); rotulo();
   window.JarvisTela = { evento };                 // para testes e para outras telas
@@ -345,7 +364,7 @@
   $('btBriefing').onclick = () => falar('me dá o briefing');
   $('btMonitor').onclick = () => falar('ativar monitor');
   $('btDesenho').onclick = () => falar('quero desenhar');
-  $('btMao').onclick = () => { const on = !(window.Sentidos && Sentidos.estado().tela); falar(on ? 'liga o controle por mão' : 'desliga o controle por mão'); };
+  $('btMao').onclick = () => { const on = !(window.Sentidos && Sentidos.estado().computador); falar(on ? 'liga o controle do computador' : 'desliga o controle do computador'); };
   $('btOrbe').onclick = () => Orbe.estilo(Orbe.estiloAtual === 'fios' ? 'particulas' : 'fios');
   let mudo = false;
   $('mic').onclick = async () => { mudo = !mudo; $('mic').classList.toggle('mudo', mudo); await post('/hud/voz', { ativa: !mudo }); };

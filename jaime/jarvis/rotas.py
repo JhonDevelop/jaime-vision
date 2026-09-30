@@ -8,9 +8,10 @@
 from __future__ import annotations
 import hmac
 from pathlib import Path
-from fastapi import APIRouter, Header, HTTPException, Request
+import asyncio, json
+from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
-from ..blocos.rotas import _so_local
+from ..blocos.rotas import _so_local, _loopback, origem_ok
 from ..hud.events import bus
 from . import holograma as holo
 from . import saude as sd
@@ -88,6 +89,44 @@ async def holograma_fechado(request: Request):
     _so_local(request)
     _jarvis().estudio.fechar()
     return {"ok": True}
+
+
+@router.websocket("/jarvis/maos/ws")
+async def maos_ws(ws: WebSocket):
+    """A aba do Jarvis manda os pontos das mãos (~30/s); o servidor move o mouse do computador (controle_maos.py).
+    Só da própria máquina e do próprio HUD — o serviço pode estar em 0.0.0.0, e mouse remoto seria um buraco."""
+    host = ws.client.host if ws.client else ""
+    j = ESTADO.get("jarvis")
+    if not _loopback(host) or not origem_ok(ws.headers.get("origin") or "") or j is None:
+        await ws.close(code=4403)
+        return
+    c = j.controle
+    await ws.accept()
+    try:
+        while True:
+            try:
+                msg = await asyncio.wait_for(ws.receive_text(), 0.25)
+            except asyncio.TimeoutError:
+                c.vigiar()
+                continue
+            if len(msg) > 20000:
+                continue
+            try:
+                d = json.loads(msg)
+            except json.JSONDecodeError:
+                continue
+            if not c.nativo:                  # com o rastreador nativo ligado, ele manda; o navegador só observa
+                c.receber(d.get("maos") or [])
+    except WebSocketDisconnect:
+        pass
+    finally:
+        c.soltar_tudo()
+
+
+@router.get("/jarvis/maos/estado")
+async def maos_estado(request: Request):
+    _so_local(request)
+    return _jarvis().controle.estado()
 
 
 @router.post("/jarvis/tela/viva")

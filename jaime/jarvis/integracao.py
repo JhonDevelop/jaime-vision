@@ -9,7 +9,7 @@ from datetime import datetime
 from ..hud.events import bus
 from . import holograma as holo
 from . import tela
-from .briefing import Briefing, do_jaime, quer_briefing
+from .briefing import Briefing, do_jaime, pediu_briefing, quer_briefing
 from .monitor import Monitor
 from .rosto import DONO, Rostos, ident
 from .estudio import Estudio
@@ -23,7 +23,7 @@ def ligado(env=None) -> bool:
 
 class Jarvis:
     def __init__(self, briefing: Briefing, monitor: Monitor, rostos: Rostos, emitir=None, env=None,
-                 modelo_holo=None, sentinela=None, capacidades=None, garantir_tela=None, relacoes=None, espera_rosto: float = 10.0, mensagens=None, convidado=None):
+                 modelo_holo=None, sentinela=None, capacidades=None, garantir_tela=None, relacoes=None, espera_rosto: float = 10.0, mensagens=None, convidado=None, controle=None):
         self.briefing, self.monitor, self.rostos = briefing, monitor, rostos
         self.modelo_holo, self.sentinela, self.capacidades = modelo_holo, sentinela, capacidades
         self.garantir_tela = garantir_tela or (lambda: None)
@@ -38,6 +38,8 @@ class Jarvis:
         self.convidado = convidado or (lambda: "")  # quem está na linha, se não for o João (voz reconhecida / remoto)
         self._espera_quem: asyncio.Future | None = None
         self.estudio = Estudio(self.emitir)
+        from .controle_maos import ControleMaos
+        self.controle = controle or ControleMaos(emitir=self.emitir)     # mãos → mouse do computador (controle_maos.py)
         self.abrir_blender = None               # injetável (teste); padrão: malha3d.abrir_no_blender
         self.abrir_fatiador = None              # injetável (teste); padrão: malha3d.abrir_no_fatiador
 
@@ -47,7 +49,7 @@ class Jarvis:
         hoje = agora.strftime("%Y-%m-%d")
         if quer_briefing(texto, agora, ja_deu_hoje=self.briefing.ultimo_dia == hoje or not self.bom_dia):
             self.garantir_tela()
-            return self._falas(self.briefing.rodar())
+            return self._falas(self.briefing.rodar(noticias=pediu_briefing(texto)))
         c = cena(texto)
         if c is None and self.estudio.aberto:
             c = edicao(texto)                    # holograma aberto: "abre as portas", "aumenta essa peça", "desfaz"
@@ -95,14 +97,47 @@ class Jarvis:
             if not self.estudio.aberto and not self.estudio.spec:
                 return self._uma("Não tem holograma aberto. Peça um holograma ou diga: quero desenhar.")
             return self._falas(self._exportar(args.get("formatos") or ["glb"], blender=nome == "blender"))
-        if nome in ("olhar", "maos"):
+        if nome == "olhar":
             self.garantir_tela()
-            self.emitir("sentidos", **{nome: args["ligar"]})
-            if nome == "olhar":
-                return self._uma("Controle pelo olhar ligado. Olhe para o centro da tela por um segundo para eu calibrar."
-                                 if args["ligar"] else "Controle pelo olhar desligado.")
-            return self._uma("Controle por mão ligado: o indicador é o cursor, a pinça clica, a mão aberta parada fecha o que estiver aberto."
-                             if args["ligar"] else "Controle por mão desligado.")
+            self.emitir("sentidos", olhar=args["ligar"])
+            return self._uma("Controle pelo olhar ligado. Olhe para o centro da tela por um segundo para eu calibrar."
+                             if args["ligar"] else "Controle pelo olhar desligado.")
+        if nome in ("computador", "maos"):
+            if args["ligar"]:
+                self.garantir_tela()
+                fala = self.controle.ligar()
+                if self.controle.ligado:
+                    self.emitir("sentidos", computador=True)
+                return self._uma(fala)
+            self.emitir("sentidos", computador=False)
+            return self._uma(self.controle.desligar())
+        if nome == "recalibrar":
+            self.garantir_tela()
+            fala = self.controle.recalibrar()
+            if self.controle.ligado:
+                self.emitir("sentidos", computador=True)
+            return self._uma(fala)
+        if nome == "trocar_maos":
+            return self._uma(self.controle.trocar_maos())
+        if nome == "noticias":
+            self.garantir_tela()
+            return self._falas(self.briefing.rodar_noticias())
+        if nome == "camera_holo":
+            if args["ligar"]:
+                self.garantir_tela()
+                if not self.estudio.aberto:
+                    self.estudio.abrir("você no holograma")
+                    self.emitir("holograma", acao="abrir", modelo="vazio", titulo="VOCÊ NO HOLOGRAMA", exato=True)
+                self.emitir("holograma", acao="camera", ligar=True, bracos=True)
+                return self._uma("Pronto, você está no holograma: a câmera virou projeção e as suas mãos e braços aparecem na cena. "
+                                 "A mão fica mais forte quando chega na profundidade da peça: é aí que ela pega.")
+            self.emitir("holograma", acao="camera", ligar=False)
+            return self._uma("Câmera fora do holograma; suas mãos continuam aparecendo.")
+        if nome == "capturar":
+            if not self.estudio.aberto:
+                return self._uma("Abra um holograma primeiro, ou diga: me coloca no holograma.")
+            self.emitir("holograma", acao="capturar")
+            return self._uma("Capturado. A imagem virou uma peça de referência: dá para pegar, mover e escalar como as outras.")
         if nome == "aprende_rosto":
             return self._uma(self._aprender(args.get("nome", ""), args.get("relacao", "")))
         if nome == "esquece_rosto":
@@ -427,7 +462,27 @@ def montar(jaime, env=None) -> Jarvis | None:
     return Jarvis(do_jaime(jaime), Monitor(rostos), rostos, env=env, modelo_holo=modelo_holo,
                   sentinela=getattr(jaime, "sentinela", None), capacidades=lambda: capacidades_de(jaime),
                   garantir_tela=lambda: tela.garantir(env=env), relacoes=lambda: getattr(jaime, "relacoes", None),
-                  mensagens=lambda: mensagens_de(jaime), convidado=lambda: getattr(getattr(jaime, "vigia", None), "convidado", ""))
+                  mensagens=lambda: mensagens_de(jaime), convidado=lambda: getattr(getattr(jaime, "vigia", None), "convidado", ""),
+                  controle=_controle_de(jaime))
+
+
+def _controle_de(jaime):
+    from .controle_maos import ControleMaos
+    from . import mouse_so
+
+    def pode():
+        if not getattr(getattr(jaime, "acesso", None), "liberado", False):
+            return False, "O cérebro está trancado: diga a palavra-passe antes de eu mexer no computador."
+        if getattr(getattr(jaime, "vigia", None), "convidado", ""):
+            return False, "Tem visita na linha: o mouse do computador só com o senhor."
+        return True, ""
+
+    def falar(texto):
+        from .rotas import ESTADO
+        f = ESTADO.get("falar")
+        if callable(f):
+            f(texto)
+    return ControleMaos(mouse_fn=mouse_so.do_sistema, emitir=bus.emitir, falar=falar, pode=pode)
 
 
 def mensagens_de(jaime, apps=("WhatsApp", "Mensagens", "Telegram")) -> list[dict]:

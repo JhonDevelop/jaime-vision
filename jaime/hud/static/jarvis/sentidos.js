@@ -1,19 +1,45 @@
-/* Sentidos da tela Jarvis: UMA câmera para as mãos (MediaPipe Hand Landmarker) e o olhar (Face Landmarker + íris).
-   Tudo roda no navegador desta máquina; nada de imagem sai daqui.
+/* Sentidos da tela Jarvis: UMA câmera para as mãos (MediaPipe Hand Landmarker), os braços (Pose Landmarker, opcional)
+   e o olhar (Face Landmarker + íris, opcional). Tudo roda no navegador desta máquina; nenhuma imagem sai daqui.
 
-   Quem usa assina:  const sair = Sentidos.assinar(q => …)   q = { maos: [21 pontos]…, olhar: {x, y} | null, t }
-   - holograma.js: mãos manipulam peças; o olhar mira a peça (parar o olhar ~0,9 s seleciona);
-   - cursor da tela ("liga o controle por mão"): o indicador move o cursor; pinça rápida clica em controles marcados
-     com data-mao; mão aberta parada 1,2 s fecha o que estiver aberto (holograma, cartões).
-   Gesto NUNCA aprova nada: o cursor só clica em controles da própria tela; nada do Vigia tem data-mao.
-   O olhar pela webcam é aproximado (íris + cabeça, calibrado olhando o centro 1 s) — serve para peças grandes. */
+   Quem usa assina:  const sair = Sentidos.assinar(q => …)
+     q = { maos: [[21 pontos {x,y,z}] …], lados: ['direita'|'esquerda' …], escalas: [tamanho da mão na imagem …],
+           bracos: {direita: [ombro, cotovelo, punho], esquerda: […]} | null, olhar: {x, y} | null, t, video }
+   - cada mão é INDIVIDUAL: lado vem do rastreador (imagem crua → a lateralidade do MediaPipe inverte) e, se ele se
+     confundir, pela posição; cada mão tem o seu filtro One Euro (tira o tremor sem atrasar o movimento rápido);
+   - "escala" = tamanho aparente da mão; mão mais perto da câmera = maior. O holograma usa isso como PROFUNDIDADE;
+   - controle do computador ("liga o controle do computador"): os pontos crus vão por WebSocket ao servidor, que
+     mexe o mouse de verdade (controle_maos.py). A aba precisa estar visível em algum monitor; escondida, o Safari
+     para de processar — por isso existe o rastreador nativo (maos_nativo.py);
+   - o olhar pela webcam é aproximado (íris + cabeça, calibrado olhando o centro 1 s). */
 (function () {
-  const est = { maos: false, olhar: false, tela: false, erro: '' };
-  let video = null, vision = null, base = '', local = false, lmMao = null, lmRosto = null, rodando = false, ultimo = -1, n = 0;
+  const est = { maos: false, olhar: false, computador: false, bracos: false, erro: '' };
+  let video = null, vision = null, base = '', local = false, lmMao = null, lmRosto = null, lmPose = null, rodando = false, ultimo = -1, n = 0;
   const assinantes = new Set();
-  let olharSuave = null, calib = null, amostras = [], ultimoOlhar = null;
+  let olharSuave = null, calib = null, amostras = [], ultimoOlhar = null, ultimosBracos = null, ws = null, wsVazioT = 0;
   const GANHO = { x: 3.2, y: 4.2 };
   const d2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const GOOGLE = 'https://storage.googleapis.com/mediapipe-models/';
+
+  /* ── One Euro por eixo (Casiez 2012): parado filtra forte, rápido filtra pouco ── */
+  function OneEuro(minCut = 1.5, beta = 1.0, dCut = 1.0) {
+    let x = null, dx = 0, t0 = null;
+    const alfa = (c, dt) => 1 / (1 + 1 / (2 * Math.PI * c * dt));
+    return (v, t) => {
+      if (x === null || t0 === null || t <= t0) { x = v; t0 = t; dx = 0; return v; }
+      const dt = (t - t0) / 1000; t0 = t;
+      const ndx = (v - x) / dt; dx = dx + alfa(dCut, dt) * (ndx - dx);
+      const c = minCut + beta * Math.abs(dx);
+      x = x + alfa(c, dt) * (v - x); return x;
+    };
+  }
+  const filtros = {};                                   // lado → 21×3 filtros
+  function filtrar(lado, pts, t) {
+    let f = filtros[lado];
+    if (!f || (f.ult && d2(f.ult, pts[0]) > .25)) f = filtros[lado] = { e: pts.map(() => [OneEuro(), OneEuro(), OneEuro(1.0, .5)]) };
+    f.ult = pts[0];
+    return pts.map((p, i) => ({ x: f.e[i][0](p.x, t), y: f.e[i][1](p.y, t), z: f.e[i][2](p.z || 0, t) }));
+  }
+  const escala = h => (d2(h[0], h[5]) + d2(h[0], h[17]) + d2(h[5], h[17])) / 3;
 
   async function carregar() {
     if (vision) return vision;
@@ -35,37 +61,54 @@
     if (video) return video;
     video = document.createElement('video'); video.autoplay = true; video.muted = true; video.playsInline = true; video.id = 'sentidosVideo';
     document.body.appendChild(video);
-    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 540 } });
     await video.play(); return video;
   }
 
   async function ligar(o) {
     Object.assign(est, o || {});
-    atualizarCursor();
+    if (est.computador) est.maos = true;
+    painel();
     try {
       await carregar(); await camera();
-      if ((est.maos || est.tela) && !lmMao) lmMao = await criar(vision.v.HandLandmarker,
-        await modelo('hand_landmarker.task', 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'), { numHands: 2 });
-      if (est.olhar && !lmRosto) { lmRosto = await criar(vision.v.FaceLandmarker,
-        await modelo('face_landmarker.task', 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'), { numFaces: 1 });
-        calibrar(); }
+      if (est.maos && !lmMao) lmMao = await criar(vision.v.HandLandmarker, await modelo('hand_landmarker.task',
+        GOOGLE + 'hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'), { numHands: 2, minHandDetectionConfidence: .6, minTrackingConfidence: .6 });
+      if (est.bracos && !lmPose) lmPose = await criar(vision.v.PoseLandmarker, await modelo('pose_landmarker_lite.task',
+        GOOGLE + 'pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'), { numPoses: 1 });
+      if (est.olhar && !lmRosto) { lmRosto = await criar(vision.v.FaceLandmarker, await modelo('face_landmarker.task',
+        GOOGLE + 'face_landmarker/face_landmarker/float16/1/face_landmarker.task'), { numFaces: 1 }); calibrar(); }
       est.erro = '';
-      if (!rodando) { rodando = true; requestAnimationFrame(quadro); }
+      if (est.computador) abrirWS();
+      if (!rodando) { rodando = true; agendar(); }
     } catch (e) { est.erro = (e && e.message) || 'câmera indisponível'; console.warn('sentidos:', est.erro); }
-    atualizarCursor(); return est;
+    painel(); return est;
   }
   function desligar(o) {
-    Object.assign(est, o || { maos: false, olhar: false, tela: false });
-    if (!est.maos && !est.olhar && !est.tela) {
+    Object.assign(est, o || { maos: false, olhar: false, computador: false, bracos: false });
+    if (!est.computador && ws) { try { ws.close(); } catch (e) { } ws = null; }
+    if (!est.bracos) ultimosBracos = null;
+    if (!est.maos && !est.olhar && !est.computador && !est.bracos) {
       rodando = false;
       if (video && video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
       if (video) video.remove(); video = null;
     }
-    atualizarCursor();
+    painel();
   }
   function calibrar() { calib = null; amostras = []; }
 
-  /* ── olhar: íris dentro do olho + um pouco da cabeça; o centro é medido nos primeiros ~30 quadros ── */
+  /* ── WebSocket do controle do computador ── */
+  function abrirWS() {
+    if (ws && ws.readyState <= 1) return;
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/jarvis/maos/ws');
+    ws.onclose = () => { ws = null; if (est.computador) setTimeout(abrirWS, 1500); };
+  }
+  function enviar(maos, lados, t) {
+    if (!est.computador || !ws || ws.readyState !== 1) return;
+    if (!maos.length) { if (t - wsVazioT < 200) return; wsVazioT = t; }
+    ws.send(JSON.stringify({ t, maos: maos.map((h, i) => ({ lado: lados[i], p: h.map(p => [+p.x.toFixed(4), +p.y.toFixed(4)]) })) }));
+  }
+
+  /* ── olhar ── */
   function olharDe(f) {
     if (!f || f.length < 478) return null;
     const h1 = (f[468].x - f[33].x) / ((f[133].x - f[33].x) || 1e-3), h2 = (f[473].x - f[362].x) / ((f[263].x - f[362].x) || 1e-3);
@@ -86,67 +129,78 @@
     return olharSuave;
   }
 
+  /* ── lateralidade: cada mão é uma ── */
+  function lados(r) {
+    const hs = r.landmarks || [], cats = r.handednesses || r.handedness || [];
+    const out = hs.map((h, i) => { const c = (cats[i] || [])[0]; const nome = c && (c.categoryName || c.displayName || c.label);
+      return nome === 'Left' ? 'direita' : nome === 'Right' ? 'esquerda' : null; });       // imagem crua: o rótulo vem invertido
+    if (hs.length === 2 && (out[0] === out[1] || !out[0] || !out[1])) {
+      const direitaPrimeiro = hs[0][0].x < hs[1][0].x;                                   // na imagem crua, a direita fica à esquerda
+      return direitaPrimeiro ? ['direita', 'esquerda'] : ['esquerda', 'direita'];
+    }
+    return out.map(l => l || 'direita');
+  }
+  function bracosDe(r) {
+    const p = (r.landmarks || [])[0]; if (!p) return null;
+    const ok = i => p[i] && (p[i].visibility == null || p[i].visibility > .45);
+    return { direita: [12, 14, 16].every(ok) ? [p[12], p[14], p[16]] : null, esquerda: [11, 13, 15].every(ok) ? [p[11], p[13], p[15]] : null };
+  }
+
+  function agendar() { if (!rodando) return; if (document.hidden) setTimeout(quadro, 33); else requestAnimationFrame(quadro); }
   function quadro() {
     if (!rodando) return;
-    requestAnimationFrame(quadro);
+    agendar();
     if (!video || video.readyState < 2 || video.currentTime === ultimo) return;
     ultimo = video.currentTime; n++;
     const t = performance.now();
-    let maos = [];
-    try { if (lmMao) maos = lmMao.detectForVideo(video, t).landmarks || []; } catch (e) { }
-    if (lmRosto && est.olhar && n % 2 === 0) {
+    let maos = [], ls = [];
+    try {
+      if (lmMao) { const r = lmMao.detectForVideo(video, t); ls = lados(r); maos = r.landmarks || []; }
+    } catch (e) { }
+    enviar(maos, ls, t);                                           // cru: o servidor filtra o cursor do jeito dele
+    const filtradas = maos.map((h, i) => filtrar(ls[i], h, t));
+    if (lmPose && est.bracos && n % 2 === 0) { try { ultimosBracos = bracosDe(lmPose.detectForVideo(video, t)); } catch (e) { } }
+    if (lmRosto && est.olhar && n % 2 === 1) {
       try { const r = lmRosto.detectForVideo(video, t); ultimoOlhar = olharNaTela(olharDe((r.faceLandmarks || [])[0])); } catch (e) { }
     }
-    publicar({ maos, olhar: est.olhar ? ultimoOlhar : null, t });
+    publicar({ maos: filtradas, lados: ls, escalas: filtradas.map(escala), bracos: est.bracos ? ultimosBracos : null,
+               olhar: est.olhar ? ultimoOlhar : null, t, video });
   }
   function publicar(q) {
     q.t = q.t || performance.now();
+    q.lados = q.lados || (q.maos || []).map((_, i) => i ? 'esquerda' : 'direita');
+    q.escalas = q.escalas || (q.maos || []).map(escala);
     desenharOlhar(q.olhar);
-    cursorTela(q);
     for (const f of assinantes) { try { f(q); } catch (e) { console.warn(e); } }
   }
 
-  /* ── cursor da tela toda ── */
-  let cur = null, alvoOlho = null, pinca = null, palma = null;
-  function atualizarCursor() {
-    if (!cur) { cur = document.createElement('div'); cur.id = 'cursorMao'; document.body.appendChild(cur);
-      alvoOlho = document.createElement('div'); alvoOlho.id = 'cursorOlhar'; document.body.appendChild(alvoOlho); }
-    cur.style.display = est.tela ? 'block' : 'none';
+  /* ── painel do controle do computador (estado vem do servidor: evento maos_so) ── */
+  let chip = null, mapa = null, alvoOlho = null;
+  function painel() {
+    if (!chip) {
+      chip = document.createElement('div'); chip.id = 'maosSO';
+      chip.innerHTML = '<div class="tt">✋ COMPUTADOR</div><div class="mapa"><i></i></div><div class="tx"></div>'; document.body.appendChild(chip);
+      mapa = chip.querySelector('.mapa i');
+      alvoOlho = document.createElement('div'); alvoOlho.id = 'cursorOlhar'; document.body.appendChild(alvoOlho);
+    }
+    chip.style.display = est.computador ? 'block' : 'none';
     alvoOlho.style.display = est.olhar ? 'block' : 'none';
+    if (est.erro && est.computador) chip.querySelector('.tx').textContent = 'câmera: ' + est.erro;
+  }
+  function estadoSO(e) {                                           // chamado pelo jarvis.js a cada evento maos_so
+    if (!chip) painel();
+    if (e.cursor && mapa) { mapa.style.left = e.cursor[0] * 100 + '%'; mapa.style.top = e.cursor[1] * 100 + '%'; mapa.classList.toggle('arrasta', !!e.arrastando); }
+    if (e.ensaio != null) chip.classList.toggle('ensaio', !!e.ensaio);
+    if (e.acao) { chip.classList.add('pisca'); setTimeout(() => chip.classList.remove('pisca'), 220); }
+    if (e.texto) chip.querySelector('.tx').textContent = e.texto;
+    if (e.ligado === false) { est.computador = false; if (ws) { try { ws.close(); } catch (x) { } ws = null; } painel(); }
+    if (e.etapa != null) chip.classList.toggle('calibrando', e.etapa > 0);
   }
   function desenharOlhar(o) { if (alvoOlho && o) { alvoOlho.style.left = o.x * innerWidth + 'px'; alvoOlho.style.top = o.y * innerHeight + 'px'; } }
-  function aberta(h) { const p = h[0]; return [8, 12, 16, 20].every(i => d2(h[i], p) > d2(h[i - 2], p) * 1.15); }
-  function cursorTela(q) {
-    if (!est.tela || !cur) return;
-    if (window.Holograma && Holograma.aberto && Holograma.aberto()) { cur.classList.add('oculto'); return; }   // lá dentro a mão é do holograma
-    cur.classList.remove('oculto');
-    const h = (q.maos || [])[0];
-    if (!h) { pinca = null; palma = null; return; }
-    const x = (1 - h[8].x) * innerWidth, y = h[8].y * innerHeight;             // espelhado: mão direita → direita
-    cur.style.left = x + 'px'; cur.style.top = y + 'px';
-    const fechando = d2(h[4], h[8]) < .045;
-    cur.classList.toggle('pinca', fechando);
-    if (fechando && !pinca) pinca = { t: q.t, x, y, p: h[9] };
-    if (!fechando && pinca) {           // clique onde a pinça fechou; a palma (não a ponta do dedo) mede se a mão andou
-      if (q.t - pinca.t < 450 && d2(h[9], pinca.p) < .04) clicar(pinca.x, pinca.y);
-      pinca = null;
-    }
-    if (aberta(h) && !fechando) {
-      const c = h[9];
-      if (!palma || d2(c, palma.c) > .04) palma = { c, t: q.t };
-      else if (q.t - palma.t > 1200) { palma = { c, t: q.t + 1e9 }; fecharTudo(); }
-    } else palma = null;
-  }
-  function clicar(x, y) {
-    const el = document.elementFromPoint(x, y), alvo = el && el.closest('[data-mao]');
-    cur.classList.add('clique'); setTimeout(() => cur.classList.remove('clique'), 250);
-    if (alvo) alvo.click();
-  }
-  function fecharTudo() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); }
 
   window.Sentidos = {
-    ligar, desligar, calibrar, estado: () => ({ ...est, calibrado: !!calib }),
+    ligar, desligar, calibrar, estadoSO, estado: () => ({ ...est, calibrado: !!calib }), video: () => video,
     assinar(f) { assinantes.add(f); return () => assinantes.delete(f); },
-    _publicar: publicar, _olharDe: olharDe, _olharNaTela: olharNaTela,
+    _publicar: publicar, _olharDe: olharDe, _olharNaTela: olharNaTela, _lados: lados, _escala: escala,
   };
 })();
