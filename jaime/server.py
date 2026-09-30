@@ -82,6 +82,7 @@ async def lifespan(app: FastAPI):
     notificacoes = Notificacoes(jaime, ouvido)
     notif_t = asyncio.create_task(notificacoes.rodar())
     app.state.notificacoes = notificacoes
+    jaime.notificacoes = notificacoes           # cena "mensagens do WhatsApp" da tela Jarvis
     # hot-reload de módulos sem estado vivo (ex. ops/notificacoes.py): corrige bug sem reiniciar o serviço.
     # voice/* fica de fora de propósito — mic, TTS e sessão do modelo não podem trocar de código no meio de uma fala.
     from .ops.hotreload import Recarregador

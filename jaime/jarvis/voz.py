@@ -53,6 +53,10 @@ IMPRIME_RX = re.compile(J + r"(?:(manda|mandar|prepara|preparar|leva|levar|envia
 DESFAZ_RX = re.compile(J + r"(desfaz|desfazer|desfa[cç]a|volta\s+(como\s+estava|atr[aá]s)|volta\s+o\s+que\s+era)\s*(isso)?\s*[.!]*\s*$", re.I)
 OLHAR_RX = re.compile(J + r"(?P<acao>liga|ligar|ativa|ativar|desliga|desligar|desativa|desativar)\s+(o\s+)?(controle\s+(pelo|por)\s+)?(olhar|olho|olhos|rastreamento\s+ocular)\s*[.!]*\s*$", re.I)
 MAOS_RX = re.compile(J + r"(?P<acao>liga|ligar|ativa|ativar|desliga|desligar|desativa|desativar)\s+(o\s+)?controle\s+(pela|por|pelas|com\s+a|com\s+as)\s+(m[aã]o|m[aã]os|gestos?)\s*[.!]*\s*$", re.I)
+CAIXA_RX = re.compile(J + r"((abre|abra|mostra|mostre|l[eê]|leia|carrega|como\s+est[aá])\s+(a\s+|minha\s+)?caixa\s+de\s+(entrada|e-?mails?)|"
+                      r"(abre|mostra|l[eê]|leia|carrega)\s+(os\s+|meus\s+)?e-?mails|tenho\s+(algum\s+)?e-?mails?(\s+novos?)?|chegou\s+(algum\s+)?e-?mail)\s*[?.!]*\s*$", re.I)
+MENSAGENS_RX = re.compile(J + r"((abre|mostra|l[eê]|leia|carrega|quais\s+s[aã]o)\s+(as\s+|minhas\s+)?mensagens(\s+(do|no)\s+(whats\s*app|zap|whats))?|"
+                          r"(tenho|chegou)\s+(alguma\s+)?mensage(m|ns)(\s+(no|do)\s+(whats\s*app|zap|whats))?|quem\s+(me\s+)?mandou\s+mensagem)\s*[?.!]*\s*$", re.I)
 EDITA_RX = re.compile(J + r"(abre|abra|fecha|feche|adiciona|acrescenta|coloca|coloque|p[õo]e|bota|tira|remove|aumenta|aumente|diminui|diminua|deixa|muda|mude|troca|"
                       r"estica|encolhe|alonga|gira|gire|vira|vire|roda|duplica|move|mova|empurra|levanta|abaixa|separa|junta|esconde|mostra|explode|remonta|"
                       r"reseta|centraliza|inclina|faz|fa[cç]a|transforma)\b(?P<resto>.+)$", re.I)
@@ -109,6 +113,10 @@ def cena(texto: str) -> tuple[str, dict] | None:
     if (m := EXPORTA_RX.match(t)):
         f = _n(m.group("fmt") or m.group("fmt2") or "")
         return "exportar", {"formatos": ["glb"] if f in ("glb", "gltf") else [f] if f in ("stl", "obj") else ["stl", "obj", "glb"]}
+    if CAIXA_RX.match(t):
+        return "caixa", {}
+    if MENSAGENS_RX.match(t):
+        return "mensagens", {}
     if (m := OLHAR_RX.match(t)):
         return "olhar", {"ligar": not _n(m.group("acao")).startswith("des")}
     if (m := MAOS_RX.match(t)):

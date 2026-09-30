@@ -242,7 +242,8 @@ class Jaime:
                          "relacoes": build_relacoes_server(self.relacoes),
                          "curiosidade": build_curiosidade(self.curiosidade),
                          "agente": build_agente_server(self.carteira, self.harness),
-                         **self._servidor_espacial(), **self._servidor_blocos(), **self._servidor_hermes()},
+                         "apps": self._servidor_apps(),
+                         **self._servidor_espacial(), **self._servidor_blocos(), **self._servidor_hermes(), **self._servidor_canva()},
             hooks=self.vigia.hooks(),
             # Acesso total à máquina: nenhuma ferramenta pede permissão. O irreversível continua
             # passando pelo Vigia (hook PreToolUse), que exige o "confirmo" do João.
@@ -260,6 +261,17 @@ class Jaime:
             return {}
         from ..blocos.tools import build_blocos_server
         return {"blocos": build_blocos_server(g, self.blocos_modelos, self.blocos_fontes)}
+
+    def _servidor_apps(self):
+        from ..maos.tools_apps import build_apps_server
+        return build_apps_server(self.vigia, self)
+
+    def _servidor_canva(self) -> dict:
+        """Canva oficial (MCP remoto, login OAuth da Canva uma vez) só com JAIME_CANVA=on — docs/APPS.md."""
+        import os
+        if (os.environ.get("JAIME_CANVA", "off") or "off").lower() not in ("on", "1", "true"):
+            return {}
+        return {"canva": {"type": "http", "url": os.environ.get("JAIME_CANVA_URL", "https://mcp.canva.com/mcp")}}
 
     def _servidor_hermes(self) -> dict:
         """MCP `hermes` só existe com JAIME_HERMES=on e HERMES_API_KEY configurada (docs/HERMES.md)."""

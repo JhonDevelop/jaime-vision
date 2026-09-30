@@ -318,6 +318,7 @@
         if (e.tipo === 'caiu' || e.tipo === 'voltou') mostrarPrincipal({ tipo: 'status', rotulo: 'SENTINELA · ALERTA', titulo: e.texto, alerta: e.tipo === 'caiu' });
         break;
       case 'orbe': Orbe.estilo(e.estilo); break;
+      case 'cartao': if (e.card) mostrarPrincipal(e.card); break;
       case 'sentidos':
         if (!window.Sentidos) break;
         if (e.maos === false || e.olhar === false) Sentidos.desligar({ ...(e.maos === false ? { tela: false } : {}), ...(e.olhar === false ? { olhar: false } : {}) });

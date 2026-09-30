@@ -179,3 +179,43 @@ def test_rotas_do_estudio(tmp_path, monkeypatch):
     assert c.post("/jarvis/holograma/fechado").json() == {"ok": True} and not j.estudio.aberto
     assert c.post("/jarvis/holograma/cena", json={}, headers={"Origin": "https://mal.com"}).status_code == 403
     assert c.get("/hud/jarvis/sentidos.js").status_code == 200
+
+
+def test_caixa_e_mensagens(tmp_path, monkeypatch):
+    j, ev = _jarvis(tmp_path, monkeypatch)
+
+    class _Br(_B):
+        async def _uma(self, nome):
+            return nome, [{"de": "Stripe <a@b.com>", "assunto": "Atualize seus dados", "resumo": ""}]
+        async def seg_emails(self, lista):
+            from jaime.jarvis.briefing import Segmento
+            return Segmento("emails", "Há 1 e-mail na caixa.", {"tipo": "emails", "rotulo": "X", "total": 1, "agir": 1, "itens": []})
+    j.briefing = _Br()
+    falas = asyncio.run(_todas(j.gerador("abre minha caixa de entrada")))
+    assert falas == ["Abrindo a caixa de entrada.", "Há 1 e-mail na caixa."] and ev[-1][0] == "cartao" and "GMAIL" in ev[-1][1]["card"]["rotulo"]
+    assert "Nenhuma mensagem" in asyncio.run(_todas(j.gerador("mostra as mensagens do whatsapp")))[0]
+    j.mensagens = lambda: [{"app": "WhatsApp", "de": "Ana", "texto": "chego às 8", "hora": "10:00"}, {"app": "WhatsApp", "de": "Gabriel", "texto": "contrato ok", "hora": "10:05"}]
+    f = asyncio.run(_todas(j.gerador("quem me mandou mensagem?")))[0]
+    assert f.startswith("2 mensagens de Gabriel e Ana") and "contrato ok" in f
+    j.convidado = lambda: "Gabriel"                                   # visita na linha: nada privado em voz alta
+    assert "só nós" in asyncio.run(_todas(j.gerador("abre minha caixa de entrada")))[0]
+
+
+def test_apps_premiere_e_abrir(tmp_path):
+    import xml.etree.ElementTree as ET
+    from jaime.maos import apps
+    v = tmp_path / "bruto.mp4"; v.write_bytes(b"x")
+    xml = apps.premiere_xml("Corte Oldsen", [{"caminho": str(v), "inicio": 1, "fim": 3}, {"caminho": str(v), "inicio": 10, "fim": 12.5}], 30, pasta=tmp_path)
+    raiz = ET.parse(xml).getroot()
+    itens = raiz.findall(".//video/track/clipitem")
+    assert [(i.find("start").text, i.find("end").text, i.find("in").text, i.find("out").text) for i in itens] == [("0", "60", "30", "90"), ("60", "135", "300", "375")]
+    assert raiz.find(".//sequence/duration").text == "135" and len(raiz.findall(".//file/pathurl")) == 1
+    with pytest.raises(ValueError):
+        apps.premiere_xml("x", [{"caminho": str(v), "inicio": 5, "fim": 2}], pasta=tmp_path)
+    cmds = []
+    r = apps.abrir("ps", str(v), rodar=cmds.append, sistema="Darwin", localizar_fn=lambda n, s: "/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app")
+    assert r["ok"] and cmds[-1] == ["open", "-a", "/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app", str(v)]
+    r = apps.abrir("canva", rodar=cmds.append, sistema="Darwin", localizar_fn=lambda n, s: None)
+    assert r == {"ok": True, "app": "canva", "como": "web"} and cmds[-1] == ["open", "https://www.canva.com/"]
+    assert not apps.abrir("premiere", rodar=cmds.append, sistema="Darwin", localizar_fn=lambda n, s: None)["ok"]
+    assert apps.PERIGOSO_JSX.search("app.activeDocument.saveAs(f)") and not apps.PERIGOSO_JSX.search("app.documents.add(800, 600)")

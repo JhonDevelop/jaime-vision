@@ -23,7 +23,7 @@ def ligado(env=None) -> bool:
 
 class Jarvis:
     def __init__(self, briefing: Briefing, monitor: Monitor, rostos: Rostos, emitir=None, env=None,
-                 modelo_holo=None, sentinela=None, capacidades=None, garantir_tela=None, relacoes=None, espera_rosto: float = 10.0):
+                 modelo_holo=None, sentinela=None, capacidades=None, garantir_tela=None, relacoes=None, espera_rosto: float = 10.0, mensagens=None, convidado=None):
         self.briefing, self.monitor, self.rostos = briefing, monitor, rostos
         self.modelo_holo, self.sentinela, self.capacidades = modelo_holo, sentinela, capacidades
         self.garantir_tela = garantir_tela or (lambda: None)
@@ -34,6 +34,8 @@ class Jarvis:
         self.relacoes = relacoes                # grafo de relações (memórias de cada pessoa) — pode ser None
         self.presente: dict | None = None       # quem a câmera reconheceu por último {pessoa, nome, relacao, dono, quando}
         self.espera_rosto = espera_rosto
+        self.mensagens = mensagens              # () -> [{"app", "de", "texto", "hora"}] (notificações do WhatsApp e cia.)
+        self.convidado = convidado or (lambda: "")  # quem está na linha, se não for o João (voz reconhecida / remoto)
         self._espera_quem: asyncio.Future | None = None
         self.estudio = Estudio(self.emitir)
         self.abrir_blender = None               # injetável (teste); padrão: malha3d.abrir_no_blender
@@ -65,6 +67,14 @@ class Jarvis:
         if nome == "fecha_holograma":
             self.emitir("holograma", acao="fechar"); self.estudio.fechar()
             return self._uma("Holograma fechado.")
+        if nome in ("caixa", "mensagens") and self._visita():
+            return self._uma("Tem mais alguém aqui; e-mail e mensagens do senhor eu mostro quando estivermos só nós.")
+        if nome == "caixa":
+            self.garantir_tela()
+            return self._falas(self._caixa())
+        if nome == "mensagens":
+            self.garantir_tela()
+            return self._falas(self._mensagens())
         if nome == "desenho":
             self.garantir_tela()
             self.estudio.abrir("desenho")
@@ -231,6 +241,41 @@ class Jarvis:
                "sem_cadastro": "Ainda não aprendi nenhum rosto.",
                "sem_camera": "Não consegui abrir a câmera."}.get(st, "Não vi ninguém na câmera.")
 
+    def _visita(self) -> bool:
+        try:
+            if self.convidado():
+                return True
+        except Exception:
+            pass
+        p = self.presente_agora(120)
+        return bool(p and not p["dono"])
+
+    async def _caixa(self):
+        _, lista = await self.briefing._uma("emails")
+        if lista is None or (isinstance(lista, dict) and lista.get("erro")):
+            yield "Não consegui abrir o seu e-mail agora. Confira se o Google está conectado."; return
+        yield "Abrindo a caixa de entrada."
+        seg = await self.briefing.seg_emails(lista)
+        self.emitir("cartao", card={**seg.card, "rotulo": "CAIXA DE ENTRADA · GMAIL"})
+        yield seg.fala
+
+    async def _mensagens(self):
+        try:
+            lista = (self.mensagens() if callable(self.mensagens) else []) or []
+        except Exception:
+            lista = []
+        if not lista:
+            yield "Nenhuma mensagem nova desde que liguei. Eu leio o WhatsApp pelas notificações do computador."; return
+        de = []
+        for m in reversed(lista):
+            if m["de"] not in de:
+                de.append(m["de"])
+        itens = [{"de": m["de"].upper()[:28], "acao": m["texto"][:120] or "(mídia)"} for m in list(reversed(lista))[:5]]
+        self.emitir("cartao", card={"tipo": "emails", "rotulo": "MENSAGENS · WHATSAPP", "titulo": "Recebidas", "total": len(lista),
+                                     "agir": len(de), "itens": itens})
+        nomes = de[0] if len(de) == 1 else ", ".join(de[:3][:-1]) + " e " + de[:3][-1]
+        yield f"{len(lista)} mensage{'m' if len(lista) == 1 else 'ns'} de {nomes}. A última: {lista[-1]['texto'][:140] or 'uma mídia'}."
+
     async def _editar(self, pedido: str):
         yield await self.estudio.editar(pedido, self.modelo_holo)
 
@@ -358,6 +403,11 @@ def capacidades_de(jaime) -> str:
     h = getattr(jaime, "hermes", None)
     if h is not None and h.disponivel:
         partes.append("delego trabalho pesado ao Hermes")
+    cer = getattr(jaime, "cerebros", None)
+    if cer is not None:
+        partes.append("penso junto com outros cérebros, o Codex e o Gemini, quando o trabalho pede")
+    if getattr(jaime, "jarvis", None) is not None:
+        partes.append("crio hologramas 3D de qualquer objeto, que o senhor manipula com as mãos, e mando para o Blender ou para a impressora 3D")
     partes += ["escrevo e corrijo código", "gero relatórios estratégicos a partir do seu vault",
                "e melhoro os meus próprios processos com base nos padrões que observo"]
     return ("Hoje eu " + ", ".join(partes[:-1]) + " " + partes[-1] + ". A maioria dos sistemas só responde a comandos, senhor; "
@@ -376,4 +426,13 @@ def montar(jaime, env=None) -> Jarvis | None:
         pass
     return Jarvis(do_jaime(jaime), Monitor(rostos), rostos, env=env, modelo_holo=modelo_holo,
                   sentinela=getattr(jaime, "sentinela", None), capacidades=lambda: capacidades_de(jaime),
-                  garantir_tela=lambda: tela.garantir(env=env), relacoes=lambda: getattr(jaime, "relacoes", None))
+                  garantir_tela=lambda: tela.garantir(env=env), relacoes=lambda: getattr(jaime, "relacoes", None),
+                  mensagens=lambda: mensagens_de(jaime), convidado=lambda: getattr(getattr(jaime, "vigia", None), "convidado", ""))
+
+
+def mensagens_de(jaime, apps=("WhatsApp", "Mensagens", "Telegram")) -> list[dict]:
+    """Últimas mensagens vistas nas notificações do computador (jaime/ops/notificacoes.py)."""
+    import time as _t
+    n = getattr(jaime, "notificacoes", None)
+    return [{"app": x.nome_app, "de": x.remetente, "texto": x.texto, "hora": _t.strftime("%H:%M", _t.localtime(x.quando))}
+            for x in (getattr(n, "vistas", None) or []) if x.nome_app in apps][-20:]
