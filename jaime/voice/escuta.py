@@ -41,7 +41,7 @@ LIXO_WHISPER = re.compile(r"(legendas? pela comunidade|amara\.org|obrigad[oa] po
 PEDIDOS_TECLADO = {"teclado", "abre o teclado", "abrir teclado", "deixa eu escrever", "quero escrever",
                    "vou escrever", "deixa eu digitar", "quero digitar"}
 # o nome (e como o STT costuma escrevê-lo) vem de vault/00-Jaime/Identidade.md — ver jaime/identidade.py
-NOME_RX = re.compile(r"\b(jaime|jayme|jaimi|jaimy|jamie|jaine|jaim|jaimes|jaimin|jardim|gênio|genio|jay me)\b[,.!?…\s]*", re.I)
+NOME_RX = re.compile(r"\b(jaime|jayme|jaimi|jaimy|jamie|jaine|jaim|jaimes|jaimin|jardim|gênio|genio|jay me|jarvis|jarvi|javis|jarviz|djarvis)\b[,.!?…\s]*", re.I)
 
 def usar_nome(variantes: list[str]) -> None:
     """Recompila a detecção do nome (chamado no boot e após renomear)."""

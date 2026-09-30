@@ -61,6 +61,15 @@ async def holograma_glb(slug: str, request: Request):
     return FileResponse(p, media_type="model/gltf-binary")
 
 
+@router.post("/jarvis/tela/viva")
+async def tela_viva(request: Request):
+    """A tela Jarvis avisa que está aberta (a cada 10 s): as cenas não abrem outra por cima."""
+    _so_local(request)
+    from .tela import sinal_de_vida
+    sinal_de_vida()
+    return {"ok": True}
+
+
 @router.get("/jarvis/briefing")
 async def ultimo_briefing(request: Request):
     _so_local(request)

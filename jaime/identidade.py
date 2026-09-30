@@ -21,7 +21,8 @@ FRONT_RX = re.compile(r"^---\n(.*?)\n---\n?", re.S)
 PADRAO = {"nome": "Jaime", "apelidos": [], "wake_word": "jaime", "confirmado": False}
 # como os transcritores costumam escrever cada nome (o STT erra por som, não por letra)
 VARIANTES_CONHECIDAS = {
-    "jaime": ["jayme", "jaimi", "jaimy", "jamie", "jaine", "jaim", "jaimes", "jaimin", "jardim", "gênio", "genio", "jay me"],
+    "jaime": ["jayme", "jaimi", "jaimy", "jamie", "jaine", "jaim", "jaimes", "jaimin", "jardim", "gênio", "genio", "jay me",
+              "jarvis", "jarvi", "javis", "jarviz", "djarvis"],        # o João também chama de Jarvis
 }
 RENOMEAR_RX = re.compile(
     r"^(?:(?:me\s+)?(?:pode\s+)?(?:te\s+)?chama(?:r)?\s+(?:você\s+)?de|te\s+chamo\s+de|quero\s+te\s+chamar\s+de|"

@@ -41,6 +41,9 @@ async def lifespan(app: FastAPI):
     # cenas do Jarvis (docs/TELA-JARVIS.md): briefing do bom dia, ativar monitor, holograma, rosto
     from .jarvis.integracao import montar as montar_jarvis
     from .jarvis.rotas import ESTADO as JARVIS
+    from .jarvis.sentinela import Sentinela
+    jaime.sentinela = Sentinela.do_ambiente(falar=lambda t: ouvido.falar(t) if ouvido else None,
+                                            diario=lambda t: jaime.vault.diario(t, "Log"))
     jaime.jarvis = montar_jarvis(jaime)
     JARVIS.update(jarvis=jaime.jarvis, jaime=jaime, falar=lambda t: ouvido.falar(t) if ouvido else None)
     # presença por Bluetooth (docs/CASA.md): JAIME_BT=on + aparelhos em JAIME_BT_CONHECIDOS; precisa do pacote bleak
@@ -141,6 +144,7 @@ async def lifespan(app: FastAPI):
     if espacial:
         await espacial.iniciar()
     blocos_t = asyncio.create_task(blocos.rodar()) if blocos else None
+    sentinela_t = asyncio.create_task(jaime.sentinela.rodar()) if jaime.sentinela.alvos else None   # sistemas críticos
     presenca_t = None
     if bt_ligado and jaime.presenca and jaime.presenca.conhecidos:
         from .casa.bluetooth import vigiar as vigiar_bt
@@ -152,6 +156,8 @@ async def lifespan(app: FastAPI):
     if blocos and espacial:
         blocos_no_espaco(blocos, espacial)              # blocos viram objetos da cena: apontar, arrastar, jogar fora
     yield
+    if sentinela_t:
+        sentinela_t.cancel()
     if blocos_t:
         blocos_t.cancel()
     if presenca_t:

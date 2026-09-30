@@ -166,14 +166,34 @@ class Briefing:
         except Exception:
             return base
 
-    def seg_noticias(self, lista) -> list[Segmento]:
+    async def _noticias_contadas(self, itens: list[dict]) -> list[str]:
+        """Uma frase falada por notícia, com as palavras do Jaime (como no vídeo); sem modelo, a manchete."""
+        if not self.resumir or not itens:
+            return []
+        texto = "\n".join(f"{i}. TEMA: {d['tema']} | MANCHETE: {d['titulo']} | TRECHO: {d.get('resumo', '')[:240]} | FONTE: {d.get('fonte', '')}"
+                          for i, d in enumerate(itens))
+        prompt = ("Para cada notícia, escreva UMA frase em português do Brasil para ser falada num briefing matinal, "
+                  "no máximo 30 palavras, começando por 'Nas notícias de <tema>,' (ou 'Na política,' para política), "
+                  "contando o fato principal sem opinião. Responda SÓ um JSON: lista de strings, na mesma ordem.")
+        try:
+            r = await asyncio.wait_for(self.resumir(prompt, texto), self.timeout)
+            m = re.search(r"\[.*\]", r or "", re.S)
+            frases = [str(x).strip() for x in json.loads(m.group(0))] if m else []
+            return frases if len(frases) == len(itens) and all(frases) else []
+        except Exception:
+            return []
+
+    async def seg_noticias(self, lista) -> list[Segmento]:
         if not lista or (isinstance(lista, dict) and lista.get("erro")):
             return []
+        itens = [n.dados() if hasattr(n, "dados") else dict(n) for n in lista]
+        contadas = await self._noticias_contadas(itens)
         out = []
-        for i, n in enumerate(lista):
-            d = n.dados() if hasattr(n, "dados") else dict(n)
+        for i, d in enumerate(itens):
             abertura = "Na política" if d["tema"].lower().startswith("pol") else f"Nas notícias {'sobre' if ' ' in d['tema'] else 'de'} {d['tema']}"
             fala = f"{abertura}, {d['titulo'].rstrip('.')}." + (f" A informação é do {d['fonte']}." if d.get("fonte") else "")
+            if contadas:
+                fala = contadas[i].rstrip(".") + "." + (f" A informação é do {d['fonte']}." if d.get("fonte") and d["fonte"] not in contadas[i] else "")
             out.append(Segmento(f"noticia{i}", fala, {"tipo": "noticia", "rotulo": "RADAR · NOTÍCIAS", "titulo": d["tema"],
                                                       "manchete": d["titulo"], "imagem": d.get("imagem", ""), "fonte": d.get("fonte", ""),
                                                       "link": d.get("link", "")}))
@@ -196,7 +216,7 @@ class Briefing:
     async def montar(self, dados: dict, foco: str | None = None) -> list[Segmento]:
         segs: list[Segmento | None] = [self.seg_clima(dados.get("clima")), self.seg_agenda(dados.get("agenda")),
                                        await self.seg_emails(dados.get("emails"))]
-        segs += self.seg_noticias(dados.get("noticias"))
+        segs += await self.seg_noticias(dados.get("noticias"))
         segs += [self.seg_saude(dados.get("saude")), self.seg_foco(foco)]
         return [s for s in segs if s is not None]
 
@@ -276,14 +296,38 @@ def do_jaime(jaime) -> Briefing:
         return await asyncio.to_thread(g.email_buscar, "newer_than:1d in:inbox -category:promotions -category:social", 30) if conectado else None
 
     def desvios():
+        """O que ficou de ontem e pede atenção: sistema fora, aprovação parada, tarefa vencida, falha no diário, microfone."""
+        from datetime import date, timedelta
         out = []
-        ouvido = getattr(jaime, "ouvido", None)
-        if ouvido is not None and getattr(ouvido, "erro", ""):
-            out.append("o microfone está com erro")
+        sent = getattr(jaime, "sentinela", None)
+        if sent is not None:
+            out += sent.desvios()
         h = getattr(jaime, "hermes", None)
         if h is not None and getattr(h, "pendentes", None):
             out.append(f"o Hermes espera sua aprovação em {len(h.pendentes)} comando(s)")
-        return out
+        hoje = date.today()
+        try:
+            inbox = jaime.vault.read("30-Tarefas/Inbox.md") or ""
+            vencidas = [m.group(1).strip() for m in re.finditer(r"^- \[ \] (.+?)\s*⏳\s*(\d{4}-\d\d-\d\d)", inbox, re.M)
+                        if m.group(2) < hoje.isoformat()]
+            if vencidas:
+                n, primeira = len(vencidas), re.sub(r"@\S+", "", vencidas[0]).strip()[:70]
+                out.append(f"{n} tarefa{'s' if n > 1 else ''} vencida{'s' if n > 1 else ''}, a primeira: {primeira}")
+        except Exception:
+            pass
+        try:
+            ontem = jaime.vault.read(f"40-Diario/{(hoje - timedelta(days=1)).isoformat()}.md") or ""
+            falhas = [l for l in ontem.splitlines() if re.search(r"(falhou|falha|erro|travad|caiu|⚠)", l, re.I)
+                      and not re.search(r"fim_turno|resolvid|corrigid|voltou", l, re.I)]
+            if len(falhas) >= 3:
+                ultima = re.sub(r"^- \d\d:\d\d ", "", falhas[-1]).strip()[:80]
+                out.append(f"o diário de ontem registrou {len(falhas)} falhas; a última: {ultima}")
+        except Exception:
+            pass
+        ouvido = getattr(jaime, "ouvido", None)
+        if ouvido is not None and getattr(ouvido, "erro", ""):
+            out.append("o microfone está com erro")
+        return out[:3]
 
     def foco():
         try:

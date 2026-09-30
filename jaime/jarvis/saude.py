@@ -19,7 +19,9 @@ MAPA = {
     "walking_running_distance": "distancia_km", "distance_walking_running": "distancia_km",
     "step_count": "passos", "active_energy": "calorias", "heart_rate": "fc",
     "resting_heart_rate": "fc_repouso", "heart_rate_variability": "vfc", "apple_exercise_time": "exercicio_min",
+    "sleep_analysis": "sono_h",
 }
+BASE_CAMPOS = ("distancia_km", "passos", "fc_repouso", "vfc", "sono_h", "calorias")
 
 
 @dataclass
@@ -35,6 +37,8 @@ class Resumo:
     estresse: float | None = None
     recuperacao: float | None = None
     habitual_km: float | None = None
+    sono_h: float | None = None
+    base: dict = field(default_factory=dict)          # médias dos últimos 14 dias (sem hoje), por campo
     observacoes: list[str] = field(default_factory=list)
 
     def dados(self) -> dict:
@@ -62,7 +66,7 @@ def interpretar(corpo: dict, hoje: date | None = None) -> Resumo:
     if not isinstance(corpo, dict):
         return r
     simples = {k: corpo.get(k) for k in ("distancia_km", "duracao_min", "passos", "calorias", "fc_pico", "fc_repouso",
-                                          "vfc", "estresse", "recuperacao", "habitual_km")}
+                                          "vfc", "estresse", "recuperacao", "habitual_km", "sono_h")}
     for k, v in simples.items():
         if v is not None:
             setattr(r, k, _num(v))
@@ -71,6 +75,12 @@ def interpretar(corpo: dict, hoje: date | None = None) -> Resumo:
         campo = MAPA.get(str(m.get("name", "")).lower())
         pontos = [p for p in (m.get("data") or []) if str(p.get("date", ""))[:10] in ("", hoje.isoformat())] or (m.get("data") or [])
         if not campo or not pontos:
+            continue
+        if campo == "sono_h":
+            p = pontos[-1]
+            h = _num(p.get("asleep") or p.get("totalSleep") or p.get("qty"))
+            if h is not None:
+                r.sono_h = round(h / 60, 1) if h > 24 else h          # alguns exports mandam minutos
             continue
         if campo == "fc":
             picos = [_num(p.get("Max") or p.get("max") or p.get("qty")) for p in pontos]
@@ -104,18 +114,45 @@ def interpretar(corpo: dict, hoje: date | None = None) -> Resumo:
 
 
 def observacoes(r: Resumo) -> list[str]:
-    obs = []
-    if r.distancia_km is not None and r.habitual_km:
-        obs.append(f"distância {'abaixo' if r.distancia_km < r.habitual_km else 'acima'} do habitual ({r.distancia_km} vs {r.habitual_km} km)")
+    """O que vale dizer: comparado com a SUA média dos últimos 14 dias quando ela existe, não com tabela genérica."""
+    b, obs = r.base or {}, []
+    hab = r.habitual_km or b.get("distancia_km")
+    if r.distancia_km is not None and hab:
+        obs.append(f"distância {'abaixo' if r.distancia_km < hab else 'acima'} do habitual ({r.distancia_km} vs {round(hab, 2)} km)")
+    if r.passos is not None and b.get("passos") and r.passos < 0.6 * b["passos"]:
+        obs.append(f"passos bem abaixo da média ({r.passos:.0f} vs {b['passos']:.0f})")
     if r.fc_pico and r.fc_pico >= 185:
         obs.append(f"pico de {r.fc_pico:.0f} bpm")
+    if r.fc_repouso is not None and b.get("fc_repouso") and r.fc_repouso - b["fc_repouso"] >= 5:
+        obs.append(f"frequência de repouso {r.fc_repouso - b['fc_repouso']:.0f} bpm acima da sua média")
+    if r.vfc is not None and b.get("vfc") and r.vfc < 0.8 * b["vfc"]:
+        obs.append(f"VFC {100 - 100 * r.vfc / b['vfc']:.0f}% abaixo da sua média")
+    elif r.vfc is not None:
+        obs.append(f"VFC {r.vfc:.0f} ms")
+    if r.sono_h is not None and r.sono_h < 6:
+        obs.append(f"dormiu {r.sono_h:.1f} h".replace(".", ","))
     if r.recuperacao is not None and r.recuperacao < 40:
         obs.append(f"recuperação baixa antes da atividade ({r.recuperacao:.0f}%)")
     if r.estresse is not None:
         obs.append(f"estresse em {r.estresse}")
-    if r.vfc is not None:
-        obs.append(f"VFC {r.vfc:.0f} ms")
     return obs
+
+
+def _historico(pasta: Path) -> list[dict]:
+    try:
+        return [json.loads(l) for l in (pasta / "historico.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    except Exception:
+        return []
+
+
+def base_de(historico: list[dict], hoje: str, dias: int = 14) -> dict:
+    anteriores = [h["resumo"] for h in historico if h.get("dia", "") < hoje][-dias:]
+    base = {}
+    for c in BASE_CAMPOS:
+        vals = [a.get(c) for a in anteriores if isinstance(a.get(c), (int, float))]
+        if len(vals) >= 3:
+            base[c] = round(sum(vals) / len(vals), 2)
+    return base
 
 
 def salvar(corpo: dict, pasta: Path | None = None) -> Resumo:
@@ -126,10 +163,16 @@ def salvar(corpo: dict, pasta: Path | None = None) -> Resumo:
     except OSError:
         pass
     r = interpretar(corpo)
+    hist = _historico(pasta)
+    r.base = base_de(hist, r.dia)
     anterior = carregar(pasta)
-    if r.habitual_km is None and anterior and anterior.distancia_km is not None:
-        r.habitual_km = anterior.habitual_km or anterior.distancia_km
-        r.observacoes = observacoes(r)
+    if r.habitual_km is None:
+        r.habitual_km = r.base.get("distancia_km") or (anterior.distancia_km if anterior and anterior.distancia_km is not None else None)
+    r.observacoes = observacoes(r)
+    hist = [h for h in hist if h.get("dia") != r.dia] + [{"dia": r.dia, "resumo": {c: getattr(r, c) for c in BASE_CAMPOS}}]
+    arq_h = pasta / "historico.jsonl"
+    arq_h.write_text("\n".join(json.dumps(h, ensure_ascii=False) for h in hist[-120:]) + "\n", encoding="utf-8")
+    os.chmod(arq_h, 0o600)
     alvo = pasta / "ultimo.json"
     alvo.write_text(json.dumps({"recebido": time.time(), "resumo": r.dados()}, ensure_ascii=False), encoding="utf-8")
     os.chmod(alvo, 0o600)

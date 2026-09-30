@@ -94,11 +94,24 @@
       peca(new THREE.SphereGeometry(.4, 10, 8), [3.6, .8, 0], [2.4, 1, 0]);
     },
   };
+  function montarGerado(lista) {
+    const seg = v => Math.max(1, Math.min(8, Math.round(v * 3)));
+    for (const p of lista) {
+      const [a, b, c] = p.tam.map(Number);
+      const geo = p.forma === 'caixa' ? new THREE.BoxGeometry(a, b, c, seg(a), seg(b), seg(c))
+        : p.forma === 'cilindro' ? new THREE.CylinderGeometry(a, a, b, 18, 2)
+        : p.forma === 'esfera' ? new THREE.SphereGeometry(a, 16, 12)
+        : p.forma === 'toro' ? new THREE.TorusGeometry(a, Math.max(.02, b), 8, 32)
+        : new THREE.ConeGeometry(a, b, 16, 2);
+      peca(geo, p.pos.map(Number), p.explode.map(Number), { rot: p.rot.map(Number) });
+    }
+  }
   function montar(d) {
     if (raiz) cena.remove(raiz);
     raiz = new THREE.Group(); pecas = []; cena.add(raiz);
     if (d.modelo === 'glb' && d.arquivo) return carregarGLB(d.arquivo);
-    (MODELOS[d.modelo] || MODELOS.atomo)();
+    if (d.modelo === 'gerado' && Array.isArray(d.pecas)) montarGerado(d.pecas);     // qualquer objeto: peças descritas pelo modelo
+    else (MODELOS[d.modelo] || MODELOS.atomo)();
     const c = new THREE.Box3().setFromObject(raiz).getCenter(new THREE.Vector3()); raiz.position.sub(c);
   }
   async function carregarGLB(slug) {

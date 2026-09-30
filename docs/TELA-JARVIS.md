@@ -11,6 +11,11 @@ Sem o Jaime inteiro: `python -m jaime jarvis demo` → `http://127.0.0.1:8792/hu
 | "cria um holograma do/da X" · "fecha o holograma" | Holograma 3D verde, controlado com a mão | o do carro |
 | "modo partículas" · "modo fios" | Estilo do orbe | o da esfera de partículas |
 | "aprende meu rosto" · "esquece meu rosto" | Cadastro do rosto (cortesia) | — |
+| "qual sua capacidade máxima?" · "o que você consegue fazer?" | Inventário REAL do que está ligado agora (sentinela, filhos, Google, casa, Hermes) | o da esfera |
+| "como estão os sistemas?" | Sentinela: sites, servidores e APIs vigiados, com latência e disponibilidade | o da esfera |
+
+Ele também atende por **"Jarvis"** (além de "Jaime"). As cenas que precisam da tela acordam o monitor e abrem a
+página sozinhas se ela não estiver aberta (`JAIME_JARVIS_ABRIR_TELA=off` desliga).
 
 Todas passam sem modelo (frase inteira reconhecida → falas + eventos), só com o cérebro destrancado.
 `JAIME_JARVIS=off` desliga; `JAIME_BRIEFING_BOM_DIA=off` faz o "bom dia" voltar a ser só cumprimento.
@@ -26,6 +31,20 @@ Todas passam sem modelo (frase inteira reconhecida → falas + eventos), só com
 4. **Sincronia**: cada segmento traz a FRASE e o CARD; a tela mostra o card quando o TTS começa a dizer aquela frase
    (evento `voz` com o texto). Sem voz (canal de texto), mostra pelo tempo estimado da fala. O card anterior encolhe
    e encaixa na fileira embaixo do orbe; no fim, todos ficam enfileirados.
+
+## Inteligência, não só aparência
+- **Desvios de verdade** no começo do briefing: sistema que caiu de madrugada (sentinela), tarefa vencida no Inbox,
+  falhas repetidas no diário de ontem, aprovação do Hermes parada, microfone com erro.
+- **Notícias contadas com as palavras dele** (uma frase por notícia, modelo rápido), não a manchete crua.
+- **E-mails**: o modelo separa o que pede AÇÃO e diz o quê e até quando.
+- **Saúde contra a SUA média**: histórico diário em `~/Jaime/saude/historico.jsonl`; as observações comparam com os
+  últimos 14 dias (distância, passos, FC de repouso, VFC, sono), não com tabela genérica.
+- **Holograma de qualquer objeto**: fora do catálogo, o modelo descreve as peças (formas, posições, proporções,
+  direção de explosão); a tela monta; fica guardado em `~/Jaime/hologramas/<nome>.json` (a 2ª vez é instantânea).
+  O texto do modelo passa por validação (só 5 formas, limites de tamanho) e nunca vira código na página.
+- **Sentinela** (`jaime/jarvis/sentinela.py`): `JAIME_SENTINELA="BUB|https://bubapp.com.br;API|https://…/health"`,
+  checagem a cada `JAIME_SENTINELA_S` (60 s). Caiu (2 falhas seguidas) → fala, diário e card; voltou → quanto tempo
+  ficou fora; lento → observação. Só olha, nunca mexe no servidor.
 
 ## Monitor (jaime/jarvis/monitor.py, rosto.py, saude.py)
 - A tela abre a câmera dentro do orbe e extrai o descritor do rosto com face-api **no navegador desta máquina**; o

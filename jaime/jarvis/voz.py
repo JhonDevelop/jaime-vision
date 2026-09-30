@@ -6,6 +6,8 @@
 - "fecha o holograma"                                     → fecha
 - "aprende meu rosto" / "esquece meu rosto"               → cadastro do rosto (cortesia, nunca chave)
 - "modo partículas" / "modo fios" / "orbe de partículas"  → estilo do orbe (vídeo da esfera de partículas)
+- "qual sua capacidade máxima?" / "o que você consegue fazer?" → inventário REAL do que está ligado agora
+- "como estão os sistemas?"                               → sentinela (sites, servidores e APIs vigiados)
 """
 from __future__ import annotations
 import re, unicodedata
@@ -17,6 +19,10 @@ HOLO_RX = re.compile(r"^\s*(jarvis|jaime)?[,\s]*(cria|crie|criar|faz|faca|faça|
 FECHA_HOLO_RX = re.compile(r"^\s*(fecha|fechar|some com|tira)\s+(o\s+)?holograma\s*[.!]*\s*$", re.I)
 APRENDE_ROSTO_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(aprende|aprenda|cadastra|cadastre|grava|memoriza)\s+(o\s+)?meu\s+rosto\s*[.!]*\s*$", re.I)
 ESQUECE_ROSTO_RX = re.compile(r"^\s*(jaime|jarvis)?[,\s]*(esquece|esqueça|apaga|apague)\s+(o\s+)?meu\s+rosto\s*[.!]*\s*$", re.I)
+CAPACIDADES_RX = re.compile(r"^\s*(jarvis|jaime)?[,\s]*(me )?(fala|diga|diz|conta)?\s*(pra|para)?\s*(mim)?[,\s]*(qual|quais)\s+(é|e|são|sao)?\s*(a |as )?(sua|suas)\s+"
+                            r"(capacidade|capacidades)( m[aá]xima)?\s*[?.!]*\s*$|^\s*(o que|oque) (voc[eê]|tu) (consegue|sabe|pode) fazer\s*[?.!]*\s*$", re.I)
+SISTEMAS_RX = re.compile(r"^\s*(jarvis|jaime)?[,\s]*(como (est[aã]o|t[aã]o)|status d[oa]s?|situa[cç][aã]o d[oa]s?)\s+(os |as )?"
+                         r"(sistemas|servidores|sites|apis|servi[cç]os)( cr[ií]ticos)?\s*[?.!]*\s*$", re.I)
 ORBE_RX = re.compile(r"^\s*(modo|orbe( de| em)?|esfera( de)?)\s+(?P<estilo>part[ií]culas|fios|energia)\s*[.!]*\s*$", re.I)
 
 
@@ -38,6 +44,10 @@ def cena(texto: str) -> tuple[str, dict] | None:
         return "aprende_rosto", {}
     if ESQUECE_ROSTO_RX.match(t):
         return "esquece_rosto", {}
+    if CAPACIDADES_RX.match(t):
+        return "capacidades", {}
+    if SISTEMAS_RX.match(t):
+        return "sistemas", {}
     if (m := ORBE_RX.match(t)):
         e = _n(m.group("estilo"))
         return "orbe", {"estilo": "particulas" if e.startswith("part") else "fios"}

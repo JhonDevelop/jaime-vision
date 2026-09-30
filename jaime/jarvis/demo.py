@@ -40,6 +40,10 @@ NOTICIAS = [
 
 
 async def _resumir(prompt: str, texto: str) -> str:
+    if "UMA frase" in prompt:            # notícias contadas com as palavras do Jaime
+        return json.dumps(["Nas notícias de tecnologia, uma frase atribuída a Mahatma Gandhi, líder indiano, destaca que a felicidade surge quando o que o senhor pensa, diz e faz está em harmonia",
+                           "Nas notícias sobre novos modelos de inteligência artificial, a OpenAI freou o lançamento de um novo modelo diante de riscos de segurança",
+                           "Na política, a Veja destaca a nova pesquisa Atlas Intel sobre a disputa entre Lula e Flávio Bolsonaro a cinco dias da eleição"], ensure_ascii=False)
     return json.dumps([{"de": "Stripe", "acao": "Atualize os dados comerciais e envie o documento solicitado à Stripe antes de 22/10/2026 para evitar impacto nos pagamentos."},
                        {"de": "Santander", "acao": "A fatura do Santander está próxima do vencimento."},
                        {"de": "PCPT1", "acao": "Há duas convocações para a Assembleia Geral extraordinária de PCPT1."},
@@ -66,6 +70,18 @@ async def falar_simulado(gen, cps: float = 15.0):
     bus.emitir("voz", falando=False, estado="ouvindo")
 
 
+async def _holo_demo(prompt: str, ctx: str) -> str:
+    """Faz o papel do modelo: uma estação espacial de peças (o serviço de verdade pergunta ao Claude/OpenAI)."""
+    pecas = [{"nome": "módulo central", "forma": "cilindro", "pos": [0, 0, 0], "tam": [0.5, 3, 0], "rot": [0, 0, 1.5708], "explode": [0, 0, 0]},
+             {"nome": "anel habitável", "forma": "toro", "pos": [0, 0, 0], "tam": [1.8, 0.18, 0], "rot": [0, 1.5708, 0], "explode": [0, 1.6, 0]}]
+    for i, x in enumerate((-2.2, 2.2)):
+        pecas.append({"nome": f"painel {i}", "forma": "caixa", "pos": [x, 0, 0], "tam": [1.4, 0.05, 2.6], "explode": [x, 0, 0]})
+        pecas.append({"nome": f"doca {i}", "forma": "esfera", "pos": [x * .7, 0, 0], "tam": [0.35, 0, 0], "explode": [x * .6, -1.2, 0]})
+    for i in range(4):
+        pecas.append({"nome": f"antena {i}", "forma": "cone", "pos": [0, 0.6 + i * 0.1, (i - 1.5) * 0.6], "tam": [0.08, 0.7, 0], "explode": [0, 2.2, (i - 1.5)]})
+    return json.dumps({"pecas": pecas}, ensure_ascii=False)
+
+
 def app(porta: int = 8792):
     from fastapi import FastAPI
     from fastapi.responses import StreamingResponse, FileResponse
@@ -74,8 +90,16 @@ def app(porta: int = 8792):
     a = FastAPI(title="Jarvis demo"); a.include_router(router)
     rostos = Rostos(Path("/tmp/jarvis-demo-rosto.json"))
     saude = Resumo(distancia_km=.1, duracao_min=63, habitual_km=.5, fc_pico=192, estresse=13.6, recuperacao=34, calorias=412, fc_repouso=58)
-    j = Jarvis(briefing_demo(), Monitor(rostos, carregar=lambda: saude, espera_rosto=12), rostos, env={})
+    from .sentinela import Sentinela, Alvo
+    from .integracao import CAPACIDADES_PADRAO
+    sent = Sentinela([Alvo("HUD local", f"http://127.0.0.1:{porta}/hud/jarvis"), Alvo("API parada (teste)", "http://127.0.0.1:9/")], intervalo=20)
+    j = Jarvis(briefing_demo(), Monitor(rostos, carregar=lambda: saude, espera_rosto=12), rostos, env={"JAIME_JARVIS_ABRIR_TELA": "off"},
+               modelo_holo=_holo_demo, sentinela=sent, capacidades=lambda: CAPACIDADES_PADRAO)
     ESTADO.update(jarvis=j, jaime=None)
+
+    @a.on_event("startup")
+    async def _sentinela():
+        asyncio.create_task(sent.rodar())
 
     @a.get("/hud/stream")
     async def stream():
@@ -101,7 +125,7 @@ def app(porta: int = 8792):
                 "estudo": {"abertos": 1}, "orcamento": {"ativo": False, "total": 0.42, "teto": 0},
                 "vontades": {"niveis": {"utilidade": .3, "curiosidade": .59, "maestria": .2, "criação": 1.0, "ordem": .15, "vínculo": .97}, "escolha": {"atividade": "criar"}},
                 "humor": {"rotulo": "caloroso"}, "vigia": {"lote": [], "armado": False}, "cerebro": {"trancado": False},
-                "ouvido": {"modo": "duplex", "erro": "", "latencia_mediana_ms": 208}, "hermes": "no ar",
+                "ouvido": {"modo": "duplex", "erro": "", "latencia_mediana_ms": 208}, "hermes": "no ar", "sentinela": sent.estado(),
                 "proximos": "1. Revisar proposta da BUB\n2. Gravar vídeo da Oldsen\n3. Treino às 18h"}
 
     async def cena(texto: str):
@@ -121,6 +145,8 @@ def app(porta: int = 8792):
     @a.get("/demo/{qual}")
     async def demo(qual: str, objeto: str = "Tesla Model X"):
         texto = {"briefing": "me dá o briefing", "monitor": "ativar monitor", "holograma": f"cria um holograma do {objeto}",
+                 "estacao": "cria um holograma de uma estação espacial", "capacidades": "qual sua capacidade máxima?",
+                 "sistemas": "como estão os sistemas?",
                  "particulas": "modo partículas", "fios": "modo fios", "fecha": "fecha o holograma"}.get(qual, qual)
         j.briefing.ultimo_dia = ""
         asyncio.create_task(cena(texto))

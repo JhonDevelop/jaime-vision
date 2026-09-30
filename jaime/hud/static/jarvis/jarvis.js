@@ -10,6 +10,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const agora = () => performance.now();
+  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).catch(() => ({}));
 
   /* ───────────── estado da voz ───────────── */
   let falando = false, estadoVoz = 'espera', ultimaVoz = -1e9, ultimaFalaEvento = -1e9;
@@ -186,7 +187,6 @@
     }
     return out;
   }
-  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).catch(() => ({}));
   async function reconhecer() {
     $('rostoBox').classList.add('on'); $('rostoRot').textContent = 'RECONHECIMENTO FACIAL · ANALISANDO'; $('rostoRot').classList.add('on');
     try { await abrirCamera(); } catch (e) { $('rostoRot').textContent = 'CÂMERA INDISPONÍVEL'; return post('/jarvis/rosto/verificar', { status: 'sem_camera' }); }
@@ -236,6 +236,17 @@
     Holograma.abrir(e);
   }
 
+  /* ───────────── sentinela (sistemas críticos) ───────────── */
+  function sentinela(lista, mostrar) {
+    if (!Array.isArray(lista)) return;
+    $('sentN').textContent = lista.length ? `${lista.filter(a => a.ok).length}/${lista.length} NO AR` : '—';
+    $('sentinela').innerHTML = lista.map(a => `<div class="linha"><span>${esc(a.nome)}</span><b style="color:${a.ok === false ? 'var(--vermelho)' : a.ok ? 'var(--verde)' : 'var(--texto-3)'}">${a.ok === false ? 'FORA' : a.ok ? (a.ms ?? '—') + ' ms' : '…'}</b></div>`).join('')
+      || '<div class="linha"><span>nada vigiado</span></div>';
+    if (mostrar) mostrarPrincipal({ tipo: 'status', rotulo: 'SENTINELA · SISTEMAS CRÍTICOS', titulo: lista.some(a => a.ok === false) ? 'Há sistema fora do ar' : 'Tudo no ar',
+      texto: lista.map(a => `${a.nome}: ${a.ok === false ? 'fora' : a.ok ? (a.ms ?? '?') + ' ms · ' + (a.disponibilidade ?? '—') + '%' : 'checando'}`).join(' · '), alerta: lista.some(a => a.ok === false) });
+  }
+  setInterval(() => post('/jarvis/tela/viva', {}), 10000); setTimeout(() => post('/jarvis/tela/viva', {}), 500);   // "estou aberta"
+
   /* ───────────── painéis laterais (dados reais) ───────────── */
   function anel(id, v, txt) {
     const r = 15.5, c = 2 * Math.PI * r;
@@ -260,6 +271,7 @@
       const o = s.ouvido || {}; $('vozEst').textContent = o.erro ? 'ERRO' : (o.modo || '—').toUpperCase();
       if (o.latencia_mediana_ms) $('lat').textContent = o.latencia_mediana_ms + ' ms';
       if (s.hermes) $('hermesEst').textContent = s.hermes;
+      if (s.sentinela) sentinela(s.sentinela, false);
     } catch (e) {}
   }
   sistemas(); setInterval(sistemas, 10000);
@@ -282,7 +294,14 @@
       case 'briefing': briefing(e); break;
       case 'monitor': monitor(e); break;
       case 'rosto': if (e.acao === 'cadastrar') cadastrar(e.amostras); if (e.acao === 'cadastrado') $('rostoRot').textContent = 'ROSTO APRENDIDO'; break;
-      case 'holograma': holograma(e); break;
+      case 'holograma':
+        if (e.acao === 'montando') { mostrarPrincipal({ tipo: 'status', rotulo: 'HOLOGRAMA · GERANDO', titulo: `Montando ${e.titulo || ''}`, texto: 'Descrevendo as peças e as proporções…' }); break; }
+        if (e.acao === 'abrir' && principal && principal._c.rotulo === 'HOLOGRAMA · GERANDO') { principal.remove(); principal = null; }
+        holograma(e); break;
+      case 'sentinela':
+        if (e.estado) sentinela(e.estado, !!e.mostrar);
+        if (e.tipo === 'caiu' || e.tipo === 'voltou') mostrarPrincipal({ tipo: 'status', rotulo: 'SENTINELA · ALERTA', titulo: e.texto, alerta: e.tipo === 'caiu' });
+        break;
       case 'orbe': Orbe.estilo(e.estilo); break;
     }
   }
