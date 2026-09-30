@@ -268,6 +268,11 @@
       texto: lista.map(a => `${a.nome}: ${a.ok === false ? 'fora' : a.ok ? (a.ms ?? '?') + ' ms · ' + (a.disponibilidade ?? '—') + '%' : 'checando'}`).join(' · '), alerta: lista.some(a => a.ok === false) });
   }
   setInterval(() => post('/jarvis/tela/viva', {}), 10000); setTimeout(() => post('/jarvis/tela/viva', {}), 500);   // "estou aberta"
+  let versao = null;                          // deploy novo → a aba se recarrega sozinha (sem holograma aberto no meio)
+  setInterval(() => fetch('/jarvis/versao').then(r => r.json()).then(v => {
+    if (versao && v.versao !== versao && !(window.Holograma && Holograma.aberto())) location.reload();
+    versao = versao || v.versao;
+  }).catch(() => {}), 20000);
 
   /* ───────────── painéis laterais (dados reais) ───────────── */
   function anel(id, v, txt) {

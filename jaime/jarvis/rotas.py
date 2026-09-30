@@ -30,6 +30,23 @@ def _jarvis():
     return j
 
 
+def _versao() -> str:
+    """Muda quando os arquivos da tela mudam (deploy): a aba aberta se recarrega sozinha."""
+    import hashlib
+    h = hashlib.sha1()
+    for p in sorted([ESTATICO / "jarvis.html", *(ESTATICO / "jarvis").glob("*")]):
+        try:
+            h.update(p.name.encode()); h.update(str(p.stat().st_mtime_ns).encode())
+        except OSError:
+            pass
+    return h.hexdigest()[:12]
+
+
+@router.get("/jarvis/versao")
+async def versao():
+    return {"versao": _versao()}
+
+
 @router.get("/hud/jarvis")
 async def tela_jarvis():
     return FileResponse(ESTATICO / "jarvis.html", headers=SEM_CACHE)
